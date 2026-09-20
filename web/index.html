@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IntelPulse — Threat Intelligence &amp; Triage Workbench</title>
+<meta name="description" content="IntelPulse correlates SOC alerts against AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus and offline datasets in one pass, then writes the ticket.">
+<meta name="color-scheme" content="dark">
+<meta property="og:title" content="IntelPulse — Threat Intelligence &amp; Triage Workbench">
+<meta property="og:description" content="Paste an alert. Get one correlated verdict, an investigation graph and a ready-to-paste SOC ticket.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234cc9f0'/><text y='70' x='50' text-anchor='middle' font-size='58' font-family='monospace' font-weight='bold' fill='%23050810'>IP</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">IP</span>
+      <span>IntelPulse<small>threat intel &amp; triage workbench</small></span>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="mode-switch" id="mode-switch" role="group" aria-label="Data source">
+      <button data-mode="demo" aria-pressed="true">Demo data</button>
+      <button data-mode="live" aria-pressed="false">Live API</button>
+    </div>
+    <span class="pill demo" id="conn-pill"><span class="dot"></span> demo mode</span>
+  </header>
+
+  <div class="banner" id="demo-banner">
+    <span aria-hidden="true">⚠️</span>
+    <span><b>Demo mode — synthetic data.</b> Indicators are scored in your browser against a bundled
+    sample dataset using the same weights, authority floor and verdict bands as the API. The addresses
+    are RFC 5737 documentation ranges and the domains are RFC 2606 reserved names, so nothing here
+    describes a real host. Switch to <b>Live API</b> and point it at a running backend
+    (<code>docker compose up</code>) for real AbuseIPDB / OTX / GreyNoise / abuse.ch lookups.</span>
+  </div>
+
+  <div class="grid">
+    <!-- ---------------------------------------------------- input column -->
+    <div>
+      <section class="card">
+        <div class="card-head"><h2>Ingest</h2><span class="mono" style="font-size:11px;color:var(--ink-3)">⌘/Ctrl + ⏎</span></div>
+        <div class="card-body">
+          <label class="field" for="title">Case title</label>
+          <input type="text" id="title" placeholder="e.g. IR-2026-114 — perimeter block burst" value="Ad-hoc triage">
+
+          <label class="field" for="input" style="margin-top:14px">Indicators, syslog, or JSON alert</label>
+          <textarea id="input" spellcheck="false" placeholder="Paste anything an alert gives you:
+  185.220.101.34
+  hxxp://bad-domain[.]top/payload.bin
+  Sep 18 02:14:11 fw-edge-01 kernel: [UFW BLOCK] SRC=... DST=...
+  {&quot;alert_id&quot;: &quot;EDR-...&quot;, &quot;sha256&quot;: &quot;...&quot;}"></textarea>
+
+          <div class="samples" id="samples"></div>
+
+          <div class="dropzone" id="dropzone">
+            Drop a <b>.log / .txt / .csv / .json</b> export here, or click to browse (max 5 MB)
+            <input type="file" id="file" accept=".log,.txt,.csv,.json,.evtx.json,text/*" hidden>
+          </div>
+
+          <div class="btn-row">
+            <button class="btn primary" id="run">▶ Run triage</button>
+            <button class="btn" id="parse">Parse only</button>
+            <button class="btn ghost" id="clear">Clear</button>
+          </div>
+          <div id="preview" style="margin-top:12px"></div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:20px">
+        <div class="card-head"><h2>Sources</h2></div>
+        <div class="card-body">
+          <div id="api-config" hidden style="margin-bottom:14px">
+            <label class="field" for="api-base">Backend base URL</label>
+            <div style="display:flex;gap:8px">
+              <input type="url" id="api-base" placeholder="http://localhost:8000">
+              <button class="btn small" id="api-save">Connect</button>
+            </div>
+          </div>
+          <div id="providers"></div>
+        </div>
+      </section>
+
+      <section class="card" style="margin-top:20px">
+        <div class="card-head"><h2>How the score is built</h2></div>
+        <div class="card-body" style="font-size:13px;color:var(--ink-2)">
+          <p style="margin:0 0 10px">Every source is normalised to a 0–1 signal, then:</p>
+          <pre class="report" style="font-size:11.5px;padding:12px">score = 100 × max(
+    Σ(weight × signal) / Σ(weight),   ← weighted mean of the sources
+                                         that actually answered
+    max(signal × authority)           ← authority floor: one confirmed
+)                                        C2 listing still reads critical</pre>
+          <p style="margin:10px 0 0">Then the modifiers an analyst would apply by hand: GreyNoise
+          <b>benign</b> (Shodan, Censys, academic scanners) damps the score ×0.45, an allowlist entry
+          forces 0, a blocklist entry forces ≥ 90. <b>Confidence</b> is reported separately — 85/100
+          from one source is not 85/100 from five.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- --------------------------------------------------- result column -->
+    <div>
+      <section class="card" id="results" hidden>
+        <div class="card-head">
+          <h2>Investigation</h2>
+          <div class="tabs" role="tablist">
+            <button data-tab="triage" id="tab-triage" role="tab" aria-selected="true">Indicators</button>
+            <button data-tab="graph" id="tab-graph" role="tab" aria-selected="false">Graph</button>
+            <button data-tab="report" id="tab-report" role="tab" aria-selected="false">SOC ticket</button>
+            <button data-tab="history" id="tab-history" role="tab" aria-selected="false">History</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="stat-row" id="stats"></div>
+          <p id="summary" style="margin:16px 0 18px;color:var(--ink-2);font-size:14px"></p>
+
+          <div class="tab-panel" id="panel-triage"></div>
+
+          <div class="tab-panel" id="panel-graph" hidden>
+            <div id="graph"></div>
+            <div id="graph-note" class="mono" style="font-size:11px;color:var(--ink-3);margin-top:8px"></div>
+            <div class="graph-legend">
+              <span><i style="background:#ff4d4d"></i> critical</span>
+              <span><i style="background:#ff8c42"></i> high</span>
+              <span><i style="background:#ffd166"></i> medium / linked entity</span>
+              <span><i style="background:#4cc9f0"></i> low</span>
+              <span><i style="background:#7d8597"></i> informational</span>
+              <span>★ / ▲ malware family · ▭ ASN, country, campaign · ⬡ hash · ◇ URL</span>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="panel-report" hidden>
+            <div class="btn-row" style="margin:0 0 12px">
+              <button class="btn small" id="copy-report">Copy Markdown</button>
+              <button class="btn small ghost" id="download-md">Download .md</button>
+              <button class="btn small ghost" id="download-json">Download .json</button>
+            </div>
+            <pre class="report" id="report"></pre>
+          </div>
+
+          <div class="tab-panel" id="panel-history" hidden></div>
+        </div>
+      </section>
+
+      <section class="card" id="intro">
+        <div class="card-head"><h2>Why this exists</h2></div>
+        <div class="card-body" style="color:var(--ink-2);font-size:14px">
+          <p style="margin:0 0 12px">A single SIEM alert sends an analyst to six tabs: AbuseIPDB for the
+          reputation, OTX for the campaign, GreyNoise to ask whether it is just Shodan again, ThreatFox
+          and URLhaus for the payload, WHOIS/GeoIP for the hosting. Six tabs × forty alerts a shift is
+          where triage time goes — and where indicators get missed.</p>
+          <p style="margin:0 0 12px">IntelPulse does that pass in one request: it parses indicators out
+          of whatever you paste, queries every applicable source <b>concurrently</b>, scores them into a
+          single auditable verdict, draws the relationships between them, and writes the ticket —
+          executive summary, evidence, MITRE ATT&amp;CK mapping and containment actions included.</p>
+          <p style="margin:0"><b>Try it now:</b> pick one of the sample scenarios on the left and press
+          <b>Run triage</b>.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="foot">
+    <span>IntelPulse · FastAPI · Celery · Redis · PostgreSQL · Cytoscape.js — built by
+      <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener">Vinit Rami</a></span>
+    <span><a href="https://github.com/vinitrami-Soc/vinitrami-Soc.github.io/tree/main/intelpulse" target="_blank" rel="noopener">Source &amp; docs ↗</a></span>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Cytoscape powers the relationship graph only; if the CDN is blocked the
+     dashboard degrades to a notice on that one tab and everything else works. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script src="assets/engine.js"></script>
+<script src="assets/demo-data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

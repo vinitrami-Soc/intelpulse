@@ -1,0 +1,14 @@
+# Sample offline feed rows — ILLUSTRATIVE ONLY, not live threat intelligence.
+# Loaded by `python -m app.cli seed` so the local_blocklist provider has hits
+# when a reviewer runs the stack with no internet and no API keys.
+#
+# The addresses are RFC 5737 documentation ranges, so nothing here defames a
+# real host. Extraction normally drops them as non-routable — set
+# ALLOW_DOCUMENTATION_RANGES=true in .env to use this dataset.
+# Replace with a real import (`python -m app.cli feeds --all`) for real triage.
+# value,malware_family
+203.0.113.10,SampleBot C2
+203.0.113.55,SampleBot C2
+198.51.100.42,SampleLoader
+192.0.2.77,SampleStealer
+44d88612fea8a8f36de82e1278abb02f,EICAR test file

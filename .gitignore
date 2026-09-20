@@ -1,0 +1,8 @@
+data/*.db
+data/*.mmdb
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.ruff_cache/

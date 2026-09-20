@@ -1,0 +1,78 @@
+# One command for a reviewer: `docker compose up --build`
+#   API      -> http://localhost:8000/docs
+#   Dashboard-> http://localhost:8080
+# No API keys? It still runs: live providers report themselves as unconfigured
+# and the offline feeds (Feodo, FireHOL, KEV, GeoLite2) do the work.
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: intelpulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-intelpulse}
+      POSTGRES_DB: intelpulse
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intelpulse"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  api:
+    build: ./backend
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://intelpulse:${POSTGRES_PASSWORD:-intelpulse}@db:5432/intelpulse
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports: ["8000:8000"]
+    volumes:
+      - ./backend/data:/srv/data
+
+  worker:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://intelpulse:${POSTGRES_PASSWORD:-intelpulse}@db:5432/intelpulse
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api: {condition: service_started}
+      redis: {condition: service_healthy}
+    volumes:
+      - ./backend/data:/srv/data
+
+  beat:
+    build: ./backend
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info"]
+    env_file: [.env]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://intelpulse:${POSTGRES_PASSWORD:-intelpulse}@db:5432/intelpulse
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis: {condition: service_healthy}
+
+  web:
+    image: nginx:1.27-alpine
+    ports: ["8080:80"]
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
+    depends_on:
+      api: {condition: service_started}
+
+volumes:
+  pg-data:
+  redis-data:
