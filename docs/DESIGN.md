@@ -184,6 +184,35 @@ the ticket to the clipboard and says so, and the graph export opens in a new
 tab. A button that silently does nothing is worse than one that tells you where
 the file went.
 
+## Campaign graph explorer
+
+`web/explorer.html` is a second view of the same investigation, built to a
+reference composition a reviewer sent over: a radial campaign graph on a dark
+teal ground, a first-seen timeline down the left edge, a glass legend, an
+orbital inset, and a stats-plus-ask dock in the corner.
+
+What was taken from the reference is the *composition and treatment* — panel
+language, node materiality, the way labels radiate outward from the hub, the
+timeline rail. What was not taken is anyone's identity: no borrowed wordmark,
+no third-party logos, and the data is IntelPulse's own synthetic dataset
+(RFC 5737 addresses, RFC 2606 names, invented family names), labelled as such
+on screen.
+
+Notes from building it:
+
+* **Labels radiate, they do not stack.** Each cluster's label sits on the side
+  away from the hub with `text-anchor` flipped, then a pass pushes any two
+  labels within 26px apart. Without it, "SampleStealer" and "SampleRAT" printed
+  on top of each other.
+* **Spheres are two circles and a gradient**, not an image: a blurred colour
+  disc for the glow, a thin ring, then a radial gradient with its highlight
+  offset to 34%/28% so the light reads as coming from one place.
+* **Cross-links carry the point.** Hub-to-cluster edges alone make a star;
+  the dashed violet edges between clusters are what show two families sharing
+  infrastructure, which is the reason to look at a graph at all.
+* **The year filter is cumulative**, and the page opens on the full graph
+  rather than an empty slice — a view that starts empty shows nothing.
+
 ## Why no framework
 
 Three static files, no build step, no `node_modules`, no supply chain. A
