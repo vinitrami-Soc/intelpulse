@@ -1,4 +1,4 @@
-.PHONY: help install dev test test-web test-ui lint audit feeds seed up down logs clean
+.PHONY: help install dev test test-web test-ui lint audit artifact feeds seed up down logs clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -23,6 +23,9 @@ lint: ## ruff check
 
 audit: ## check dependencies against the vulnerability database
 	cd backend && .venv/bin/pip-audit -r requirements.txt
+
+artifact: ## build the shareable demo bundle into dist/artifact
+	node scripts/build-artifact.mjs
 
 feeds: ## import every offline dataset (needs internet)
 	cd backend && .venv/bin/python -m app.cli feeds --all

@@ -171,6 +171,19 @@ meta — and one bug in the guard itself, where a newline-anchored regex swallow
 the rules after a single-line `@keyframes` and reported a violation that did
 not exist.
 
+## The shareable demo build
+
+`make artifact` (`scripts/build-artifact.mjs`) emits `dist/artifact/` — the same
+app with the outer document removed and the meta CSP dropped, for hosts that
+supply their own. The assets ship unchanged, so what a reviewer clicks is this
+repo's code rather than a mock-up of it.
+
+One behaviour differs by necessity: embedded hosts block script-started
+downloads, so when the page detects it is framed, **Download .md / .json** copies
+the ticket to the clipboard and says so, and the graph export opens in a new
+tab. A button that silently does nothing is worse than one that tells you where
+the file went.
+
 ## Why no framework
 
 Three static files, no build step, no `node_modules`, no supply chain. A

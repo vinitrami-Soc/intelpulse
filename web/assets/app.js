@@ -123,7 +123,20 @@
     return !message;
   }
 
+  /* Embedded contexts (an iframe on a sandboxed host, some corporate browsers)
+     silently drop script-started downloads. Rather than a button that appears
+     to do nothing, copy the payload and say so. */
+  const embedded = (() => {
+    try { return window.self !== window.top; } catch (_) { return true; }
+  })();
+
   function download(filename, content, type) {
+    if (embedded) {
+      navigator.clipboard.writeText(content)
+        .then(() => toast("Downloads are blocked in the embedded view — copied to your clipboard instead."))
+        .catch(() => toast("Downloads and clipboard are both blocked here. Open the page in its own tab."));
+      return;
+    }
     const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -576,8 +589,14 @@
       else if (command === "out") state.cy.zoom(state.cy.zoom() / 1.3);
       else if (command === "fit") state.cy.fit(undefined, 30);
       else if (command === "export") {
+        const dataUrl = state.cy.png({ full: true, scale: 2, bg: getComputedStyle(document.body).backgroundColor });
+        if (embedded) {
+          window.open(dataUrl, "_blank", "noopener");
+          toast("Downloads are blocked in the embedded view — the image opened in a new tab.");
+          return;
+        }
         const link = document.createElement("a");
-        link.href = state.cy.png({ full: true, scale: 2, bg: getComputedStyle(document.body).backgroundColor });
+        link.href = dataUrl;
         link.download = "intelpulse-graph.png";
         link.click();
         toast("Graph exported as PNG.");
