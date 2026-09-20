@@ -14,6 +14,11 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 
 ![Indicator triage view](docs/screenshots/triage.png)
 
+<p align="center">
+  <img src="docs/screenshots/command-palette.png" width="49%" alt="Command palette">
+  <img src="docs/screenshots/light-mode.png" width="49%" alt="Light theme">
+</p>
+
 ---
 
 ## What it actually does
@@ -64,11 +69,13 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 **Stack:** Python 3.12 · FastAPI · httpx (async) · SQLAlchemy 2.0 (async) · PostgreSQL/SQLite ·
 Redis · Celery + beat · vanilla JS dashboard · Cytoscape.js · Docker Compose.
 
-**Dashboard:** a collapsible icon rail, deep-slate surfaces with hairline borders instead of drop
-shadows, Inter for the interface and JetBrains Mono reserved for machine data (IOCs, hashes, log
-lines), severity as pill tags with a lit dot, skeleton loaders while six vendors answer at six
-different speeds, and a floating glass toolbar over the graph. No framework, no build step — three
-static files serve identically from GitHub Pages, nginx or `python -m http.server`.
+**Dashboard:** keyboard-first and dense, in the shape analysts already know — a command palette on
+<kbd>⌘K</kbd>, `g i` / `g g` / `g t` / `g h` to move between views, deep-linkable tabs, a collapsible
+rail, and dark/light themes that were each designed against their own surface. The data-viz colours
+are computed, not chosen: the evidence ramp passes the full ordinal gate on both surfaces, and
+severity is encoded three times over (hue + glyph + text) because SOC semantics force red, orange and
+amber to sit next to each other. No framework, no build step — three static files serve identically
+from GitHub Pages, nginx or `python -m http.server`. [Design system →](docs/DESIGN.md)
 
 ---
 
@@ -144,6 +151,7 @@ five" are different instructions to an analyst. Weights are configuration, not c
 
 Worked examples and the full rationale: [docs/SCORING.md](docs/SCORING.md).
 Security controls and their tests: [docs/SECURITY.md](docs/SECURITY.md).
+Design system, colour validation and interaction model: [docs/DESIGN.md](docs/DESIGN.md).
 
 ---
 
@@ -159,6 +167,26 @@ containment checklist (`- [ ] Block the address at the perimeter firewall…`) s
 type and verdict. Indicators are defanged in the report so a ticket comment can never be click-through.
 
 ---
+
+## Using it
+
+| Key | Action |
+| --- | --- |
+| `⌘K` / `Ctrl-K` | Command palette — every action, fuzzy-searched |
+| `⌘↵` | Run triage |
+| `/` | Focus the ingest box |
+| `g i` · `g g` · `g t` · `g h` | Indicators · Graph · SOC ticket · History |
+| `t` | Cycle theme (dark → light → system) |
+| `[` | Collapse the rail |
+| `?` | Shortcut sheet |
+
+Every indicator opens to show **why** it scored what it did: a contribution bar per source (with a
+table view), the rationale each vendor gave in its own words, the modifiers that were applied, and a
+**Scoring math** button that prints the actual arithmetic — weighted mean, authority floor, final
+verdict. Nothing about a score is hidden behind the number.
+
+There are a few easter eggs. They are listed in [docs/DESIGN.md](docs/DESIGN.md), which rather
+defeats the point, so: the Konami code does something, and so does starting a paste with `sudo`.
 
 ## Demo mode vs live mode
 
@@ -178,7 +206,7 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ```bash
 make test        # 63 backend tests: extraction, scoring, API contract, reports, security controls
 make test-web    # 13 browser-engine tests: parity with the backend's rules
-make test-ui     # 13 browser checks: XSS, hostile URLs, slow-backend degradation, UI controls
+make test-ui     # 48 Chromium checks: XSS, hostile URLs, degradation, palette, theming, a11y
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```
@@ -190,7 +218,8 @@ authority floor and verdict bands as the Python one, so demo mode cannot quietly
 real pipeline. The UI suite drives a real Chromium: it pastes `<script>`, `<img onerror>` and
 `javascript:` payloads into the ingest field and asserts nothing executes, feeds the renderer a
 hostile provider response and asserts the link is dropped, and kills the backend mid-request to check
-the page degrades instead of freezing.
+the page degrades instead of freezing. It also drives the command palette, the key sequences, the
+theme cycle and the charts, and asserts zero horizontal overflow at 390 / 768 / 1024 / 1440px.
 
 ---
 

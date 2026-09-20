@@ -1,0 +1,159 @@
+/* IntelPulse design tokens.
+ *
+ * Two selected themes — dark is the default because that is where a SOC lives,
+ * light is a first-class alternative (screenshots, printed handovers, daylight
+ * desks), not an automatic inversion. Every value below was chosen against its
+ * own surface.
+ *
+ * The data-visualisation colours are computed, not eyeballed. The evidence
+ * ramp passes the full ordinal gate on both surfaces (monotone lightness,
+ * >=0.06 step gaps, light end >=2:1 against the surface, single hue):
+ *
+ *   dark  #5346b0 #6d5ed4 #887aee #a79cf7 #c6befc   on #0b1020 — ALL PASS
+ *   light #b3a6ef #9587e6 #7768d6 #584ab8 #3b3190   on #fbfcfe — ALL PASS
+ *
+ * Severity is a different job. SOC semantics force red->orange->amber to sit
+ * next to each other, and no honest stepping gets that pair past the
+ * normal-vision separation floor while "red still means critical". So severity
+ * is never encoded by colour alone: every severity carries a text label, a
+ * distinct glyph, and a lightness rank that survives greyscale. The one chart
+ * with fills — the evidence contribution bar — uses the validated ramp above.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* — surfaces ————————————————————————————————— */
+  --surface-0: #0b1020;   /* page */
+  --surface-1: #101733;   /* cards */
+  --surface-2: #151e3d;   /* raised: inputs, hovers */
+  --surface-3: #1b2649;   /* selected */
+  --line:      #1e2a4d;
+  --line-2:    #2a3866;
+  --overlay:   rgba(4, 7, 18, .72);
+
+  /* — ink ————————————————————————————————————— */
+  --ink:    #eaf0ff;
+  --ink-2:  #a6b4d4;
+  --ink-3:  #6f7fa3;
+
+  /* — brand: the mid step of the evidence ramp, so the accent and the data
+       speak the same language —————————————————————— */
+  --accent:      #887aee;
+  --accent-soft: rgba(136, 122, 238, .14);
+  --accent-line: rgba(136, 122, 238, .38);
+  --accent-ink:  #0a0a16;
+
+  /* — evidence ramp (sequential, magnitude) ——————————— */
+  --ramp-1: #5346b0;
+  --ramp-2: #6d5ed4;
+  --ramp-3: #887aee;
+  --ramp-4: #a79cf7;
+  --ramp-5: #c6befc;
+  --ramp-track: rgba(136, 122, 238, .16);
+
+  /* — severity (reserved; always shipped with a label + glyph) ——— */
+  --sev-critical: #f2607f;
+  --sev-high:     #f08a3c;
+  --sev-medium:   #e6d84f;
+  --sev-low:      #46b0f0;
+  --sev-info:     #8fa0bd;
+  --sev-ok:       #4ade80;
+  --sev-critical-bg: rgba(242, 96, 127, .12);
+  --sev-high-bg:     rgba(240, 138, 60, .12);
+  --sev-medium-bg:   rgba(230, 216, 79, .12);
+  --sev-low-bg:      rgba(70, 176, 240, .12);
+  --sev-info-bg:     rgba(143, 160, 189, .10);
+  --sev-ok-bg:       rgba(74, 222, 128, .12);
+
+  /* — type ————————————————————————————————————— */
+  --sans: "Inter", -apple-system, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* — space (dense dashboard scale) ——————————————————— */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px;
+
+  /* — radii ———————————————————————————————————— */
+  --r-1: 6px; --r-2: 10px; --r-3: 14px; --r-full: 999px;
+
+  /* — elevation: a hairline and an inset highlight, not a blur.
+       The only real shadow belongs to things that actually float. — */
+  --inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+  --float: 0 18px 48px -24px rgba(0, 0, 0, .85), 0 1px 0 rgba(255, 255, 255, .05) inset;
+
+  /* — motion ——————————————————————————————————— */
+  --t-micro: 110ms;
+  --t-base:  180ms;
+  --t-slow:  280ms;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);   /* decisive entrance */
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);     /* exits leave faster */
+
+  --rail-w: 244px;
+  --rail-w-collapsed: 62px;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --surface-0: #fbfcfe;
+  --surface-1: #ffffff;
+  --surface-2: #f3f5fb;
+  --surface-3: #e9edf8;
+  --line:      #dfe4f2;
+  --line-2:    #c7cfe6;
+  --overlay:   rgba(20, 26, 45, .32);
+
+  --ink:   #131a2e;
+  --ink-2: #4a5678;
+  --ink-3: #74809d;
+
+  --accent:      #584ab8;
+  --accent-soft: rgba(88, 74, 184, .10);
+  --accent-line: rgba(88, 74, 184, .32);
+  --accent-ink:  #ffffff;
+
+  --ramp-1: #b3a6ef;
+  --ramp-2: #9587e6;
+  --ramp-3: #7768d6;
+  --ramp-4: #584ab8;
+  --ramp-5: #3b3190;
+  --ramp-track: rgba(88, 74, 184, .12);
+
+  --sev-critical: #c81e45;
+  --sev-high:     #b3400a;
+  --sev-medium:   #7d6a00;
+  --sev-low:      #0b74c4;
+  --sev-info:     #5b6b85;
+  --sev-ok:       #047857;
+  --sev-critical-bg: rgba(200, 30, 69, .08);
+  --sev-high-bg:     rgba(179, 64, 10, .08);
+  --sev-medium-bg:   rgba(125, 106, 0, .09);
+  --sev-low-bg:      rgba(11, 116, 196, .08);
+  --sev-info-bg:     rgba(91, 107, 133, .07);
+  --sev-ok-bg:       rgba(4, 120, 87, .08);
+
+  --inset: inset 0 1px 0 rgba(255, 255, 255, .7);
+  --float: 0 20px 44px -26px rgba(23, 31, 56, .35), 0 0 0 1px rgba(23, 31, 56, .04);
+}
+
+/* The OS preference decides only when the analyst has not. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: light;
+    --surface-0: #fbfcfe; --surface-1: #ffffff; --surface-2: #f3f5fb; --surface-3: #e9edf8;
+    --line: #dfe4f2; --line-2: #c7cfe6; --overlay: rgba(20, 26, 45, .32);
+    --ink: #131a2e; --ink-2: #4a5678; --ink-3: #74809d;
+    --accent: #584ab8; --accent-soft: rgba(88, 74, 184, .10);
+    --accent-line: rgba(88, 74, 184, .32); --accent-ink: #ffffff;
+    --ramp-1: #b3a6ef; --ramp-2: #9587e6; --ramp-3: #7768d6; --ramp-4: #584ab8; --ramp-5: #3b3190;
+    --ramp-track: rgba(88, 74, 184, .12);
+    --sev-critical: #c81e45; --sev-high: #b3400a; --sev-medium: #7d6a00;
+    --sev-low: #0b74c4; --sev-info: #5b6b85; --sev-ok: #047857;
+    --sev-critical-bg: rgba(200, 30, 69, .08); --sev-high-bg: rgba(179, 64, 10, .08);
+    --sev-medium-bg: rgba(125, 106, 0, .09); --sev-low-bg: rgba(11, 116, 196, .08);
+    --sev-info-bg: rgba(91, 107, 133, .07); --sev-ok-bg: rgba(4, 120, 87, .08);
+    --inset: inset 0 1px 0 rgba(255, 255, 255, .7);
+    --float: 0 20px 44px -26px rgba(23, 31, 56, .35), 0 0 0 1px rgba(23, 31, 56, .04);
+  }
+}
