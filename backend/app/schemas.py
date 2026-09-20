@@ -5,9 +5,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+MAX_INPUT_CHARS = 200_000
+
 
 class ExtractRequest(BaseModel):
-    text: str = Field(..., description="Raw paste: IOC list, syslog, JSON alert export")
+    text: str = Field(
+        ...,
+        max_length=MAX_INPUT_CHARS,
+        description="Raw paste: IOC list, syslog, JSON alert export",
+    )
     limit: int | None = Field(default=None, ge=1, le=500)
 
 
@@ -27,10 +33,10 @@ class ExtractResponse(BaseModel):
 class TriageRequest(BaseModel):
     """Accepts either a raw blob (`text`) or an explicit indicator list."""
 
-    text: str | None = None
-    indicators: list[str] | None = None
-    title: str = "Ad-hoc triage"
-    analyst: str | None = None
+    text: str | None = Field(default=None, max_length=MAX_INPUT_CHARS)
+    indicators: list[str] | None = Field(default=None, max_length=500)
+    title: str = Field(default="Ad-hoc triage", max_length=200)
+    analyst: str | None = Field(default=None, max_length=120)
     use_cache: bool = True
     persist: bool = True
     limit: int | None = Field(default=None, ge=1, le=200)

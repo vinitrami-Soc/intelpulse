@@ -19,6 +19,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -125,7 +126,11 @@ class Provider:
         return indicator.type in self.supported_types
 
     def reference_for(self, indicator: Indicator) -> str | None:
-        return self.reference_url.format(ioc=indicator.value) if self.reference_url else None
+        """Vendor deep-link for the analyst. The indicator is encoded because
+        this string is rendered as an href in the dashboard."""
+        if not self.reference_url:
+            return None
+        return self.reference_url.format(ioc=quote(indicator.value, safe=""))
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:
         raise NotImplementedError

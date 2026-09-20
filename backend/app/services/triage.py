@@ -23,6 +23,7 @@ from ..enrichment.base import ProviderResult
 from ..graph import build_graph
 from ..ioc import Indicator
 from ..models import AuditLog, Case, IndicatorResult
+from ..net import build_client
 from ..reporting import containment_actions, executive_summary
 from ..scoring import IndicatorVerdict, case_verdict, score_indicator
 
@@ -141,11 +142,13 @@ async def triage(
     verdicts: list[IndicatorVerdict] = []
 
     limits = httpx.Limits(max_connections=MAX_CONCURRENT_LOOKUPS, max_keepalive_connections=8)
-    async with httpx.AsyncClient(
+    # build_client applies the egress policy — HTTPS only, host allowlist, no
+    # resolution into private or metadata space — to every hop, redirects
+    # included.
+    async with build_client(
         timeout=settings.provider_timeout_seconds,
         limits=limits,
         headers={"User-Agent": USER_AGENT},
-        follow_redirects=True,
     ) as client:
         enrichments = await asyncio.gather(
             *[

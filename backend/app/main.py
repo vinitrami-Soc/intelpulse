@@ -11,12 +11,11 @@ from .cache import cache
 from .config import settings
 from .db import init_db
 from .enrichment import PROVIDERS
+from .logging_config import configure_logging
 from .routers import cases, health, intel, lists, triage
+from .security import BodySizeLimitMiddleware, RateLimitMiddleware, SecurityHeadersMiddleware
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s %(levelname)-8s %(name)s :: %(message)s",
-)
+configure_logging(settings.log_level, json_logs=settings.json_logs)
 logger = logging.getLogger("intelpulse")
 
 DESCRIPTION = """
@@ -42,13 +41,20 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json",
     )
 
+    # Middleware runs bottom-up: headers wrap everything, then the rate limiter
+    # rejects before a body is read, then CORS answers preflight.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
         allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "X-RateLimit-Limit", "X-RateLimit-Remaining", "Retry-After"],
+        max_age=600,
     )
+    app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     app.include_router(health.router, prefix="/api")
     app.include_router(triage.router, prefix="/api")
@@ -66,6 +72,11 @@ def create_app() -> FastAPI:
             settings.app_name,
             ", ".join(configured) or "none (offline sources only)",
         )
+        if "*" in settings.cors_origin_list and settings.environment.lower() in ("production", "prod"):
+            logger.warning(
+                "CORS_ORIGINS is '*' in a production environment — set it to the "
+                "dashboard's origin before exposing this API"
+            )
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:

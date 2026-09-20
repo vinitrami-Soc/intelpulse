@@ -28,6 +28,7 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 | **Investigation graph** | Indicators, malware families, ASNs, countries, campaigns and payload hashes as a Cytoscape.js graph, so "is this one thing or five things?" is answerable at a glance. |
 | **SOC ticket output** | One click produces Markdown or JSON: severity + priority SLA, executive summary, per-indicator evidence with the rationale each source gave, ATT&CK techniques, and a containment checklist written as defender actions. |
 | **Case history & audit** | Every triage is persisted with its full provider payload, so a report can be regenerated later and an auditor can see who ran what and when. |
+| **Hardened by default** | Outbound host allowlist with resolution checks, per-endpoint rate limits, bounded payloads, security headers, JSON logs with credential masking, and a UI that treats every log line as hostile. [Full posture →](docs/SECURITY.md) |
 
 ---
 
@@ -62,6 +63,12 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 
 **Stack:** Python 3.12 · FastAPI · httpx (async) · SQLAlchemy 2.0 (async) · PostgreSQL/SQLite ·
 Redis · Celery + beat · vanilla JS dashboard · Cytoscape.js · Docker Compose.
+
+**Dashboard:** a collapsible icon rail, deep-slate surfaces with hairline borders instead of drop
+shadows, Inter for the interface and JetBrains Mono reserved for machine data (IOCs, hashes, log
+lines), severity as pill tags with a lit dot, skeleton loaders while six vendors answer at six
+different speeds, and a floating glass toolbar over the graph. No framework, no build step — three
+static files serve identically from GitHub Pages, nginx or `python -m http.server`.
 
 ---
 
@@ -136,6 +143,7 @@ five" are different instructions to an analyst. Weights are configuration, not c
 `GET /api/scoring/model` returns them so any verdict can be audited.
 
 Worked examples and the full rationale: [docs/SCORING.md](docs/SCORING.md).
+Security controls and their tests: [docs/SECURITY.md](docs/SECURITY.md).
 
 ---
 
@@ -168,26 +176,47 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 25 backend tests: extraction, scoring, API contract, report generation
+make test        # 63 backend tests: extraction, scoring, API contract, reports, security controls
 make test-web    # 13 browser-engine tests: parity with the backend's rules
+make test-ui     # 13 browser checks: XSS, hostile URLs, slow-backend degradation, UI controls
 make lint        # ruff
+make audit       # pip-audit against the pinned requirements
 ```
 
 Provider classes are stubbed in the API tests, so assertions describe pipeline behaviour rather than
 whatever AbuseIPDB happens to say today. The backend suite needs no network, no API keys and no Redis.
-The browser suite pins the JavaScript engine to the same extraction rules, weights, authority floor and
-verdict bands as the Python one, so demo mode cannot quietly drift away from the real pipeline.
+The browser-engine suite pins the JavaScript implementation to the same extraction rules, weights,
+authority floor and verdict bands as the Python one, so demo mode cannot quietly drift away from the
+real pipeline. The UI suite drives a real Chromium: it pastes `<script>`, `<img onerror>` and
+`javascript:` payloads into the ingest field and asserts nothing executes, feeds the renderer a
+hostile provider response and asserts the link is dropped, and kills the backend mid-request to check
+the page degrades instead of freezing.
 
 ---
 
 ## Security and honesty notes
 
-* Secrets live in `.env` only; nothing is baked into an image or committed.
-* The API container runs as an unprivileged user with a healthcheck.
-* Private, loopback, link-local, CGNAT and documentation address space is filtered **before** any
-  lookup, so internal addresses from a pasted log are never sent to a third party.
-* Unconfigured or failing sources are always reported as `skipped`/`error` — never silently treated as
-  "clean". Report section 5 states the source coverage behind every verdict.
+Full detail, with the test that proves each control, is in [docs/SECURITY.md](docs/SECURITY.md).
+The short version:
+
+* **Egress is allowlisted.** Twelve known intelligence hosts, HTTPS only, resolution checked against
+  private/loopback/link-local/metadata space on every hop including redirects. IntelPulse never
+  fetches an analyst-supplied URL, and the allowlist means it never could.
+* **Internal addresses never leave.** Private, loopback, link-local, CGNAT and documentation space is
+  filtered during extraction, before any provider is called.
+* **Quota and CPU are budgeted.** Per-client rate limits sized per endpoint (triage 30/min, writes
+  60/min, reads 240/min), 1 MiB JSON bodies, 5 MiB uploads, 200 000 characters of text, 100 indicators
+  per request. `X-Forwarded-For` is ignored unless explicitly trusted.
+* **Logs are JSON and masked.** Request id, client, route, status, duration — with configured secrets
+  and anything credential-shaped redacted from messages, arguments and tracebacks.
+* **The UI treats every log line as hostile.** Output encoding everywhere, `http(s)`-only URL
+  validation on links that come from providers, and a CSP that blocks inline script and `eval`.
+* **Dependencies are audited.** `make audit`; the pins moved forward when `pip-audit` found advisories
+  in the originals.
+* **Nothing is overstated.** There is no authentication yet — the design target is a deployment behind
+  the SOC's own boundary, and the roadmap says so. Unconfigured or failing sources are reported as
+  `skipped`/`error`, never as "clean", and every report states its source coverage.
+* Secrets live in `.env` only; the API container runs as an unprivileged user with a healthcheck.
 * Containment guidance is defensive only: block, hunt, isolate, revoke, patch.
 
 ---
@@ -197,7 +226,8 @@ verdict bands as the Python one, so demo mode cannot quietly drift away from the
 - [ ] VirusTotal and Shodan providers (keys already read from config)
 - [ ] STIX 2.1 / MISP export alongside Markdown and JSON
 - [ ] Webhook ingestion so a SIEM can push alerts directly
-- [ ] Per-analyst auth and API keys for multi-user deployments
+- [ ] Per-analyst auth and API keys for multi-user deployments (the one real gap today)
+- [ ] Redis-backed rate limiting for multi-replica deployments (the interface is already one method)
 
 ---
 

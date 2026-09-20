@@ -15,11 +15,11 @@ import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
-import httpx
 from sqlalchemy import delete, select
 
 from ..db import session_scope
 from ..models import CveRecord, FeedEntry, FeedRun
+from ..net import build_client
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ DEFAULT_TIMEOUT = 60.0
 
 
 async def _download(url: str, *, headers: dict | None = None) -> str:
-    async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+    async with build_client(timeout=DEFAULT_TIMEOUT) as client:
         response = await client.get(url, headers=headers or {})
         response.raise_for_status()
         return response.text
@@ -192,7 +192,7 @@ async def refresh_kev() -> int:
     """CISA Known Exploited Vulnerabilities — flags CVEs under active attack."""
     feed = "cisa-kev"
     try:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+        async with build_client(timeout=DEFAULT_TIMEOUT) as client:
             response = await client.get(CISA_KEV)
             response.raise_for_status()
             payload = response.json()
@@ -231,7 +231,7 @@ async def refresh_nvd(days: int = 30, api_key: str | None = None, page_limit: in
     imported = 0
 
     try:
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True) as client:
+        async with build_client(timeout=DEFAULT_TIMEOUT) as client:
             start_index = 0
             for _ in range(page_limit):
                 response = await client.get(

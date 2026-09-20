@@ -48,11 +48,24 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 8.0
     max_iocs_per_request: int = 100
     max_upload_bytes: int = 5 * 1024 * 1024
+    max_request_bytes: int = 1024 * 1024      # JSON bodies; uploads use the limit above
+    max_input_chars: int = 200_000            # one paste; beyond this the answer is a file
     # RFC 5737 / RFC 3849 documentation addresses are non-routable and therefore
     # dropped during extraction. The bundled offline demo dataset uses exactly
     # those ranges (that is what they are for), so the demo path opts back in.
     allow_documentation_ranges: bool = False
     abuseipdb_max_age_days: int = 90
+
+    # --- request-path defences ---------------------------------------------
+    rate_limit_enabled: bool = True
+    rate_limit_window_seconds: int = 60
+    rate_limit_triage: int = 30      # enrichment spends third-party quota
+    rate_limit_write: int = 60
+    rate_limit_read: int = 240
+    # Only enable behind a proxy you control: otherwise any client can forge
+    # X-Forwarded-For and mint a fresh rate-limit identity per request.
+    trust_forwarded_for: bool = False
+    json_logs: bool = True
 
     # --- offline datasets --------------------------------------------------
     geoip_city_db: Path = DEFAULT_DATA_DIR / "GeoLite2-City.mmdb"

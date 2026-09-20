@@ -152,12 +152,34 @@ FireHOL/KEV/NVD daily); the refresh endpoint exists so a single-container demo w
 
 ---
 
+## Rate limits
+
+Every response carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Buckets are per client
+address and sized by what the endpoint costs:
+
+| Bucket | Default | Endpoints |
+| --- | --- | --- |
+| `triage` | 30/min | `/api/triage*`, `/api/intel/feeds*` — these spend vendor quota |
+| `write` | 60/min | other `POST` / `DELETE`, including `/api/extract` |
+| `read` | 240/min | `GET`, so dashboard health polling is never starved by a triage burst |
+
+Exceeding a bucket returns `429` with `Retry-After`. `X-Forwarded-For` is ignored unless
+`TRUST_FORWARDED_FOR=true` — see [SECURITY.md](SECURITY.md).
+
+## Security headers
+
+Every response carries `Content-Security-Policy` (`default-src 'none'` on API routes), `X-Frame-Options:
+DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy`,
+`Permissions-Policy`, and an `X-Request-ID` that also appears in the JSON logs. HSTS is added when
+`ENVIRONMENT=production`.
+
 ## Errors
 
 | Status | Meaning |
 | --- | --- |
-| `422` | No usable indicators in the input, or neither `text` nor `indicators` supplied |
-| `413` | Upload exceeds the 5 MB limit |
+| `422` | No usable indicators, neither `text` nor `indicators` supplied, or input over `MAX_INPUT_CHARS` |
+| `413` | Body over `MAX_REQUEST_BYTES` (1 MiB) or upload over `MAX_UPLOAD_BYTES` (5 MiB) |
+| `429` | Rate limit exceeded — honour `Retry-After` |
 | `404` | Unknown case, list entry, feed or CVE |
 | `409` | List entry already exists |
 

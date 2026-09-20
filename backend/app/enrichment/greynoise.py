@@ -6,6 +6,8 @@ composite score is multiplied down rather than left to look like an incident.
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import httpx
 
 from ..config import settings
@@ -33,7 +35,7 @@ class GreyNoiseProvider(Provider):
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:
         response = await client.get(
-            API_URL.format(ip=indicator.value),
+            API_URL.format(ip=quote(indicator.value, safe='')),
             headers={"key": settings.greynoise_api_key or "", "Accept": "application/json"},
         )
         if response.status_code == 429:

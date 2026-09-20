@@ -40,6 +40,28 @@
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+  /* Escaping makes a URL safe to sit inside an attribute; it does not make the
+     URL safe to follow. `javascript:alert(1)` survives HTML escaping intact,
+     so every href that comes from a provider response, a stored case or a
+     backend an analyst typed the address of is scheme-checked here first. */
+  function safeUrl(value) {
+    const raw = String(value == null ? "" : value).trim();
+    if (!/^https?:\/\//i.test(raw)) return null;
+    try {
+      const parsed = new URL(raw);
+      return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  const linkOrText = (url, label, cls) => {
+    const href = safeUrl(url);
+    return href
+      ? '<a class="' + cls + '" href="' + escapeHtml(href) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(label) + "</a>"
+      : '<span class="' + cls + '">' + escapeHtml(label) + "</span>";
+  };
+
   const scoreColor = (verdict) => ({
     critical: "var(--critical)", high: "var(--high)", medium: "var(--medium)",
     low: "var(--low)", allowlisted: "var(--ok)"
@@ -142,6 +164,7 @@
     const button = $("#run");
     button.disabled = true;
     button.innerHTML = '<span class="spinner"></span> Triaging…';
+    showSkeleton(text);
     try {
       const title = $("#title").value.trim() || "Ad-hoc triage";
       let result;
@@ -163,8 +186,33 @@
       toast("Triage failed: " + error.message);
     } finally {
       button.disabled = false;
-      button.innerHTML = "▶ Run triage";
+      button.innerHTML = "Run triage";
     }
+  }
+
+  /* Six vendors answer at different speeds; a skeleton keeps the layout stable
+     and names what is being fetched, which a spinner cannot. */
+  function showSkeleton(text) {
+    const guess = Math.min(4, Math.max(1, (E.extract(text, { allowDocumentation: true }) || []).length));
+    $("#results").hidden = false;
+    $("#intro").hidden = true;      // the explainer has done its job by now
+    $("#summary").textContent = "";
+    $("#stats").innerHTML = ["Case verdict", "Top score", "Indicators", "Source coverage"]
+      .map((label) =>
+        '<div class="stat"><div class="k">' + label +
+        '</div><div class="v"><span class="sk-line" style="display:block;width:60%;height:16px;margin-top:4px"></span></div></div>')
+      .join("");
+    $("#panel-triage").innerHTML = '<div class="skeleton">' +
+      Array.from({ length: guess }, () =>
+        '<div class="sk-card">' +
+          '<div class="sk-row"><span class="sk-line" style="max-width:34px"></span>' +
+          '<span class="sk-line" style="max-width:210px"></span>' +
+          '<span class="sk-line" style="max-width:70px"></span></div>' +
+          '<div class="sk-line" style="width:88%"></div>' +
+          '<div class="sk-line" style="width:64%"></div>' +
+        "</div>").join("") +
+      '<div class="sk-note"><span class="spinner"></span> Querying every applicable source concurrently…</div></div>';
+    switchTab("triage");
   }
 
   async function runExtract() {
@@ -228,6 +276,7 @@
   // --------------------------------------------------------------- results
   function renderResult(result) {
     $("#results").hidden = false;
+    $("#intro").hidden = true;
     const answered = result.indicators.reduce((sum, i) => sum + (i.providers_answered || 0), 0);
     const queried = result.indicators.reduce((sum, i) => sum + (i.providers_queried || 0), 0);
 
@@ -254,8 +303,8 @@
         '<li><span class="src">modifier</span><span class="why">' + escapeHtml(m) + "</span></li>").join("");
       /* Facts stay attached to the source that reported them — merging them into
          one list is how an analyst ends up citing the wrong vendor in a ticket. */
-      const factLine = ([key, value]) => '<div style="display:flex;gap:8px;margin-top:3px">' +
-        '<span style="color:var(--ink-3);min-width:96px">' + escapeHtml(key) + "</span><span>" +
+      const factLine = ([key, value]) =>
+        '<div class="fact"><span class="fk">' + escapeHtml(key) + '</span><span class="fv">' +
         escapeHtml(Array.isArray(value) ? value.join(", ") : typeof value === "object" ? JSON.stringify(value) : value) +
         "</span></div>";
       const sources = (indicator.sources || []).map((s) => {
@@ -266,8 +315,10 @@
           '<div class="state ' + escapeHtml(s.status) + '">' + escapeHtml(s.status) +
           (s.cached ? " · cached" : "") + (s.latency_ms ? " · " + s.latency_ms + "ms" : "") + "</div>" +
           (s.error ? '<div style="color:var(--ink-3);font-size:11px;margin-top:4px">' + escapeHtml(s.error) + "</div>" : "") +
-          (facts ? '<div style="font:500 11.5px var(--mono);margin-top:6px;color:var(--ink-2)">' + facts + "</div>" : "") +
-          (s.reference ? '<a href="' + escapeHtml(s.reference) + '" target="_blank" rel="noopener" style="font-size:11px;display:inline-block;margin-top:6px">vendor page ↗</a>' : "") +
+          (facts ? '<div class="facts">' + facts + "</div>" : "") +
+          (safeUrl(s.reference)
+            ? '<a href="' + escapeHtml(safeUrl(s.reference)) + '" target="_blank" rel="noopener noreferrer" style="font-size:11px;display:inline-block;margin-top:6px">vendor page ↗</a>'
+            : "") +
           "</div>";
       }).join("");
 
@@ -288,8 +339,8 @@
           ((indicator.malware_families || []).length || (indicator.attack_techniques || []).length || (indicator.tags || []).length
             ? '<div class="chips">' +
               (indicator.malware_families || []).map((f) => '<span class="chip malware">' + escapeHtml(f) + "</span>").join("") +
-              (indicator.attack_techniques || []).map((t) => '<a class="chip attack" href="' + escapeHtml(t.url) +
-                '" target="_blank" rel="noopener">' + escapeHtml(t.id) + " · " + escapeHtml(t.name) + "</a>").join("") +
+              (indicator.attack_techniques || []).map((t) =>
+                linkOrText(t.url, t.id + " · " + t.name, "chip attack")).join("") +
               (indicator.tags || []).map((t) => '<span class="chip">' + escapeHtml(t) + "</span>").join("") +
               "</div>"
             : "") +
@@ -376,7 +427,7 @@
     };
 
     container.innerHTML = '<svg class="svg-graph" viewBox="0 0 ' + width + " " + height +
-      '" role="img" aria-label="Indicator relationship graph">' +
+      '" role="img" aria-label="Indicator relationship graph"><g class="svg-root">' +
       edges.map((edge) =>
         '<g><line class="edge" x1="' + edge.source.x.toFixed(1) + '" y1="' + edge.source.y.toFixed(1) +
         '" x2="' + edge.target.x.toFixed(1) + '" y2="' + edge.target.y.toFixed(1) + '"/>' +
@@ -388,7 +439,8 @@
         node.x.toFixed(1) + "," + node.y.toFixed(1) + ')">' + shapeFor(node) +
         '<text y="' + (node.data.root ? 28 : 22) + '" text-anchor="middle">' +
         escapeHtml(String(node.data.label).slice(0, 26)) + "</text></g>").join("") +
-      "</svg>";
+      "</g></svg>";
+    svgView.scale = 1; svgView.x = 0; svgView.y = 0;
 
     $$("#graph .node").forEach((element) => element.addEventListener("click", () => {
       const id = element.dataset.node;
@@ -457,6 +509,49 @@
     });
   }
 
+  // ---------------------------------------------------------- graph tools
+  const svgView = { scale: 1, x: 0, y: 0 };
+
+  function applySvgView() {
+    const root = $("#graph .svg-root");
+    if (root) {
+      root.setAttribute(
+        "transform",
+        "translate(" + svgView.x + "," + svgView.y + ") scale(" + svgView.scale.toFixed(3) + ")"
+      );
+    }
+  }
+
+  function graphCommand(command) {
+    if (state.cy) {
+      if (command === "in") state.cy.zoom({ level: state.cy.zoom() * 1.3, renderedPosition: { x: 0, y: 0 } });
+      else if (command === "out") state.cy.zoom(state.cy.zoom() / 1.3);
+      else if (command === "fit") state.cy.fit(undefined, 30);
+      else if (command === "export") {
+        const png = state.cy.png({ full: true, scale: 2, bg: "#0b1120" });
+        const link = document.createElement("a");
+        link.href = png;
+        link.download = "intelpulse-graph.png";
+        link.click();
+        toast("Graph exported as PNG.");
+      }
+      return;
+    }
+
+    const svg = $("#graph svg");
+    if (!svg) { toast("Run a triage first."); return; }
+    if (command === "in") svgView.scale = Math.min(4, svgView.scale * 1.25);
+    else if (command === "out") svgView.scale = Math.max(0.35, svgView.scale / 1.25);
+    else if (command === "fit") { svgView.scale = 1; svgView.x = 0; svgView.y = 0; }
+    else if (command === "export") {
+      const markup = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg.outerHTML;
+      download("intelpulse-graph.svg", markup, "image/svg+xml");
+      toast("Graph exported as SVG.");
+      return;
+    }
+    applySvgView();
+  }
+
   // ------------------------------------------------------------------ lists
   async function addToList(value, iocType, listType) {
     if (state.mode === "live") {
@@ -477,6 +572,8 @@
 
   // ------------------------------------------------------------------- tabs
   function switchTab(name) {
+    $$(".rail-btn[data-nav]").forEach((button) =>
+      button.setAttribute("aria-current", button.dataset.nav === name ? "true" : "false"));
     $$(".tabs button").forEach((button) => {
       const selected = button.dataset.tab === name;
       button.setAttribute("aria-selected", selected ? "true" : "false");
@@ -509,9 +606,46 @@
     reader.readAsText(file);
   }
 
+  /* The rail is the primary navigation: result tabs plus the two reference
+     panels. Collapsed by default — screen space belongs to the evidence. */
+  function setRail(open) {
+    $("#app").classList.toggle("rail-open", open);
+    const toggle = $("#rail-toggle");
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.title = open ? "Collapse navigation" : "Expand navigation";
+    $("#rail-toggle-icon").innerHTML = open ? '<path d="M15 6l-6 6 6 6"/>' : '<path d="M9 6l6 6-6 6"/>';
+    $("#rail-toggle").querySelector("span").textContent = open ? "Collapse" : "Expand";
+    store.set("railOpen", open);
+  }
+
+  function navigate(target) {
+    $$(".rail-btn[data-nav]").forEach((button) =>
+      button.setAttribute("aria-current", button.dataset.nav === target ? "true" : "false"));
+
+    if (target === "sources" || target === "scoring") {
+      $("#card-" + target).scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if ($("#results").hidden && state.result === null) {
+      $("#input").focus();
+      toast("Run a triage to populate this view.");
+      return;
+    }
+    switchTab(target);
+    $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   function init() {
     $$("#mode-switch button").forEach((button) =>
       button.addEventListener("click", () => setMode(button.dataset.mode)));
+
+    setRail(Boolean(store.get("railOpen", false)));
+    $("#rail-toggle").addEventListener("click", () =>
+      setRail(!$("#app").classList.contains("rail-open")));
+    $$(".rail-btn[data-nav]").forEach((button) =>
+      button.addEventListener("click", () => navigate(button.dataset.nav)));
+    $$(".graph-tools button").forEach((button) =>
+      button.addEventListener("click", () => graphCommand(button.dataset.graph)));
 
     $("#api-base").value = state.apiBase;
     $("#api-save").addEventListener("click", () => {
@@ -523,11 +657,12 @@
     $("#run").addEventListener("click", runTriage);
     $("#parse").addEventListener("click", runExtract);
     $("#clear").addEventListener("click", () => {
-      $("#input").value = ""; $("#preview").innerHTML = ""; $("#results").hidden = true; state.result = null;
+      $("#input").value = ""; $("#preview").innerHTML = "";
+      $("#results").hidden = true; $("#intro").hidden = false; state.result = null;
     });
 
     $("#samples").innerHTML = DEMO.scenarios.map((scenario) =>
-      '<button data-scenario="' + scenario.id + '">▸ ' + escapeHtml(scenario.label) + "</button>").join("");
+      '<button data-scenario="' + scenario.id + '">' + escapeHtml(scenario.label) + "</button>").join("");
     $("#samples").addEventListener("click", (event) => {
       const button = event.target.closest("button[data-scenario]");
       if (!button) return;
@@ -590,6 +725,17 @@
     setMode(state.mode);
     switchTab("triage");
   }
+
+  /* A small, deliberate debug surface: the browser tests drive `render` with
+     hostile payloads and assert `safeUrl` directly, and an analyst can inspect
+     the last result from the console. It exposes nothing a page script could
+     not already reach. */
+  window.IntelPulse = {
+    render: renderResult,
+    safeUrl: safeUrl,
+    get result() { return state.result; },
+    get mode() { return state.mode; }
+  };
 
   document.addEventListener("DOMContentLoaded", init);
 })();

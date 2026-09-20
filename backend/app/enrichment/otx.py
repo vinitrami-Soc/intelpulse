@@ -8,6 +8,7 @@ as 10, it usually means one popular feed got syndicated.
 from __future__ import annotations
 
 import math
+from urllib.parse import quote
 
 import httpx
 
@@ -30,7 +31,10 @@ class OTXProvider(Provider):
 
     def reference_for(self, indicator: Indicator) -> str | None:
         section = _SECTION.get(indicator.type, "IPv4")
-        return f"https://otx.alienvault.com/indicator/{section.lower()}/{indicator.value}"
+        return (
+            "https://otx.alienvault.com/indicator/"
+            f"{section.lower()}/{quote(indicator.value, safe='')}"
+        )
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:
         section = _SECTION.get(indicator.type, "IPv4")
@@ -38,8 +42,11 @@ class OTXProvider(Provider):
             section = "IPv6"
         headers = {"X-OTX-API-KEY": settings.otx_api_key or ""}
 
+        # The indicator is attacker-influenced text going into a URL path, so it
+        # is percent-encoded with no safe characters: a value containing "/",
+        # "?", "#" or "@" must not be able to reshape the request.
         response = await client.get(
-            f"{BASE_URL}/{section}/{indicator.value}/general", headers=headers
+            f"{BASE_URL}/{section}/{quote(indicator.value, safe='')}/general", headers=headers
         )
         if response.status_code == 404:
             return self._result(
