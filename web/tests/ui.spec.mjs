@@ -348,6 +348,101 @@ await page.waitForTimeout(500);
 check("show-all expands the full list",
   (await page.evaluate(() => document.querySelectorAll(".ioc").length)) > 25);
 
+// ————————————————— 14. component states: error, disabled, touch, contrast
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(400);
+await page.fill("#input", "");
+await page.click("#run");
+await page.waitForTimeout(300);
+const emptyError = await page.evaluate(() => ({
+  invalid: document.querySelector("#input").getAttribute("aria-invalid"),
+  shown: !document.querySelector("#input-error").hidden,
+  message: document.querySelector("#input-error span").textContent,
+  describedBy: document.querySelector("#input").getAttribute("aria-describedby"),
+  focused: document.activeElement.id
+}));
+check("an empty run reports inline, on the field, not in a toast",
+  emptyError.invalid === "true" && emptyError.shown && emptyError.message.length > 10);
+check("the error is announced and the field takes focus",
+  emptyError.describedBy === "input-error" && emptyError.focused === "input");
+
+await page.fill("#input", "8.8.8.8");
+await page.waitForTimeout(200);
+check("typing clears the error state",
+  (await page.evaluate(() => document.querySelector("#input").getAttribute("aria-invalid"))) === null);
+
+await page.fill("#input", "no indicators in this sentence at all");
+await page.click("#run");
+await page.waitForTimeout(700);
+check("an input with nothing routable explains why",
+  await page.evaluate(() => !document.querySelector("#input-error").hidden &&
+    /routable/i.test(document.querySelector("#input-error span").textContent)));
+
+await page.click('button[data-mode="live"]');
+await page.waitForTimeout(250);
+await page.fill("#api-base", "not-a-url");
+await page.click("#api-save");
+await page.waitForTimeout(250);
+check("a malformed backend URL is rejected at the field",
+  await page.evaluate(() => document.querySelector("#api-base").getAttribute("aria-invalid") === "true" &&
+    !document.querySelector("#api-error").hidden));
+await page.fill("#api-base", "http://localhost:8000");
+await page.click('button[data-mode="demo"]');
+
+/* The run button must report busy and then recover. A demo triage finishes in
+   about a millisecond, so this watches the attribute rather than sampling it. */
+const busySeen = await page.evaluate(() => new Promise((resolve) => {
+  const button = document.querySelector("#run");
+  const records = [];
+  // Read the records, not the live attribute: by the time the callback runs the
+  // attribute may already have been removed again.
+  const observer = new MutationObserver((list) =>
+    list.forEach((record) => records.push(record.oldValue)));
+  observer.observe(button, { attributes: true, attributeOldValue: true, attributeFilter: ["aria-busy"] });
+  document.querySelector("#input").value = "203.0.113.10";
+  button.click();
+  setTimeout(() => {
+    observer.disconnect();
+    resolve({ seen: records.length >= 2 && records[0] === null, after: button.getAttribute("aria-busy") });
+  }, 900);
+}));
+check("the run button carries aria-busy while in flight and clears it after",
+  busySeen.seen && busySeen.after === null, JSON.stringify(busySeen));
+
+// touch targets on a coarse pointer
+const touch = await browser.newPage({ viewport: { width: 414, height: 896 }, hasTouch: true, isMobile: true });
+await touch.goto(BASE, { waitUntil: "domcontentloaded" });
+await touch.waitForTimeout(500);
+const small = await touch.evaluate(() =>
+  Array.from(document.querySelectorAll(".icon-btn, .tabs button, .seg button, .rail-btn"))
+    .filter((el) => el.offsetParent !== null)
+    .map((el) => ({ cls: el.className, h: Math.round(el.getBoundingClientRect().height) }))
+    .filter((el) => el.h < 44));
+check("every visible control clears 44px on a touch device", small.length === 0,
+  small.slice(0, 3).map((e) => e.cls + " " + e.h + "px").join(", "));
+await touch.close();
+
+// ———————————————————————— 15. forced colours (Windows High Contrast)
+const hc = await browser.newPage({ viewport: { width: 1280, height: 900 }, forcedColors: "active" });
+await hc.goto(BASE, { waitUntil: "domcontentloaded" });
+await hc.click('button[data-scenario="firewall"]');
+await hc.click("#run");
+await hc.waitForTimeout(900);
+const contrast = await hc.evaluate(() => {
+  const outlined = (el) => {
+    const cs = getComputedStyle(el);
+    return cs.borderTopWidth !== "0px" || cs.outlineWidth !== "0px";
+  };
+  return {
+    bars: Array.from(document.querySelectorAll(".bar-fill")).every(outlined),
+    badges: Array.from(document.querySelectorAll(".badge")).every(outlined),
+    cards: Array.from(document.querySelectorAll(".ioc")).every(outlined)
+  };
+});
+check("meaning survives forced-colors mode (fills keep an outline)",
+  contrast.bars && contrast.badges && contrast.cards, JSON.stringify(contrast));
+await hc.close();
+
 check("no uncaught page errors", errors.length === 0, errors.slice(0, 2).join(" | "));
 
 await browser.close();

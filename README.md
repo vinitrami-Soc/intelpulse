@@ -205,8 +205,8 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 
 ```bash
 make test        # 63 backend tests: extraction, scoring, API contract, reports, security controls
-make test-web    # 13 browser-engine tests: parity with the backend's rules
-make test-ui     # 48 Chromium checks: XSS, hostile URLs, degradation, palette, theming, a11y
+make test-web    # 21 node tests: engine parity + design-system guards
+make test-ui     # 56 Chromium checks: XSS, hostile URLs, degradation, palette, theming, a11y
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```

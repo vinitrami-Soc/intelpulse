@@ -12,8 +12,8 @@ dev: ## run the API with reload on :8000
 test: ## run the test suite
 	cd backend && .venv/bin/pytest -q
 
-test-web: ## run the browser-engine parity tests (needs node >= 18)
-	node --test web/tests/engine.test.mjs
+test-web: ## engine parity + design-system guards (needs node >= 18)
+	node --test web/tests/engine.test.mjs web/tests/tokens.test.mjs
 
 test-ui: ## browser security + UX tests (needs playwright; serve web/ on :8123 first)
 	node web/tests/ui.spec.mjs

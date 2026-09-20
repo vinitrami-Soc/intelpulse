@@ -133,6 +133,44 @@ Small, deliberate, and never in the way of the data:
    Hidden, but genuinely useful; also reachable from every indicator's
    **Scoring math** button.
 
+## The rules are machine-readable, and enforced
+
+The design system is not only written down for people — it ships as an agent
+skill at [`.claude/skills/design-system-intelpulse/SKILL.md`](../../.claude/skills/design-system-intelpulse/SKILL.md),
+authored to the [TypeUI](https://github.com/rodgersgitau/type-ui) skill
+blueprint with the `enterprise` skill from
+[awesome-design-skills](https://github.com/bergside/awesome-design-skills) (MIT)
+as the starting point: dark cloud-platform surfaces, modular grid, strong data
+hierarchy. The token values, chart rules and severity encoding are this
+project's own and are validated here, not inherited.
+
+That format matters because the next change to this UI will probably be made by
+an agent. `SKILL.md` states each rule as **must** or **should**, anchors every
+one to a token or a threshold, and pairs each do-rule with a concrete
+don't-example — so "use semantic tokens" is not advice, it is a constraint.
+
+A rule nothing can fail is decoration, so the checkable ones have guards in
+`web/tests/tokens.test.mjs`:
+
+| Rule | Guard |
+| --- | --- |
+| Colour lives in `tokens.css` | no raw hex in `app.css`, or in component JS beyond one documented fallback |
+| Both themes are complete | every `--ramp-1..5` and every `--sev-*` defined twice |
+| Only `transform`/`opacity` animate | keyframe bodies parsed by brace matching; `transition: all` banned |
+| Motion, contrast and touch are handled | `prefers-reduced-motion`, `forced-colors`, `pointer: coarse` blocks must exist |
+| Focus is never removed silently | any `outline: none` must sit with a `box-shadow` ring |
+| The skill and the code agree | token names in `SKILL.md` must exist in `tokens.css` |
+
+The browser suite covers what only a browser can answer: 44px touch targets on
+a coarse pointer, meaning surviving `forced-colors: active`, inline field
+errors taking focus, `aria-busy` during a run.
+
+Writing those guards immediately caught three of my own violations — `#fff` on
+the wordmark, hard-coded hexes in the console banner and the `theme-color`
+meta — and one bug in the guard itself, where a newline-anchored regex swallowed
+the rules after a single-line `@keyframes` and reported a violation that did
+not exist.
+
 ## Why no framework
 
 Three static files, no build step, no `node_modules`, no supply chain. A

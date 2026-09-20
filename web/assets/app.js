@@ -106,6 +106,23 @@
     toast._timer = setTimeout(() => el.classList.remove("show"), action ? 6000 : 2800);
   }
 
+  /* Errors belong next to the field that caused them, not in a toast that
+     disappears — and the field must carry the state for assistive tech too. */
+  function setFieldError(inputId, errorId, message) {
+    const input = $("#" + inputId);
+    const box = $("#" + errorId);
+    if (message) {
+      input.setAttribute("aria-invalid", "true");
+      box.querySelector("span").textContent = message;
+      box.hidden = false;
+      input.focus();
+    } else {
+      input.removeAttribute("aria-invalid");
+      box.hidden = true;
+    }
+    return !message;
+  }
+
   function download(filename, content, type) {
     const blob = new Blob([content], { type: type || "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -119,6 +136,12 @@
   }
 
   // ————————————————————————————————————————————— theme
+  /* Single source of truth for colour at runtime: read the token, never repeat
+     its value in JavaScript. */
+  function themeColor(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
   function applyTheme(theme) {
     state.theme = theme;
     store.set("theme", theme);
@@ -133,7 +156,9 @@
       : '<circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/>';
     $("#theme-toggle").setAttribute("aria-label", "Theme: " + theme + " (press t)");
     const meta = $('meta[name="theme-color"]');
-    if (meta) meta.content = dark ? "#0b1020" : "#fbfcfe";
+    // Read the live token rather than repeating its value here, so the browser
+    // chrome can never drift from the surface it is supposed to match.
+    if (meta) meta.content = themeColor("--surface-0") || "#0b1020";
     if (state.result && state.tab === "graph") renderGraph(state.result);
   }
 
@@ -236,7 +261,11 @@
 
   async function runTriage() {
     const text = $("#input").value.trim();
-    if (!text) { toast("Paste indicators or a log snippet first."); $("#input").focus(); return; }
+    if (!text) {
+      setFieldError("input", "input-error", "Paste at least one indicator, a log line, or a JSON alert.");
+      return;
+    }
+    setFieldError("input", "input-error", null);
 
     // Easter egg: the oldest joke in the shell, answered politely.
     if (/^\s*sudo\b/i.test(text)) {
@@ -245,6 +274,7 @@
 
     const button = $("#run");
     button.disabled = true;
+    button.setAttribute("aria-busy", "true");
     button.innerHTML = '<span class="spinner"></span> Triaging…';
     showSkeleton(text);
     try {
@@ -259,7 +289,13 @@
         });
         result.mode = "live";
       }
-      if (!result.indicators.length) { toast("No usable indicators found in that input."); return; }
+      if (!result.indicators.length) {
+        setFieldError("input", "input-error",
+          "No routable indicators in that input — private and reserved address space is dropped on purpose.");
+        $("#results").hidden = true;
+        $("#intro").hidden = false;
+        return;
+      }
       state.result = result;
       pushHistory(result);
       renderResult(result);
@@ -270,6 +306,7 @@
         "<b>That triage did not complete</b>" + escapeHtml(error.message) + "</div>";
     } finally {
       button.disabled = false;
+      button.removeAttribute("aria-busy");
       button.innerHTML = 'Run triage <kbd>⌘↵</kbd>';
     }
   }
@@ -558,10 +595,6 @@
       return;
     }
     applySvgView();
-  }
-
-  function themeColor(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   /* Deterministic force-directed layout drawn as inline SVG — used when the
@@ -911,13 +944,15 @@
   }
 
   function consoleBanner() {
-    const style = "color:#887aee;font-family:monospace";
+    const accent = themeColor("--accent") || "#887aee";
+    const muted = themeColor("--ink-3") || "#8fa0bd";
+    const style = "color:" + accent + ";font-family:monospace";
     console.log("%c\n  ██ ███ ██ ████ ██   ████  ██ ██ ██   ███  ████\n" +
       "  ██ ██ ███ ██   ██ ██  ██  ██ ██ ██ ██  ██   ██\n" +
       "  ██ ██  ██ ████ ████   ████  ██ ██  ███ ███  ████\n", style);
     console.log("%cIntelPulse — threat intelligence & triage workbench", "font-weight:bold");
-    console.log("%cTry ⌘K. The engine is at window.IntelPulseEngine — scoring is open, audit it.", "color:#8fa0bd");
-    console.log("%cBuilt by Vinit Rami · https://vinitrami-soc.github.io/", "color:#8fa0bd");
+    console.log("%cTry ⌘K. The engine is at window.IntelPulseEngine — scoring is open, audit it.", "color:" + muted);
+    console.log("%cBuilt by Vinit Rami · https://vinitrami-soc.github.io/", "color:" + muted);
   }
 
   // ———————————————————————————————————————— keyboard
@@ -1020,9 +1055,19 @@
 
     $("#api-base").value = state.apiBase;
     $("#api-save").addEventListener("click", () => {
-      state.apiBase = $("#api-base").value.trim() || "http://localhost:8000";
+      const value = $("#api-base").value.trim() || "http://localhost:8000";
+      if (!safeUrl(value)) {
+        setFieldError("api-base", "api-error", "Enter a full http:// or https:// URL, for example http://localhost:8000.");
+        return;
+      }
+      setFieldError("api-base", "api-error", null);
+      state.apiBase = value;
       store.set("apiBase", state.apiBase);
       checkHealth();
+    });
+    $("#api-base").addEventListener("input", () => setFieldError("api-base", "api-error", null));
+    $("#input").addEventListener("input", () => {
+      if ($("#input").getAttribute("aria-invalid")) setFieldError("input", "input-error", null);
     });
 
     $("#run").addEventListener("click", runTriage);

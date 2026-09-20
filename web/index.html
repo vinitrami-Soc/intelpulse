@@ -128,11 +128,16 @@
             <label class="field" for="input" style="margin-top:12px">
               <span>Indicators, syslog, or JSON alert</span><kbd>/</kbd>
             </label>
-            <textarea id="input" name="indicators" autocomplete="off" spellcheck="false" placeholder="Paste anything an alert gives you:
+            <textarea id="input" name="indicators" autocomplete="off" spellcheck="false" aria-describedby="input-error" placeholder="Paste anything an alert gives you:
   185.220.101.34
   hxxp://bad-domain[.]top/payload.bin
   Sep 18 02:14:11 fw-edge-01 kernel: [UFW BLOCK] SRC=... DST=...
   {&quot;alert_id&quot;: &quot;EDR-...&quot;, &quot;sha256&quot;: &quot;...&quot;}"></textarea>
+
+            <p class="field-error" id="input-error" hidden>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.01"/></svg>
+              <span></span>
+            </p>
 
             <div class="samples" id="samples"></div>
 
@@ -156,10 +161,14 @@
             <div id="api-config" hidden style="margin-bottom:12px">
               <label class="field" for="api-base">Backend base URL</label>
               <div style="display:flex;gap:8px">
-                <input type="url" id="api-base" name="api-base" autocomplete="url" spellcheck="false"
+                <input type="url" id="api-base" name="api-base" autocomplete="url" spellcheck="false" aria-describedby="api-error"
                        inputmode="url" placeholder="http://localhost:8000">
                 <button class="btn small" id="api-save">Connect</button>
               </div>
+              <p class="field-error" id="api-error" hidden>
+                <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.01"/></svg>
+                <span></span>
+              </p>
             </div>
             <div id="providers"></div>
           </div>

@@ -79,7 +79,7 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--r-1);
   display: grid; place-items: center; position: relative; overflow: hidden;
   background: linear-gradient(145deg, var(--ramp-3), var(--ramp-1));
-  color: #fff; font-family: var(--mono); font-weight: 700; font-size: 12px;
+  color: var(--on-brand); font-family: var(--mono); font-weight: 700; font-size: 12px;
 }
 /* A pulse that runs once a minute: the product's name, made literal, quietly. */
 .rail-mark::after {
@@ -217,7 +217,21 @@ textarea, input[type="text"], input[type="url"] {
   font-family: var(--mono); font-size: 12.5px; resize: vertical;
 }
 textarea::placeholder, input::placeholder { color: var(--ink-3); }
+textarea:hover:not(:disabled), input:hover:not(:disabled) { border-color: var(--line-2); }
 textarea:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+textarea:disabled, input:disabled { opacity: .55; cursor: not-allowed; background: var(--surface-2); }
+/* Error is a state, not a colour: the border changes, a message appears next
+   to the field, and aria-invalid carries it to assistive tech. */
+textarea[aria-invalid="true"], input[aria-invalid="true"] { border-color: var(--sev-critical); }
+textarea[aria-invalid="true"]:focus, input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sev-critical) 22%, transparent);
+}
+.field-error {
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  font-size: 11.5px; color: var(--sev-critical);
+}
+.field-error svg { width: 13px; height: 13px; flex: 0 0 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.field-error[hidden] { display: none; }
 textarea { min-height: 170px; line-height: 1.55; }
 label.field { display: flex; justify-content: space-between; align-items: center; font: 600 10.5px var(--sans); color: var(--ink-3); margin: 0 0 var(--s-2); letter-spacing: .06em; text-transform: uppercase; }
 
@@ -559,7 +573,7 @@ body.night-watch::after {
   background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px);
   mix-blend-mode: multiply; animation: flicker 5s steps(60) infinite;
 }
-body.night-watch { --accent: #4ade80; --ramp-3: #4ade80; }
+body.night-watch { --accent: var(--sev-ok); --ramp-3: var(--sev-ok); }
 @keyframes flicker { 0%, 100% { opacity: .5; } 48% { opacity: .62; } 52% { opacity: .42; } }
 
 /* ———————————————————————————————————— responsive */
@@ -569,12 +583,39 @@ body.night-watch { --accent: #4ade80; --ramp-3: #4ade80; }
   .hero .figure { font-size: 42px; }
 }
 
+/* A finger is not a mouse: every control clears 44px on a touch device, and
+   the rail gets real breathing room rather than hover-sized hit areas. */
+@media (pointer: coarse) {
+  /* min-height rather than padding arithmetic: it holds whatever the label
+     wraps to, and it cannot drift when the type scale changes. */
+  .icon-btn, .graph-tools button { width: 44px; height: 44px; }
+  .rail-btn, .seg button, .tabs button, .btn, .btn.small,
+  .samples button, .chart-note, .cmdk-item, .recent button, .starter {
+    min-height: 44px;
+  }
+  .seg button, .tabs button { padding-inline: 14px; }
+  .graph-tools { padding: 3px; }
+  .ioc-top { min-height: 52px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* Forced-colours mode replaces every colour we chose, so anything that carried
+   meaning through a fill needs an outline to survive. */
+@media (forced-colors: active) {
+  .card, .stat, .ioc, .source, .chip, .badge, .cmdk, .sheet, .toast,
+  .bar-track, .meter, .dropzone { border: 1px solid CanvasText; }
+  .bar-fill, .meter i, .coverage i { forced-color-adjust: none; background: Highlight; border: 1px solid CanvasText; }
+  .badge::before { outline: 1px solid CanvasText; }
+  .rail-btn[aria-current="true"]::before { background: Highlight; }
+  :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+  .sk-line::after { animation: none; }
 }
 
 @media print {
   .rail, .topbar, .graph-tools, .toast, .banner, .btn-row, .tabs { display: none !important; }
   .app { grid-template-columns: 1fr; }
-  body { background: #fff; color: #000; }
+  body { background: var(--paper); color: var(--paper-ink); }
 }

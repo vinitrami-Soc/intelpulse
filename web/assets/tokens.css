@@ -43,6 +43,11 @@
   --accent-soft: rgba(136, 122, 238, .14);
   --accent-line: rgba(136, 122, 238, .38);
   --accent-ink:  #0a0a16;
+  --on-brand:    #ffffff;   /* text on the brand gradient, both themes */
+
+  /* Print is a different medium: paper, not a surface. */
+  --paper:     #ffffff;
+  --paper-ink: #111111;
 
   /* — evidence ramp (sequential, magnitude) ——————————— */
   --ramp-1: #5346b0;
