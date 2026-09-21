@@ -8,6 +8,11 @@
     set(k, v) { try { localStorage.setItem("ip:" + k, JSON.stringify(v)); } catch (_) {} }
   };
 
+  /* The findings model lives in assets/console-model.js so its arithmetic can
+     be tested without a browser. Everything the severity bar and the state row
+     draw is derived there from one table of facts. */
+  const MODEL = window.IntelPulseConsole;
+
   /* ─────────────────────────────────────────── synthetic sample data */
   const DATA = {
     kpis: [
@@ -16,23 +21,6 @@
       { id: "closed",  icon: "i-check-circle", label: "Closed findings",    value: 235, delta: "8% down", dir: "down", note: "vs 90 days ago" },
       { id: "mttr",    icon: "i-clock",        label: "Avg time to triage", value: 390, delta: "24% up",  dir: "up",   note: "seconds, median" }
     ],
-    /* Five bands, because the scoring model has five. The hatched remainder used
-       to be "30 minus whatever is shown", which meant filtering to Closed
-       claimed 21 unclassified findings out of nowhere; informational is a real
-       band now and every filter reconciles: open + close equals all, band by
-       band, and the states sum to the same totals. */
-    severity: {
-      all:   [{ k: "critical", n: 9, t: "9 Critical" }, { k: "high", n: 11, t: "11 High" }, { k: "medium", n: 6, t: "6 Medium" }, { k: "low", n: 5, t: "5 Low" }, { k: "info", n: 9, t: "9 Informational" }],
-      open:  [{ k: "critical", n: 6, t: "6 Critical" }, { k: "high", n: 8,  t: "8 High" },  { k: "medium", n: 3, t: "3 Medium" }, { k: "low", n: 3, t: "3 Low" }, { k: "info", n: 6, t: "6 Informational" }],
-      close: [{ k: "critical", n: 3, t: "3 Critical" }, { k: "high", n: 3,  t: "3 High" },  { k: "medium", n: 3, t: "3 Medium" }, { k: "low", n: 2, t: "2 Low" }, { k: "info", n: 3, t: "3 Informational" }]
-    },
-    /* "Reset ready" named nothing in a triage tool. These are the three states
-       an indicator is actually in, and they add up to the severity totals. */
-    state: {
-      all:   ["17 Awaiting triage", "9 In progress", "14 Closed"],
-      open:  ["17 Awaiting triage", "9 In progress", "0 Closed"],
-      close: ["0 Awaiting triage", "0 In progress", "14 Closed"]
-    },
     months: [
       { m: "Jan", v: 248 }, { m: "Feb", v: 215 }, { m: "Mar", v: 230 },
       { m: "Apr", v: 325, hot: true }, { m: "May", v: 240 }, { m: "Jun", v: 250 }
@@ -136,12 +124,12 @@
   function severityBar(host, key) {
     /* Every segment is a band with a count and a visible label. Nothing here is
        sized by a constant the data does not know about. */
-    host.innerHTML = DATA.severity[key].map((r) =>
-      '<span class="' + r.k + '" style="flex:' + r.n + ' 1 0">' + r.t + "</span>").join("");
+    host.innerHTML = MODEL.severity(key).map((r) =>
+      '<span class="' + r.k + '" style="flex:' + r.n + ' 1 0">' + r.text + "</span>").join("");
   }
 
   function stateRow(host, key) {
-    host.innerHTML = DATA.state[key].map((s) => "<div>" + s + "</div>").join("");
+    host.innerHTML = MODEL.states(key).map((st) => "<div>" + st.text + "</div>").join("");
   }
 
   function gauge(host, value) {
@@ -669,8 +657,8 @@
   (function assistant() {
     const esc = (t) => String(t).replace(/[&<>"']/g, (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    const sev = (key) => DATA.severity[key].map((b) => b.n + " " + b.k).join(", ");
-    const total = (key) => DATA.severity[key].reduce((n, b) => n + b.n, 0);
+    const sev = (key) => MODEL.severity(key).map((b) => b.text.toLowerCase()).join(", ");
+    const total = (key) => MODEL.total(key);
 
     /* label → what pressing it does. Kept as data so the answer HTML never
        has to carry a function or an inline handler past the CSP. */
@@ -877,7 +865,7 @@
       { id: "now",
         keys: ["how many findings", "current findings", "right now", "summary", "how many", "status", "overview of findings", "severity split"],
         live: () => "<p>On the dataset loaded here: <strong>" + total("all") + " findings</strong> — " + sev("all") + ".</p>" +
-              "<p>By state: " + DATA.state.all.join(", ").toLowerCase() + ". Open cases account for " +
+              "<p>By state: " + MODEL.states("all").map((st) => st.text).join(", ").toLowerCase() + ". Open cases account for " +
               total("open") + " of them (" + sev("open") + ").</p>",
         acts: ["console"], src: "the sample dataset on this page" },
 

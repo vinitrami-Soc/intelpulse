@@ -1014,7 +1014,7 @@
 
   function consoleBanner() {
     const accent = themeColor("--accent") || "#fe5729";
-    const muted = themeColor("--ink-3") || "#838c99";
+    const muted = themeColor("--ink-3") || "#7b8490";
     const style = "color:" + accent + ";font-family:monospace";
     console.log("%c\n  ██ ███ ██ ████ ██   ████  ██ ██ ██   ███  ████\n" +
       "  ██ ██ ███ ██   ██ ██  ██  ██ ██ ██ ██  ██   ██\n" +

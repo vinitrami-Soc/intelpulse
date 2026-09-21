@@ -326,10 +326,10 @@
           <a href="#/console" data-route="console" aria-label="Live source status"><svg><use href="#i-shield"/></svg></a>
         </div>
       </div>
-      <div><h4>Product</h4><a href="#how">Correlation engine</a><a href="#/console" data-route="console">Console</a><a href="workbench.html">Analyst workbench</a><a href="explorer.html">Campaign graph</a></div>
-      <div><h4>Sources</h4><a href="#sources">AbuseIPDB</a><a href="#sources">AlienVault OTX</a><a href="#sources">GreyNoise</a><a href="#sources">abuse.ch</a></div>
-      <div><h4>Offline</h4><a href="#sources">Feodo Tracker</a><a href="#sources">FireHOL</a><a href="#sources">CISA KEV</a><a href="#sources">NVD slice</a></div>
-      <div><h4>Project</h4><a href="#evidence">Evidence view</a><a href="#scoring">Scoring model</a><a href="workbench.html">Run a live triage</a><a href="explorer.html">Attack narrative</a></div>
+      <div><h3>Product</h3><a href="#how">Correlation engine</a><a href="#/console" data-route="console">Console</a><a href="workbench.html">Analyst workbench</a><a href="explorer.html">Campaign graph</a></div>
+      <div><h3>Sources</h3><a href="#sources">AbuseIPDB</a><a href="#sources">AlienVault OTX</a><a href="#sources">GreyNoise</a><a href="#sources">abuse.ch</a></div>
+      <div><h3>Offline</h3><a href="#sources">Feodo Tracker</a><a href="#sources">FireHOL</a><a href="#sources">CISA KEV</a><a href="#sources">NVD slice</a></div>
+      <div><h3>Project</h3><a href="#evidence">Evidence view</a><a href="#scoring">Scoring model</a><a href="workbench.html">Run a live triage</a><a href="explorer.html">Attack narrative</a></div>
     </footer>
     <p class="copyright">Synthetic sample data throughout — RFC 5737 addresses, RFC 2606 names. Built by Vinit Rami.</p>
   </div>
@@ -378,6 +378,9 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<!-- the findings model first: suite.js derives the severity bar and the
+     state row from it, and its arithmetic is unit-tested in Node -->
+<script src="assets/console-model.js" defer></script>
 <script src="assets/suite.js" defer></script>
 </body>
 </html>

@@ -66,7 +66,7 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   background: var(--accent-strong); color: var(--accent-ink);
   padding: 8px 14px; border-radius: var(--r-1); font-weight: 600;
 }
-.skip:focus { left: 8px; }
+.skip:focus-visible { left: 8px; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

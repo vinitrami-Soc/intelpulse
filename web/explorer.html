@@ -38,7 +38,7 @@
   --hair-2:    rgba(20, 28, 43, .20);
   --ink:       #1c1c1c;
   --ink-2:     #4a4f57;
-  --ink-3:     #838c99;
+  --ink-3:     #7b8490;
 
   --gold:      #d93d15;   /* the hub: the brand flame */
   --rose:      #b3124f;   /* malware families */
@@ -175,7 +175,12 @@ body {
 
 /* ————————————————————————————————————————— legend */
 .legend { position: absolute; left: 18px; bottom: 22px; z-index: 5; padding: 12px 14px; min-width: 176px; }
-.legend h2 { margin: 0 0 9px; font: 700 9.5px var(--sans); letter-spacing: .16em; color: var(--ink-3); }
+.legend h2 { margin: 0 0 9px; font: 700 9.5px var(--sans); letter-spacing: .16em; color: var(--ink-3); text-transform: uppercase; }
+/* A page needs a heading even when its content is a canvas. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .legend-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 11px; color: var(--ink-2); }
 .legend-row .dot { width: 9px; height: 9px; border-radius: 999px; flex: 0 0 9px; }
 .legend-row .n { margin-left: auto; font: 500 10px var(--mono); color: var(--ink-3); }
@@ -250,6 +255,7 @@ body {
 </style>
 
 <div class="stage" id="stage">
+  <h1 class="sr-only">IntelPulse campaign graph</h1>
   <svg id="graph" role="img" aria-label="Relationship graph of a synthetic threat campaign"></svg>
 
   <!-- ———————————————————————————————————————— top bar -->
@@ -324,7 +330,7 @@ body {
 
   <!-- ————————————————————————————————————————— legend -->
   <div class="legend glass">
-    <h2>LEGEND</h2>
+    <h2>Legend</h2>
     <div class="legend-row"><span class="dot" style="background:var(--gold)"></span> Campaign <span class="n" id="n-hub">1</span></div>
     <div class="legend-row"><span class="dot" style="background:var(--rose)"></span> Malware family <span class="n" id="n-malware">—</span></div>
     <div class="legend-row"><span class="dot" style="background:var(--violet)"></span> Infrastructure <span class="n" id="n-infra">—</span></div>

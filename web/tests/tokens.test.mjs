@@ -177,6 +177,130 @@ function unmarkedWordmarks(html) {
   return strays;
 }
 
+/* WCAG relative luminance, so a colour decision is computed rather than
+   eyeballed. Both themes, both stylesheets: dark mode is not inferred from
+   light-mode values, because a ratio that holds on white can fail on #0d0f12. */
+const srgb = (hexColour) => {
+  let h = hexColour.replace("#", "");
+  if (h.length === 3) h = [...h].map((c) => c + c).join("");
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+};
+const channel = (c) => (c / 255 <= 0.04045 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4);
+const luminance = (rgb) => 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
+function contrast(fg, bg) {
+  const a = luminance(srgb(fg)), b = luminance(srgb(bg));
+  const [hi, lo] = a > b ? [a, b] : [b, a];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function themeTokens(css) {
+  const themes = { light: {}, dark: {} };
+  for (const block of css.matchAll(/(:root(?:\[data-theme="dark"\])?)\s*\{([^}]*)\}/g)) {
+    const into = block[1].includes("dark") ? themes.dark : themes.light;
+    for (const decl of block[2].matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{3,8})/g)) into[decl[1]] = decl[2];
+  }
+  return themes;
+}
+
+test("text clears WCAG on every surface, in both themes", () => {
+  /* Body and secondary text carry the 4.5:1 body threshold; --ink-3 is the
+     faint meta tier, held to 3:1. A pair only counts when the stylesheet
+     declares both halves of it, so each sheet is checked on its own names. */
+  const sheets = [
+    ["suite.css", read("suite.css"), ["--paper", "--ground", "--ground-2"]],
+    ["tokens.css", TOKENS_CSS, ["--surface-0", "--surface-1", "--surface-2", "--surface-3"]]
+  ];
+  let checked = 0;
+  for (const [name, css, surfaces] of sheets) {
+    const themes = themeTokens(css);
+    for (const theme of ["light", "dark"]) {
+      const t = themes[theme];
+      for (const [ink, floor] of [["--ink", 4.5], ["--ink-2", 4.5], ["--ink-3", 3]]) {
+        for (const surface of surfaces) {
+          if (!t[ink] || !t[surface]) continue;
+          const r = contrast(t[ink], t[surface]);
+          checked++;
+          assert.ok(r >= floor, name + " " + theme + ": " + ink + " on " + surface +
+            " is " + r.toFixed(2) + ":1, under " + floor + ":1 (" + t[ink] + " on " + t[surface] + ")");
+        }
+      }
+    }
+  }
+  assert.ok(checked >= 30, "only " + checked + " pairs were checked — the token names have moved");
+});
+
+test("the three surfaces agree on the shared ink tokens", () => {
+  /* suite.css, tokens.css and explorer.html each declare the text ramp. That is
+     three copies of the same decision, and raising --ink-3 to clear 3:1 meant
+     editing all three — the fourth copy, a fallback in app.js, was missed on the
+     first pass. Drift between them is a contrast bug nobody would look for. */
+  const declared = (css) => {
+    const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
+    return Object.fromEntries([...root.matchAll(/(--ink(?:-[23])?):\s*(#[0-9a-fA-F]{6})/g)]
+      .map((m) => [m[1], m[2].toLowerCase()]));
+  };
+  const copies = [
+    ["suite.css", declared(read("suite.css"))],
+    ["tokens.css", declared(TOKENS_CSS)],
+    ["explorer.html", declared(PAGES.find(([n]) => n === "explorer.html")[1])]
+  ];
+  const [, reference] = copies[0];
+  for (const token of ["--ink", "--ink-2", "--ink-3"]) {
+    for (const [name, values] of copies) {
+      assert.equal(values[token], reference[token],
+        name + " declares " + token + " as " + values[token] +
+        " while suite.css says " + reference[token]);
+    }
+    /* app.js carries the documented fallback for when the property is missing. */
+    const fallback = read("app.js").match(
+      new RegExp('themeColor\\("' + token + '"\\)\\s*\\|\\|\\s*"(#[0-9a-fA-F]{6})"'));
+    if (fallback) {
+      assert.equal(fallback[1].toLowerCase(), reference[token],
+        "app.js falls back to " + fallback[1] + " for " + token +
+        " while the stylesheets say " + reference[token]);
+    }
+  }
+});
+
+test("a modal scrim is dark enough to isolate what it sits under", () => {
+  /* Below about 40% the page behind a drawer or a command palette still
+     competes for attention on a light surface; the site's own drawer scrim is
+     at 42% and the workbench should not be weaker than it. Dark themes can go
+     heavier, so only the light value is held to the band. */
+  const light = TOKENS_CSS.match(/--overlay:\s*rgba\(([^)]+)\)/);
+  assert.ok(light, "tokens.css declares no --overlay scrim");
+  const alpha = Number(light[1].split(",")[3]);
+  assert.ok(alpha >= 0.4 && alpha <= 0.6,
+    "the light scrim is " + Math.round(alpha * 100) + "% — outside the 40-60% band");
+
+  const site = read("suite.css").match(/\.drawer-scrim\s*\{[^}]*rgba\(([^)]+)\)/);
+  assert.ok(site, "suite.css declares no drawer scrim");
+  const siteAlpha = Number(site[1].split(",")[3]);
+  assert.ok(Math.abs(siteAlpha - alpha) <= 0.06,
+    "the two surfaces scrim differently: site " + siteAlpha + " vs workbench " + alpha);
+});
+
+test("every page has exactly one h1", () => {
+  for (const [name, html] of PAGES) {
+    const ones = [...html.matchAll(/<h1\b/g)].length;
+    assert.equal(ones, 1, name + " has " + ones + " level-one headings");
+  }
+});
+
+test("heading levels never skip a rank", () => {
+  /* A jump from h2 to h4 reads as a missing section to anything navigating by
+     heading. The campaign graph's h1 is visually hidden — a page whose content
+     is a canvas still needs a heading. */
+  for (const [name, html] of PAGES) {
+    const levels = [...html.matchAll(/<h([1-6])\b/g)].map((m) => Number(m[1]));
+    for (let i = 1; i < levels.length; i++) {
+      assert.ok(levels[i] - levels[i - 1] <= 1,
+        name + " jumps h" + levels[i - 1] + " to h" + levels[i] +
+        " (" + levels.map((l) => "h" + l).join(" ") + ")");
+    }
+  }
+});
+
 test("the brand wordmark is not offered to auto-translation", () => {
   for (const [name, html] of PAGES) {
     const strays = unmarkedWordmarks(html);

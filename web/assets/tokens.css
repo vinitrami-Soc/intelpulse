@@ -44,12 +44,12 @@
   --surface-3: #e4e7ee;   /* selected */
   --line:      #e8ebf0;
   --line-2:    #d9dee6;
-  --overlay:   rgba(20, 28, 43, .34);
+  --overlay:   rgba(20, 28, 43, .44);
 
   /* — ink, biased a touch warm so it sits under the flame ————— */
   --ink:    #1c1c1c;
   --ink-2:  #4a4f57;
-  --ink-3:  #838c99;
+  --ink-3:  #7b8490;
 
   /* — brand ———————————————————————————————————— */
   --accent:        #fe5729;   /* fills, rules, glows — never small text */

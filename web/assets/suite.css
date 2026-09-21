@@ -20,7 +20,7 @@
   /* neutrals, biased a touch warm so they sit under the flame */
   --ink:         #1c1c1c;
   --ink-2:       #4a4f57;
-  --ink-3:       #838c99;
+  --ink-3:       #7b8490;
   --paper:       #ffffff;
   --ground:      #f6f7f9;
   --ground-2:    #eef0f4;
@@ -626,7 +626,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 @media (max-width: 980px) { .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; } }
 @media (max-width: 560px) { .foot { grid-template-columns: 1fr; } }
-.foot h4 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; font-weight: 700; }
+.foot h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; font-weight: 700; }
 .foot a { display: block; padding: 4px 0; font-size: 12.5px; color: var(--ink-2); transition: color var(--t-fast); }
 .foot a:hover { color: var(--flame); }
 .foot .about p { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; max-width: 280px; }
@@ -828,4 +828,4 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--flame-ink); color: #fff; font-weight: 650;
   padding: 10px 16px; border-radius: var(--r-sm); box-shadow: var(--shade);
 }
-.skip:focus { left: 10px; outline: 2px solid var(--ink); outline-offset: 2px; }
+.skip:focus-visible { left: 10px; outline: 2px solid var(--ink); outline-offset: 2px; }

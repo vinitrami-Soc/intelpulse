@@ -13,7 +13,7 @@ test: ## run the test suite
 	cd backend && .venv/bin/pytest -q
 
 test-web: ## engine parity + design-system guards (needs node >= 18)
-	node --test web/tests/engine.test.mjs web/tests/tokens.test.mjs
+	node --test web/tests/*.test.mjs
 
 test-ui: ## browser security + UX tests (needs playwright; serve web/ on :8123 first)
 	node web/tests/ui.spec.mjs
