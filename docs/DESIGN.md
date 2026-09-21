@@ -263,19 +263,37 @@ Three rules hold it honest:
 Every answer that has somewhere to go carries the button for it, so the panel
 is a way through the product rather than a place to read about it.
 
-### Two palettes, on purpose — and the honest caveat
+### One palette, finally
 
-The site and console run a light palette built around one hot accent
-(`--flame`), defined in `web/assets/suite.css`. The analyst workbench keeps the
-dark, violet-accented ramp in `web/assets/tokens.css`, which is the one the
-contrast tests in `web/tests/tokens.test.mjs` validate.
+For a while the site and console ran a light, flame-accented palette while the
+analyst workbench and the campaign graph ran their own dark ones — violet in
+one, teal in the other. Three palettes in one product is a thing a reviewer
+notices before anything else, and the caveat that used to sit here said as much.
 
-That is a deliberate split — a marketing surface and a room an analyst stares at
-for eight hours want different things — but it is still two palettes in one
-product, and worth saying plainly rather than leaving for a reviewer to notice.
-If the workbench is ever brought onto the flame palette, the ramps have to be
-recomputed for contrast first, not eyeballed; that is what the tokens test is
-there to stop.
+All four surfaces now speak the same language: light first, paper surfaces, one
+hot accent, Outfit for interface and JetBrains Mono reserved for machine data.
+Dark is a first-class alternative on the workbench and the site, not an
+inversion — an analyst on a night shift gets a room built for it, with the same
+accent.
+
+Bringing them over meant recomputing, not recolouring:
+
+* **The evidence ramp changed hue.** Flame owns the accent and the severity end
+  of the scale, so a warm ramp would read as "this is bad" at every step. The
+  ramp is a single azure hue instead, and it passes the full ordinal gate on
+  both themes and against both its card and its page — the numbers are written
+  into the top of `web/assets/tokens.css`.
+* **There are two flames.** `--accent` `#fe5729` is the brand colour and carries
+  fills, rules and glows; white on it is 3.18:1, which is fine for a 4px bar and
+  not fine for a label. Anything that puts text on the accent, or sets accent
+  text on paper, uses `--accent-strong` `#d93d15` (4.54:1).
+* **Every severity was re-derived** so it clears 4.5:1 against its card, its
+  page *and* its own tinted wash — the last of those is the one usually missed,
+  because a colour that passes on white can fail on its own 10% background.
+* **The graph's four categories were computed against the sky**, not picked to
+  look nice on it: each mark clears 3:1 against the brightest and the deepest
+  part of the field, and the closest pair is 0.129 apart in OKLab against a
+  0.12 floor. Colour still is not the only channel — every cluster is labelled.
 
 ### Every control does something
 

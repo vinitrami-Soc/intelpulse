@@ -8,10 +8,28 @@
 /* ——————————————————————————————————————————— base */
 * { box-sizing: border-box; }
 
+html {
+  /* The site opens on a sky gradient; the workbench keeps a quieter band of the
+     same light so the two pages read as one product rather than two. The band
+     lives on <html> because a background on <body> would paint over it. */
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--azure) 20%, var(--surface-0)) 0px,
+      color-mix(in srgb, var(--azure) 7%, var(--surface-0)) 240px,
+      var(--surface-0) 460px) no-repeat,
+    var(--surface-0);
+}
+/* On a dark room the band is a faint lift, not a sky. */
+:root[data-theme="dark"] {
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--azure) 7%, var(--surface-0)) 0px,
+      var(--surface-0) 420px) no-repeat,
+    var(--surface-0);
+}
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--surface-0);
   color: var(--ink);
   font-family: var(--sans);
   font-size: 14px;
@@ -19,7 +37,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-body { min-height: 100vh; overflow-x: hidden; }
+body { min-height: 100vh; overflow-x: hidden; background: transparent; }
 
 /* Theme changes should feel like a light being dimmed, not a page reload —
    but only the properties that actually carry the theme. */
@@ -29,7 +47,7 @@ body, .card, .rail, .topbar, input, textarea, .btn, .seg, .pill, .ioc {
               color var(--t-base) var(--ease-out);
 }
 
-a { color: var(--accent); text-decoration: none; }
+a { color: var(--accent-strong); text-decoration: none; }
 /* Kill the 300ms tap delay and the default grey flash on touch. */
 button, a, [role="button"], summary { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 h1, h2, .page-title, .empty b { text-wrap: balance; }
@@ -45,7 +63,7 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
 
 .skip {
   position: absolute; left: -9999px; top: 8px; z-index: 200;
-  background: var(--accent); color: var(--accent-ink);
+  background: var(--accent-strong); color: var(--accent-ink);
   padding: 8px 14px; border-radius: var(--r-1); font-weight: 600;
 }
 .skip:focus { left: 8px; }
@@ -62,7 +80,7 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
 .rail {
   position: sticky; top: 0; align-self: start; height: 100vh;
   display: flex; flex-direction: column; gap: var(--s-1);
-  padding: var(--s-3) var(--s-2);
+  padding: var(--s-4) var(--s-3);
   background: var(--surface-1);
   border-right: 1px solid var(--line);
   overflow: hidden;
@@ -78,8 +96,8 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
 .rail-mark {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--r-1);
   display: grid; place-items: center; position: relative; overflow: hidden;
-  background: linear-gradient(145deg, var(--ramp-3), var(--ramp-1));
-  color: var(--on-brand); font-family: var(--mono); font-weight: 700; font-size: 12px;
+  background: var(--ink); color: var(--surface-1);
+  font-family: var(--mono); font-weight: 700; font-size: 12px;
 }
 /* A pulse that runs once a minute: the product's name, made literal, quietly. */
 .rail-mark::after {
@@ -106,10 +124,10 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
 }
 .rail-btn svg { width: 16px; height: 16px; flex: 0 0 16px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .rail-btn:hover { background: var(--surface-2); color: var(--ink); }
-.rail-btn[aria-current="true"] { background: var(--surface-3); color: var(--ink); }
+.rail-btn[aria-current="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; box-shadow: var(--inset); }
 .rail-btn[aria-current="true"]::before {
   content: ""; position: absolute; left: -8px; top: 50%; translate: 0 -50%;
-  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent);
+  width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent-strong);
 }
 .rail-kbd { margin-left: auto; font: 500 10px var(--mono); color: var(--ink-3); }
 .rail-spacer { flex: 1; }
@@ -128,8 +146,10 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap;
   padding: var(--s-3) 0; margin-bottom: var(--s-1);
-  background: color-mix(in srgb, var(--surface-0) 86%, transparent);
-  backdrop-filter: blur(12px) saturate(140%);
+  /* Glass, but a working tool's glass: at 62% the rows scrolling underneath
+     were legible through the title. 93% keeps the depth and loses the noise. */
+  background: color-mix(in srgb, var(--surface-0) 93%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
   border-bottom: 1px solid var(--line);
 }
 .page-title { font-size: 15px; font-weight: 650; letter-spacing: -.015em; margin: 0; }
@@ -143,6 +163,13 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   font: 500 12px var(--sans); cursor: pointer;
 }
 .cmd-hint:hover { border-color: var(--accent-line); color: var(--ink-2); }
+/* Below this the topbar wrapped its icon buttons onto a second row. The button
+   keeps its aria-label, and the palette is still one keystroke away. */
+@media (max-width: 1380px) {
+  .cmd-hint { font-size: 0; padding: 8px; gap: 0; }
+  .cmd-hint kbd { display: none; }
+  .cmd-hint svg { width: 16px; height: 16px; }
+}
 .cmd-hint svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 kbd {
   font: 600 10.5px var(--mono); padding: 2px 5px; border-radius: 4px;
@@ -150,17 +177,17 @@ kbd {
   box-shadow: 0 1px 0 var(--line-2);
 }
 
-.seg { display: flex; gap: 2px; padding: 3px; background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--r-1); }
+.seg { display: flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-full); }
 .seg button {
   border: 0; background: transparent; color: var(--ink-3);
-  font: 550 12px var(--sans); padding: 5px 11px; border-radius: 4px; cursor: pointer;
+  font: 550 12px var(--sans); padding: 6px 13px; border-radius: var(--r-full); cursor: pointer;
   transition: background-color var(--t-micro), color var(--t-micro);
 }
-.seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--ink); box-shadow: var(--inset); }
+.seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--ink); box-shadow: var(--lift); }
 
 .icon-btn {
-  width: 32px; height: 32px; display: grid; place-items: center; cursor: pointer;
-  border: 1px solid var(--line); border-radius: var(--r-1);
+  width: 34px; height: 34px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-full);
   background: var(--surface-1); color: var(--ink-2);
   transition: background-color var(--t-micro), border-color var(--t-micro), color var(--t-micro);
 }
@@ -201,7 +228,7 @@ kbd {
 
 .card {
   background: var(--surface-1); border: 1px solid var(--line);
-  border-radius: var(--r-3); box-shadow: var(--inset);
+  border-radius: var(--r-3); box-shadow: var(--lift);
   /* The topbar is sticky, so anything scrolled to must clear it. */
   scroll-margin-top: 72px;
 }
@@ -238,13 +265,13 @@ label.field { display: flex; justify-content: space-between; align-items: center
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
   border: 1px solid var(--line-2); background: var(--surface-2); color: var(--ink);
-  font: 550 13px var(--sans); padding: 8px 14px; border-radius: var(--r-1); cursor: pointer;
+  font: 600 13px var(--sans); padding: 9px 16px; border-radius: var(--r-full); cursor: pointer;
   transition: background-color var(--t-micro), border-color var(--t-micro), transform var(--t-micro);
 }
 .btn:hover { border-color: var(--accent-line); }
 .btn:active { transform: scale(.985); }
 .btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 650; }
+.btn.primary { background: var(--accent-strong); color: var(--accent-ink); border-color: transparent; font-weight: 650; box-shadow: var(--glow); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: transparent; border-color: var(--line); }
 .btn.small { padding: 6px 10px; font-size: 12px; }
@@ -254,7 +281,7 @@ label.field { display: flex; justify-content: space-between; align-items: center
 .samples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-3); }
 .samples button {
   border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
-  font: 500 11.5px var(--sans); padding: 5px 10px; border-radius: var(--r-full); cursor: pointer;
+  font: 500 12px var(--sans); padding: 7px 13px; border-radius: var(--r-full); cursor: pointer;
   transition: border-color var(--t-micro), color var(--t-micro), transform var(--t-micro);
 }
 .samples button:hover { color: var(--ink); border-color: var(--accent-line); transform: translateY(-1px); }

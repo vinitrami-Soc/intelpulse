@@ -35,7 +35,7 @@
     apiBase: store.get("apiBase", "http://localhost:8000"),
     // Dark is the product default — a SOC floor is dark and an analyst should
     // not have to fix that on first load. `system` is one keypress away.
-    theme: store.get("theme", "dark"),
+    theme: store.get("theme", "light"),   /* light-first now, like the site */
     railCollapsed: store.get("railCollapsed", false),
     result: null,
     health: null,
@@ -171,7 +171,7 @@
     const meta = $('meta[name="theme-color"]');
     // Read the live token rather than repeating its value here, so the browser
     // chrome can never drift from the surface it is supposed to match.
-    if (meta) meta.content = themeColor("--surface-0") || "#0b1020";
+    if (meta) meta.content = themeColor("--surface-0") || "#f6f7f9";
     if (state.result && state.tab === "graph") renderGraph(state.result);
   }
 
@@ -963,8 +963,8 @@
   }
 
   function consoleBanner() {
-    const accent = themeColor("--accent") || "#887aee";
-    const muted = themeColor("--ink-3") || "#8fa0bd";
+    const accent = themeColor("--accent") || "#fe5729";
+    const muted = themeColor("--ink-3") || "#838c99";
     const style = "color:" + accent + ";font-family:monospace";
     console.log("%c\n  ██ ███ ██ ████ ██   ████  ██ ██ ██   ███  ████\n" +
       "  ██ ██ ███ ██   ██ ██  ██  ██ ██ ██ ██  ██   ██\n" +

@@ -1,164 +1,193 @@
-/* IntelPulse design tokens.
+/* IntelPulse design tokens — the analyst workbench.
  *
- * Two selected themes — dark is the default because that is where a SOC lives,
- * light is a first-class alternative (screenshots, printed handovers, daylight
- * desks), not an automatic inversion. Every value below was chosen against its
- * own surface.
+ * The workbench used to run its own dark violet palette while the site and
+ * console ran a light one. Two palettes in one product is a thing a reviewer
+ * notices, so this file now speaks the same language as assets/suite.css:
+ * light first, paper surfaces, one hot accent (flame), JetBrains Mono reserved
+ * for machine data. Dark is a first-class alternative, not an inversion — an
+ * analyst on a night shift gets a room built for it, with the same accent.
  *
- * The data-visualisation colours are computed, not eyeballed. The evidence
- * ramp passes the full ordinal gate on both surfaces (monotone lightness,
- * >=0.06 step gaps, light end >=2:1 against the surface, single hue):
+ * The data-visualisation colours are computed, not eyeballed. Flame owns the
+ * accent and the severity end of the scale, so the evidence ramp is a single
+ * AZURE hue instead — it cannot be confused with "this is bad". Both ramps
+ * pass the full ordinal gate (monotone OKLab lightness, >=0.06 step gaps,
+ * light end >=2:1 against BOTH its card and its page, one hue):
  *
- *   dark  #5346b0 #6d5ed4 #887aee #a79cf7 #c6befc   on #0b1020 — ALL PASS
- *   light #b3a6ef #9587e6 #7768d6 #584ab8 #3b3190   on #fbfcfe — ALL PASS
+ *   light #74b1e2 #4a98d1 #1a7fbe #00669e #004e7c
+ *         L 0.738 0.655 0.573 0.490 0.408 | gaps 0.083 0.082 0.083 0.082
+ *         light end 2.30:1 on #ffffff, 2.15:1 on #f6f7f9 | hue spread 1.1deg
+ *   dark  #006095 #127ab9 #4595d0 #6fb0e3 #9acbf3
+ *         L 0.470 0.557 0.646 0.734 0.822 | gaps 0.087 0.089 0.088 0.088
+ *         light end 10.35:1 on #15181d, 11.16:1 on #0d0f12 | hue spread 0.4deg
  *
- * Severity is a different job. SOC semantics force red->orange->amber to sit
- * next to each other, and no honest stepping gets that pair past the
+ * Accent contrast is why there are two flames. --accent #fe5729 is the brand
+ * colour and carries fills, glows and rules; white on it is 3.18:1, which is
+ * fine for a 4px bar and not fine for a label. Anything that puts text on the
+ * accent, or sets accent-coloured text on paper, uses --accent-strong
+ * #d93d15 (4.54:1) instead.
+ *
+ * Severity is a different job again. SOC semantics force red->orange->amber to
+ * sit next to each other, and no honest stepping gets that pair past the
  * normal-vision separation floor while "red still means critical". So severity
  * is never encoded by colour alone: every severity carries a text label, a
- * distinct glyph, and a lightness rank that survives greyscale. The one chart
- * with fills — the evidence contribution bar — uses the validated ramp above.
+ * distinct glyph, and a lightness rank that survives greyscale. Each value
+ * below clears 4.5:1 against its card, its page AND its own tinted wash.
  */
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
   /* — surfaces ————————————————————————————————— */
-  --surface-0: #0b1020;   /* page */
-  --surface-1: #101733;   /* cards */
-  --surface-2: #151e3d;   /* raised: inputs, hovers */
-  --surface-3: #1b2649;   /* selected */
-  --line:      #1e2a4d;
-  --line-2:    #2a3866;
-  --overlay:   rgba(4, 7, 18, .72);
+  --surface-0: #f6f7f9;   /* page */
+  --surface-1: #ffffff;   /* cards */
+  --surface-2: #eef0f4;   /* raised: inputs, hovers */
+  --surface-3: #e4e7ee;   /* selected */
+  --line:      #e8ebf0;
+  --line-2:    #d9dee6;
+  --overlay:   rgba(20, 28, 43, .34);
 
-  /* — ink ————————————————————————————————————— */
-  --ink:    #eaf0ff;
-  --ink-2:  #a6b4d4;
-  --ink-3:  #6f7fa3;
+  /* — ink, biased a touch warm so it sits under the flame ————— */
+  --ink:    #1c1c1c;
+  --ink-2:  #4a4f57;
+  --ink-3:  #838c99;
 
-  /* — brand: the mid step of the evidence ramp, so the accent and the data
-       speak the same language —————————————————————— */
-  --accent:      #887aee;
-  --accent-soft: rgba(136, 122, 238, .14);
-  --accent-line: rgba(136, 122, 238, .38);
-  --accent-ink:  #0a0a16;
-  --on-brand:    #ffffff;   /* text on the brand gradient, both themes */
+  /* — brand ———————————————————————————————————— */
+  --accent:        #fe5729;   /* fills, rules, glows — never small text */
+  --accent-strong: #d93d15;   /* anything with text on it, or accent text */
+  --accent-soft:   rgba(254, 87, 41, .10);
+  --accent-line:   rgba(254, 87, 41, .34);
+  --accent-ink:    #ffffff;   /* on --accent-strong */
+  --on-brand:      #ffffff;   /* text on the brand gradient, both themes */
+  --azure:         #4a9fdd;   /* the ramp's own hue, for legends and links */
 
   /* Print is a different medium: paper, not a surface. */
   --paper:     #ffffff;
   --paper-ink: #111111;
 
   /* — evidence ramp (sequential, magnitude) ——————————— */
-  --ramp-1: #5346b0;
-  --ramp-2: #6d5ed4;
-  --ramp-3: #887aee;
-  --ramp-4: #a79cf7;
-  --ramp-5: #c6befc;
-  --ramp-track: rgba(136, 122, 238, .16);
+  --ramp-1: #74b1e2;
+  --ramp-2: #4a98d1;
+  --ramp-3: #1a7fbe;
+  --ramp-4: #00669e;
+  --ramp-5: #004e7c;
+  --ramp-track: rgba(26, 127, 190, .12);
 
   /* — severity (reserved; always shipped with a label + glyph) ——— */
-  --sev-critical: #f2607f;
-  --sev-high:     #f08a3c;
-  --sev-medium:   #e6d84f;
-  --sev-low:      #46b0f0;
-  --sev-info:     #8fa0bd;
-  --sev-ok:       #4ade80;
-  --sev-critical-bg: rgba(242, 96, 127, .12);
-  --sev-high-bg:     rgba(240, 138, 60, .12);
-  --sev-medium-bg:   rgba(230, 216, 79, .12);
-  --sev-low-bg:      rgba(70, 176, 240, .12);
-  --sev-info-bg:     rgba(143, 160, 189, .10);
-  --sev-ok-bg:       rgba(74, 222, 128, .12);
+  --sev-critical: #b3122f;
+  --sev-high:     #b3400a;
+  --sev-medium:   #7a6500;
+  --sev-low:      #0b6ea8;
+  --sev-info:     #566072;
+  --sev-ok:       #07704b;
+  --sev-critical-bg: rgba(179, 18, 47, .10);
+  --sev-high-bg:     rgba(179, 64, 10, .10);
+  --sev-medium-bg:   rgba(122, 101, 0, .10);
+  --sev-low-bg:      rgba(11, 110, 168, .10);
+  --sev-info-bg:     rgba(86, 96, 114, .09);
+  --sev-ok-bg:       rgba(7, 112, 75, .10);
 
   /* — type ————————————————————————————————————— */
-  --sans: "Inter", -apple-system, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif;
+  --sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* — space (dense dashboard scale) ——————————————————— */
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
   --s-5: 24px; --s-6: 32px; --s-7: 48px;
 
-  /* — radii ———————————————————————————————————— */
-  --r-1: 6px; --r-2: 10px; --r-3: 14px; --r-full: 999px;
+  /* — radii, matched to the site: things are round here ————— */
+  --r-1: 10px; --r-2: 16px; --r-3: 22px; --r-full: 999px;
 
-  /* — elevation: a hairline and an inset highlight, not a blur.
-       The only real shadow belongs to things that actually float. — */
-  --inset: inset 0 1px 0 rgba(255, 255, 255, .04);
-  --float: 0 18px 48px -24px rgba(0, 0, 0, .85), 0 1px 0 rgba(255, 255, 255, .05) inset;
+  /* — elevation. On paper a hairline alone reads as a table border, so
+       cards get a real (soft, wide) shadow the way the site's do. ——— */
+  --inset: inset 0 1px 0 rgba(255, 255, 255, .7);
+  --float: 0 34px 70px -34px rgba(20, 28, 43, .40), 0 0 0 1px rgba(20, 28, 43, .04);
+  --lift:  0 8px 24px -12px rgba(20, 28, 43, .18);
+  --glow:  0 18px 46px -16px rgba(254, 87, 41, .55);
+
+  /* — glass, for the things that actually float ————————— */
+  --glass:      rgba(255, 255, 255, .62);
+  --glass-line: rgba(255, 255, 255, .74);
 
   /* — motion ——————————————————————————————————— */
   --t-micro: 110ms;
   --t-base:  180ms;
   --t-slow:  280ms;
-  --ease-out: cubic-bezier(.16, 1, .3, 1);   /* decisive entrance */
-  --ease-in:  cubic-bezier(.4, 0, 1, 1);     /* exits leave faster */
+  --ease-out: cubic-bezier(.22, 1, .36, 1);   /* the site's entrance curve */
+  --ease-in:  cubic-bezier(.4, 0, 1, 1);      /* exits leave faster */
 
   --rail-w: 244px;
   --rail-w-collapsed: 62px;
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-  --surface-0: #fbfcfe;
-  --surface-1: #ffffff;
-  --surface-2: #f3f5fb;
-  --surface-3: #e9edf8;
-  --line:      #dfe4f2;
-  --line-2:    #c7cfe6;
-  --overlay:   rgba(20, 26, 45, .32);
+  --surface-0: #0d0f12;
+  --surface-1: #15181d;
+  --surface-2: #1b1f26;
+  --surface-3: #232831;
+  --line:      #262b33;
+  --line-2:    #333a45;
+  --overlay:   rgba(4, 7, 12, .72);
 
-  --ink:   #131a2e;
-  --ink-2: #4a5678;
-  --ink-3: #74809d;
+  --ink:   #f3f5f8;
+  --ink-2: #b3bcc9;
+  --ink-3: #7d8796;
 
-  --accent:      #584ab8;
-  --accent-soft: rgba(88, 74, 184, .10);
-  --accent-line: rgba(88, 74, 184, .32);
-  --accent-ink:  #ffffff;
+  --accent:        #fe5729;
+  --accent-strong: #ff6a3d;   /* on a dark room the flame can stay bright */
+  --accent-soft:   rgba(254, 87, 41, .16);
+  --accent-line:   rgba(254, 87, 41, .40);
+  --accent-ink:    #14100e;
+  --azure:         #6fb0e3;
 
-  --ramp-1: #b3a6ef;
-  --ramp-2: #9587e6;
-  --ramp-3: #7768d6;
-  --ramp-4: #584ab8;
-  --ramp-5: #3b3190;
-  --ramp-track: rgba(88, 74, 184, .12);
+  --ramp-1: #006095;
+  --ramp-2: #127ab9;
+  --ramp-3: #4595d0;
+  --ramp-4: #6fb0e3;
+  --ramp-5: #9acbf3;
+  --ramp-track: rgba(111, 176, 227, .16);
 
-  --sev-critical: #c81e45;
-  --sev-high:     #b3400a;
-  --sev-medium:   #7d6a00;
-  --sev-low:      #0b74c4;
-  --sev-info:     #5b6b85;
-  --sev-ok:       #047857;
-  --sev-critical-bg: rgba(200, 30, 69, .08);
-  --sev-high-bg:     rgba(179, 64, 10, .08);
-  --sev-medium-bg:   rgba(125, 106, 0, .09);
-  --sev-low-bg:      rgba(11, 116, 196, .08);
-  --sev-info-bg:     rgba(91, 107, 133, .07);
-  --sev-ok-bg:       rgba(4, 120, 87, .08);
+  --sev-critical: #ff8095;
+  --sev-high:     #ff9e5e;
+  --sev-medium:   #e3ce63;
+  --sev-low:      #6fb0e3;
+  --sev-info:     #9aa6b8;
+  --sev-ok:       #5fe0a8;
+  --sev-critical-bg: rgba(255, 128, 149, .14);
+  --sev-high-bg:     rgba(255, 158, 94, .14);
+  --sev-medium-bg:   rgba(227, 206, 99, .14);
+  --sev-low-bg:      rgba(111, 176, 227, .14);
+  --sev-info-bg:     rgba(154, 166, 184, .12);
+  --sev-ok-bg:       rgba(95, 224, 168, .14);
 
-  --inset: inset 0 1px 0 rgba(255, 255, 255, .7);
-  --float: 0 20px 44px -26px rgba(23, 31, 56, .35), 0 0 0 1px rgba(23, 31, 56, .04);
+  --inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+  --float: 0 34px 70px -34px rgba(0, 0, 0, .9), 0 0 0 1px rgba(255, 255, 255, .05) inset;
+  --lift:  0 10px 26px -14px rgba(0, 0, 0, .8);
+
+  --glass:      rgba(28, 33, 41, .62);
+  --glass-line: rgba(255, 255, 255, .07);
 }
 
 /* The OS preference decides only when the analyst has not. */
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    color-scheme: light;
-    --surface-0: #fbfcfe; --surface-1: #ffffff; --surface-2: #f3f5fb; --surface-3: #e9edf8;
-    --line: #dfe4f2; --line-2: #c7cfe6; --overlay: rgba(20, 26, 45, .32);
-    --ink: #131a2e; --ink-2: #4a5678; --ink-3: #74809d;
-    --accent: #584ab8; --accent-soft: rgba(88, 74, 184, .10);
-    --accent-line: rgba(88, 74, 184, .32); --accent-ink: #ffffff;
-    --ramp-1: #b3a6ef; --ramp-2: #9587e6; --ramp-3: #7768d6; --ramp-4: #584ab8; --ramp-5: #3b3190;
-    --ramp-track: rgba(88, 74, 184, .12);
-    --sev-critical: #c81e45; --sev-high: #b3400a; --sev-medium: #7d6a00;
-    --sev-low: #0b74c4; --sev-info: #5b6b85; --sev-ok: #047857;
-    --sev-critical-bg: rgba(200, 30, 69, .08); --sev-high-bg: rgba(179, 64, 10, .08);
-    --sev-medium-bg: rgba(125, 106, 0, .09); --sev-low-bg: rgba(11, 116, 196, .08);
-    --sev-info-bg: rgba(91, 107, 133, .07); --sev-ok-bg: rgba(4, 120, 87, .08);
-    --inset: inset 0 1px 0 rgba(255, 255, 255, .7);
-    --float: 0 20px 44px -26px rgba(23, 31, 56, .35), 0 0 0 1px rgba(23, 31, 56, .04);
+    color-scheme: dark;
+    --surface-0: #0d0f12; --surface-1: #15181d; --surface-2: #1b1f26; --surface-3: #232831;
+    --line: #262b33; --line-2: #333a45; --overlay: rgba(4, 7, 12, .72);
+    --ink: #f3f5f8; --ink-2: #b3bcc9; --ink-3: #7d8796;
+    --accent: #fe5729; --accent-strong: #ff6a3d; --accent-soft: rgba(254, 87, 41, .16);
+    --accent-line: rgba(254, 87, 41, .40); --accent-ink: #14100e; --azure: #6fb0e3;
+    --ramp-1: #006095; --ramp-2: #127ab9; --ramp-3: #4595d0; --ramp-4: #6fb0e3; --ramp-5: #9acbf3;
+    --ramp-track: rgba(111, 176, 227, .16);
+    --sev-critical: #ff8095; --sev-high: #ff9e5e; --sev-medium: #e3ce63;
+    --sev-low: #6fb0e3; --sev-info: #9aa6b8; --sev-ok: #5fe0a8;
+    --sev-critical-bg: rgba(255, 128, 149, .14); --sev-high-bg: rgba(255, 158, 94, .14);
+    --sev-medium-bg: rgba(227, 206, 99, .14); --sev-low-bg: rgba(111, 176, 227, .14);
+    --sev-info-bg: rgba(154, 166, 184, .12); --sev-ok-bg: rgba(95, 224, 168, .14);
+    --inset: inset 0 1px 0 rgba(255, 255, 255, .04);
+    --float: 0 34px 70px -34px rgba(0, 0, 0, .9), 0 0 0 1px rgba(255, 255, 255, .05) inset;
+    --lift: 0 10px 26px -14px rgba(0, 0, 0, .8);
+    --glass: rgba(28, 33, 41, .62); --glass-line: rgba(255, 255, 255, .07);
   }
 }

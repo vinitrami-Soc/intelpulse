@@ -2,36 +2,54 @@
 <title>Campaign Graph</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
 
 <style>
 /* IntelPulse — Campaign Graph explorer.
  *
- * A deliberately single-theme surface: a darkened ops room, painted explicitly
- * so it holds on any host ground. Every indicator, family and figure below is
- * SYNTHETIC — RFC 5737 documentation addresses and RFC 2606 reserved names.
+ * A single-theme surface painted explicitly so it holds on any host ground.
+ * It used to be a darkened teal ops room while the rest of the product was a
+ * light, flame-accented page — so it now speaks the same language: the site's
+ * sky as the field, glass panels over it, Outfit for interface and JetBrains
+ * Mono reserved for machine data.
+ *
+ * The four graph categories are computed against the field, not picked by eye.
+ * Every mark clears 3:1 against the lightest AND the deepest part of the sky,
+ * and the closest pair is 0.129 apart in OKLab — comfortably over the 0.12
+ * separation floor:
+ *
+ *   hub     #d93d15  4.54 -> 3.74:1
+ *   malware #b3124f  6.74 -> 5.55:1
+ *   infra   #5a44c4  6.87 -> 5.65:1
+ *   ioc     #0b6ea8  5.51 -> 4.54:1
+ *
+ * Colour is never the only channel regardless: every cluster is labelled and
+ * every node shape differs by kind.
+ *
+ * Every indicator, family and figure below is SYNTHETIC — RFC 5737
+ * documentation addresses and RFC 2606 reserved names.
  */
 :root {
-  --void:      #04100f;
-  --deep:      #071b1c;
-  --panel:     rgba(9, 32, 33, .62);
-  --panel-2:   rgba(12, 42, 43, .78);
-  --hair:      rgba(148, 206, 199, .14);
-  --hair-2:    rgba(148, 206, 199, .26);
-  --ink:       #e8f4f1;
-  --ink-2:     #9fbdb8;
-  --ink-3:     #6a8a86;
+  --void:      #eef6fd;
+  --deep:      #dcebf9;
+  --panel:     rgba(255, 255, 255, .66);
+  --panel-2:   rgba(255, 255, 255, .86);
+  --hair:      rgba(20, 28, 43, .10);
+  --hair-2:    rgba(20, 28, 43, .20);
+  --ink:       #1c1c1c;
+  --ink-2:     #4a4f57;
+  --ink-3:     #838c99;
 
-  --gold:      #e8c07a;
-  --rose:      #e87a9a;
-  --violet:    #8b7ce8;
-  --teal:      #4ecdc4;
-  --mint:      #6ee7b7;
-  --amber:     #f0b429;
-  --ember:     #ef6b5e;
+  --gold:      #d93d15;   /* the hub: the brand flame */
+  --rose:      #b3124f;   /* malware families */
+  --violet:    #5a44c4;   /* infrastructure */
+  --teal:      #0b6ea8;   /* indicators — the workbench's own ramp hue */
+  --mint:      #07704b;
+  --amber:     #8a6a17;
+  --ember:     #d93d15;
 
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -53,18 +71,19 @@ body {
   min-height: 620px;
   overflow: hidden;
   background:
-    radial-gradient(120% 90% at 50% 46%, #0d3033 0%, #08201f 42%, #04100f 78%),
-    radial-gradient(60% 50% at 50% 44%, rgba(78, 205, 196, .10), transparent 70%);
+    radial-gradient(120% 90% at 50% 46%, #ffffff 0%, #eef6fd 42%, #dcebf9 78%),
+    radial-gradient(60% 50% at 50% 44%, rgba(254, 87, 41, .05), transparent 70%);
 }
 /* grain + vignette, the two things that stop a flat gradient looking flat */
 .stage::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35;
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .16;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
-  mix-blend-mode: overlay;
+  mix-blend-mode: multiply;
 }
 .stage::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(75% 65% at 50% 48%, transparent 40%, rgba(2, 10, 10, .72) 100%);
+  /* On a light field the vignette is a tint of the sky, not a darkness. */
+  background: radial-gradient(78% 68% at 50% 48%, transparent 44%, rgba(122, 170, 210, .30) 100%);
 }
 
 #graph { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -88,7 +107,7 @@ body {
   background: linear-gradient(150deg, rgba(110, 231, 183, .22), rgba(78, 205, 196, .10));
   border: 1px solid var(--hair-2);
 }
-.brand .mark svg { width: 16px; height: 16px; stroke: var(--mint); fill: none; stroke-width: 1.9; }
+.brand .mark svg { width: 16px; height: 16px; stroke: var(--ember); fill: none; stroke-width: 1.9; }
 .brand b { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15; }
 .brand span { display: block; font-size: 10px; color: var(--ink-3); letter-spacing: .06em; text-transform: uppercase; }
 .burger { width: 34px; height: 34px; display: grid; place-items: center; cursor: pointer; }
@@ -111,7 +130,7 @@ body {
   border-radius: 999px; border: 1px solid var(--hair-2); background: var(--panel-2);
   color: var(--ink); font: 600 12px var(--sans);
 }
-.cta:hover { border-color: var(--mint); }
+.cta:hover { border-color: var(--ember); }
 .cta svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.1; }
 .round {
   width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer;
@@ -173,7 +192,7 @@ body {
 .ask input:focus { outline: none; }
 .send {
   width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; cursor: pointer;
-  border: 0; border-radius: 999px; background: var(--mint); color: #04211c;
+  border: 0; border-radius: 999px; background: var(--ember); color: #ffffff;
 }
 .send svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.2; }
 .chips { display: flex; align-items: center; gap: 6px; padding: 0 12px 11px; }
@@ -207,7 +226,9 @@ body {
   position: absolute; top: 66px; right: 18px; z-index: 5;
   display: flex; align-items: center; gap: 7px; padding: 6px 11px;
   border-radius: 999px; font: 600 10px var(--sans); letter-spacing: .04em;
-  color: #f7dca6; border: 1px solid rgba(240, 180, 41, .28); background: rgba(240, 180, 41, .10);
+  /* This is the label that says none of this is real. It gets read, not styled
+     into the background: #8a6a17 on its own wash is 4.3:1. */
+  color: var(--amber); border: 1px solid rgba(138, 106, 23, .30); background: rgba(138, 106, 23, .10);
 }
 .notice .dot { width: 5px; height: 5px; border-radius: 999px; background: var(--amber); }
 
@@ -364,7 +385,7 @@ body {
   ];
 
   const COLOR = {
-    hub: "#e8c07a", malware: "#e87a9a", infra: "#8b7ce8", ioc: "#4ecdc4"
+    hub: "#d93d15", malware: "#b3124f", infra: "#5a44c4", ioc: "#0b6ea8"
   };
   const SEV_TEXT = { critical: "critical", high: "high", medium: "medium", low: "low" };
   const YEARS = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024];
@@ -390,7 +411,7 @@ body {
     // one glossy sphere gradient per kind, plus the hub's corona
     for (const kind in COLOR) {
       const g = el("radialGradient", { id: "g-" + kind, cx: "34%", cy: "28%", r: "78%" });
-      g.appendChild(el("stop", { offset: "0%", "stop-color": "#ffffff", "stop-opacity": ".92" }));
+      g.appendChild(el("stop", { offset: "0%", "stop-color": "#ffffff", "stop-opacity": ".82" }));
       g.appendChild(el("stop", { offset: "26%", "stop-color": COLOR[kind], "stop-opacity": ".98" }));
       g.appendChild(el("stop", { offset: "100%", "stop-color": COLOR[kind], "stop-opacity": ".35" }));
       d.appendChild(g);
@@ -486,8 +507,8 @@ body {
       if (!a || !b) return;
       edgeLayer.appendChild(el("line", {
         x1: a.x, y1: a.y, x2: b.x, y2: b.y,
-        stroke: edge.kind === "primary" ? "rgba(232,192,122,.42)"
-          : edge.kind === "cross" ? "rgba(139,124,232,.30)" : "rgba(148,206,199,.16)",
+        stroke: edge.kind === "primary" ? "rgba(217,61,21,.38)"
+          : edge.kind === "cross" ? "rgba(90,68,196,.34)" : "rgba(20,28,43,.16)",
         "stroke-width": edge.kind === "primary" ? 1.1 : edge.kind === "cross" ? 0.9 : 0.6,
         "stroke-dasharray": edge.kind === "cross" ? "3 5" : ""
       }));
@@ -525,7 +546,7 @@ body {
       group.appendChild(el("circle", {
         cx: node.x, cy: node.y, r: node.r,
         fill: "url(#g-" + node.kind + ")",
-        stroke: "rgba(255,255,255,.22)", "stroke-width": node.child ? ".4" : ".8",
+        stroke: "rgba(255,255,255,.55)", "stroke-width": node.child ? ".4" : ".8",
         filter: node.child ? "" : "url(#glow)"
       }));
 
@@ -539,15 +560,15 @@ body {
 
         const label = el("text", {
           x: lx, y: ly - 1, "text-anchor": anchor,
-          fill: "#e8f4f1", "font-size": (node.id === "hub" ? 12.5 : 11) * Math.min(1.2, state.zoom),
-          "font-family": "Manrope, sans-serif", "font-weight": node.id === "hub" ? "700" : "600"
+          fill: "#1c1c1c", "font-size": (node.id === "hub" ? 12.5 : 11) * Math.min(1.2, state.zoom),
+          "font-family": "Outfit, sans-serif", "font-weight": node.id === "hub" ? "700" : "600"
         });
         label.textContent = node.label;
         group.appendChild(label);
 
         const sub = el("text", {
           x: lx, y: ly + 11, "text-anchor": anchor,
-          fill: "rgba(159,189,184,.78)", "font-size": 9.5 * Math.min(1.2, state.zoom),
+          fill: "rgba(74,79,87,.80)", "font-size": 9.5 * Math.min(1.2, state.zoom),
           "font-family": "JetBrains Mono, monospace"
         });
         sub.textContent = node.id === "hub" ? node.sub : node.pct + "%";
@@ -569,27 +590,27 @@ body {
     // the orbital inset: a scanning ring that echoes the reference's radar
     const ox = W - 196, oy = 226;
     const orbit = el("g", { opacity: ".85" });
-    orbit.appendChild(el("circle", { cx: ox, cy: oy, r: 78, fill: "none", stroke: "rgba(148,206,199,.20)", "stroke-width": "1" }));
-    orbit.appendChild(el("circle", { cx: ox, cy: oy, r: 58, fill: "none", stroke: "rgba(148,206,199,.12)", "stroke-width": "1", "stroke-dasharray": "2 6" }));
+    orbit.appendChild(el("circle", { cx: ox, cy: oy, r: 78, fill: "none", stroke: "rgba(20,28,43,.16)", "stroke-width": "1" }));
+    orbit.appendChild(el("circle", { cx: ox, cy: oy, r: 58, fill: "none", stroke: "rgba(20,28,43,.11)", "stroke-width": "1", "stroke-dasharray": "2 6" }));
     for (let tick = 0; tick < 48; tick++) {
       const angle = (tick / 48) * Math.PI * 2;
       const inner = tick % 6 === 0 ? 68 : 73;
       orbit.appendChild(el("line", {
         x1: ox + Math.cos(angle) * inner, y1: oy + Math.sin(angle) * inner,
         x2: ox + Math.cos(angle) * 78, y2: oy + Math.sin(angle) * 78,
-        stroke: "rgba(148,206,199,.30)", "stroke-width": tick % 6 === 0 ? "1.2" : ".6"
+        stroke: "rgba(20,28,43,.26)", "stroke-width": tick % 6 === 0 ? "1.2" : ".6"
       }));
     }
-    orbit.appendChild(el("line", { x1: ox - 78, y1: oy, x2: ox + 78, y2: oy, stroke: "rgba(78,205,196,.28)", "stroke-width": "1" }));
-    orbit.appendChild(el("line", { x1: ox, y1: oy - 78, x2: ox, y2: oy + 78, stroke: "rgba(78,205,196,.28)", "stroke-width": "1" }));
+    orbit.appendChild(el("line", { x1: ox - 78, y1: oy, x2: ox + 78, y2: oy, stroke: "rgba(11,110,168,.30)", "stroke-width": "1" }));
+    orbit.appendChild(el("line", { x1: ox, y1: oy - 78, x2: ox, y2: oy + 78, stroke: "rgba(11,110,168,.30)", "stroke-width": "1" }));
     orbit.appendChild(el("circle", { cx: ox + 14, cy: oy + 6, r: 9, fill: "url(#g-malware)", filter: "url(#glow)" }));
-    const orbitLabel = el("text", { x: ox + 28, y: oy + 4, fill: "#e8f4f1", "font-size": "10", "font-family": "Manrope, sans-serif", "font-weight": "600" });
+    const orbitLabel = el("text", { x: ox + 28, y: oy + 4, fill: "#1c1c1c", "font-size": "10", "font-family": "Outfit, sans-serif", "font-weight": "600" });
     orbitLabel.textContent = "Re-seen host";
     orbit.appendChild(orbitLabel);
-    const orbitSub = el("text", { x: ox + 28, y: oy + 15, fill: "rgba(159,189,184,.75)", "font-size": "9", "font-family": "JetBrains Mono, monospace" });
+    const orbitSub = el("text", { x: ox + 28, y: oy + 15, fill: "rgba(74,79,87,.85)", "font-size": "9", "font-family": "JetBrains Mono, monospace" });
     orbitSub.textContent = "23%";
     orbit.appendChild(orbitSub);
-    const gapLabel = el("text", { x: ox - 96, y: oy + 64, fill: "rgba(159,189,184,.8)", "font-size": "9.5", "font-family": "JetBrains Mono, monospace" });
+    const gapLabel = el("text", { x: ox - 96, y: oy + 64, fill: "rgba(74,79,87,.85)", "font-size": "9.5", "font-family": "JetBrains Mono, monospace" });
     gapLabel.textContent = "32% unenriched";
     orbit.appendChild(gapLabel);
     svg.appendChild(orbit);

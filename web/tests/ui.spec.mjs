@@ -219,18 +219,36 @@ for (let i = 0; i < 3; i++) {
   await page.waitForTimeout(250);
   themeCycle.push(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
 }
-check("t cycles dark → light → system", themeCycle.join(",") === "light,,dark", themeCycle.join(","));
+/* The cycle is system -> dark -> light -> system. Which of the three you start
+   on depends on the stored default, so assert the cycle visits all three
+   exactly once rather than pinning the entry point. */
+check("t cycles through all three themes",
+  new Set(themeCycle).size === 3 && themeCycle.includes("dark") && themeCycle.includes("light")
+    && themeCycle.includes(null),
+  themeCycle.map((t) => t === null ? "system" : t).join(" \u2192 "));
 
 await page.evaluate(() => localStorage.setItem("intelpulse:theme", '"light"'));
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForTimeout(400);
 check("the theme choice survives a reload",
   (await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) === "light");
-check("light mode keeps text readable against its surface",
-  await page.evaluate(() => {
-    const cs = getComputedStyle(document.body);
-    return cs.color !== cs.backgroundColor && /255|251|252/.test(cs.backgroundColor);
-  }));
+/* Compute the ratio rather than pattern-matching the surface hex — the old
+   check only knew one palette, and passed or failed on what the page was
+   painted rather than on whether anyone could read it. */
+const bodyContrast = await page.evaluate(() => {
+  const chan = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const parse = (value) => (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+  const lum = ([r, g, b]) => 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+  const body = getComputedStyle(document.body);
+  /* the page's paint may live on <html>; body can legitimately be transparent */
+  const back = /rgba\(0, 0, 0, 0\)|transparent/.test(body.backgroundColor)
+    ? getComputedStyle(document.documentElement).backgroundColor
+    : body.backgroundColor;
+  const [a, b] = [lum(parse(body.color)), lum(parse(back))].sort((x, y) => y - x);
+  return Math.round(((a + 0.05) / (b + 0.05)) * 100) / 100;
+});
+check("light mode keeps body text readable against its surface",
+  bodyContrast >= 4.5, bodyContrast + ":1");
 await page.evaluate(() => localStorage.setItem("intelpulse:theme", '"dark"'));
 
 // ———————————————————————————————————————— 9. the rail
