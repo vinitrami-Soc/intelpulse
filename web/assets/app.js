@@ -358,7 +358,7 @@
       '<div class="stat" id="hero-stat">' +
         '<div class="k">Case verdict</div>' +
         '<div class="hero"><span class="figure" id="hero-figure" style="color:' + sevVar(result.verdict) + '">0</span>' +
-        '<span class="of">/100 &nbsp;' + badge(result.verdict) + "</span></div>" +
+        '<span class="of">/100 </span>' + badge(result.verdict) + "</div>" +
         '<div style="margin-top:8px">' + C.meter(result.score / 100, result.verdict, "block") + "</div>" +
       "</div>" +
       '<div class="stat"><div class="k">Indicators</div><div class="v"><span id="kpi-iocs">0</span>' +

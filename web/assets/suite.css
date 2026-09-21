@@ -387,7 +387,22 @@ button { font-family: inherit; cursor: pointer; }
 .kpi-more:hover { background: var(--ground-2); color: var(--ink); }
 .kpi .val { font-size: 32px; font-weight: 600; letter-spacing: -.04em; line-height: 1; }
 .kpi-foot { display: flex; align-items: center; gap: 8px; }
-.kpi-foot small { color: var(--ink-3); font-size: 10.5px; }
+/* The note yields the space, not the capsule: a flex child will not shrink past
+   its content unless it is told it may. */
+.kpi-foot small { color: var(--ink-3); font-size: 10.5px; min-width: 0; }
+/* A capsule is a shape drawn around one short label. Let that label wrap and the
+   shape stops reading as a pill and starts reading as a rendering fault — which
+   is what "9% up" did inside every KPI card at phone and tablet widths. A
+   capsule is sized by its text, is never squeezed by a flex parent, and never
+   breaks across lines. */
+.chip, .tag, .pill-sev { white-space: nowrap; flex: 0 0 auto; }
+/* Two columns of cards on a phone leaves no room for "vs 90 days ago" and a
+   capsule side by side — the note came out as three one-word lines. They get a
+   line each instead, note first. */
+@media (max-width: 620px) {
+  .kpi-foot { flex-wrap: wrap; row-gap: 6px; }
+  .kpi-foot small { flex: 1 0 100%; }
+}
 .chip {
   display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
   padding: 3px 8px; border-radius: var(--r-full); font-size: 10.5px; font-weight: 600;

@@ -201,6 +201,65 @@ check("the answer carries its source",
   (await page.$$eval("#ai-log .ai-src", (els) => els.length)) >= 1);
 const acts = await page.$$("#ai-log [data-act]");
 check("the answer offers somewhere to go", acts.length >= 1);
+/* An assistant that shrugs at plain English is worse than no assistant. These
+   are the questions a visitor actually types — two of them were reported from a
+   phone, both answered "I do not have an answer for that one". */
+const DECLINED = "do not have an answer";
+async function ask(question) {
+  await page.fill("#ai-input", question);
+  await page.press("#ai-input", "Enter");
+  await page.waitForTimeout(500);
+  return page.$eval("#ai-log .ai-msg.bot:last-child", (el) => el.textContent.trim());
+}
+
+const MUST_ANSWER = [
+  "Take me to the main page",
+  "About",
+  "help",
+  "what can you do",
+  "go home",
+  "open the workbench",
+  "take me to the top",
+  "who built this",
+  "show me the graph",
+  "what is this"
+];
+const shrugged = [];
+for (const question of MUST_ANSWER) {
+  const answer = await ask(question);
+  if (answer.includes(DECLINED)) shrugged.push(question);
+}
+check("the assistant answers plain-English requests",
+  shrugged.length === 0, shrugged.join(" · ") || MUST_ANSWER.length + " asked");
+
+/* Every question the panel offers must be one it can answer. Suggesting a
+   question and then declining it is the worst version of this bug. */
+const offered = await page.$$eval("#ai-chips button", (els) => els.map((e) => e.textContent.trim()));
+const badChips = [];
+for (const question of offered) {
+  if ((await ask(question)).includes(DECLINED)) badChips.push(question);
+}
+check("every suggestion it offers is one it can answer",
+  badChips.length === 0, badChips.join(" · ") || offered.length + " suggestions");
+
+/* "Take me to the main page" should take you there, not describe the journey. */
+await page.evaluate(() => { location.hash = "#/console/sources"; });
+await page.waitForTimeout(600);
+const navAnswer = await ask("take me to the main page");
+const goHome = await page.$('#ai-log .ai-msg.bot:last-child [data-act="home"]');
+check("a navigation request offers the button that performs it",
+  goHome !== null && !navAnswer.includes(DECLINED),
+  navAnswer.slice(0, 60));
+if (goHome) {
+  await goHome.click();
+  await page.waitForTimeout(700);
+  check("and pressing it lands on the site, not the console",
+    (await page.evaluate(() => location.hash)) === "#/home",
+    await page.evaluate(() => location.hash));
+  await page.click("#ai-fab").catch(() => {});
+  await page.waitForTimeout(400);
+}
+
 await page.click("#ai-close");
 await page.waitForTimeout(400);
 check("the close button closes it", !(await page.$eval("#ai-panel", (el) => el.classList.contains("on"))));

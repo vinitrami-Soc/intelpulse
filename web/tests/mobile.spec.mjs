@@ -82,6 +82,30 @@ for (const [name, width, height] of [
       };
     });
     check("no sideways scroll on " + name + " (" + route + ")", shot.overflow === 0, shot.overflow + "px over");
+
+    /* A pill sized to its text must never break that text across two lines: a
+       two-line "9% up" inside a rounded capsule reads as a rendering fault, and
+       it was one on every phone width this file tests. */
+    const pills = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll(".kpi .chip, .badge, .tag, .pill-sev").forEach((el) => {
+        if (el.closest("#preview") || el.closest("[inert]")) return;
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return;
+        const line = parseFloat(getComputedStyle(el).lineHeight) ||
+          parseFloat(getComputedStyle(el).fontSize) * 1.2;
+        const pad = parseFloat(getComputedStyle(el).paddingTop) +
+          parseFloat(getComputedStyle(el).paddingBottom);
+        if (r.height > line + pad + 4) {
+          out.push((el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 18) +
+            " " + Math.round(r.width) + "x" + Math.round(r.height));
+        }
+      });
+      return out;
+    });
+    check("no capsule wraps its own label on " + name + " (" + route + ")",
+      pills.length === 0, pills.slice(0, 4).join(" · "));
+
     check("every control clears 44px on " + name + " (" + route + ")", shot.small.length === 0,
       shot.small.slice(0, 4).join(" · "));
     /* The regression this file was written for. Above 900px two columns are

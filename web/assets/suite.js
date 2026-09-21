@@ -670,7 +670,12 @@
       how: ["Show how it correlates", () => jump("#how")],
       evidence: ["Show the evidence view", () => jump("#evidence")],
       sources: ["Show the sources", () => jump("#sources")],
-      theme: ["Switch the theme", () => $("#theme-btn").click()]
+      theme: ["Switch the theme", () => $("#theme-btn").click()],
+      home: ["Back to the main page", () => {
+        go("#/home");
+        setTimeout(() => scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" }), 90);
+      }],
+      top: ["Back to the top", () => scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" })]
     };
     function jump(sel) {
       if (paneFromHash() !== null) go("#/home");
@@ -678,8 +683,54 @@
     }
 
     const KB = [
+      /* People ask an assistant to DO things, not only to explain them. Without
+         these, "take me to the main page" and "open the workbench" both fell
+         through to "I do not have an answer", which is the rudest possible
+         answer to a request the page can satisfy in one click. */
+      { id: "home",
+        keys: ["main page", "home page", "go home", "landing page", "landing", "front page",
+          "take me back", "go back", "start page", "beginning", "back to the site",
+          "leave the console", "exit the console", "take me to the main page"],
+        html: "<p>The main page is one press away — it is the site this console sits behind.</p>",
+        acts: ["home", "how"] },
+
+      { id: "top",
+        keys: ["scroll up", "to the top", "go up", "top of the page", "scroll to the top"],
+        html: "<p>Back to the top of the page.</p>",
+        acts: ["top", "home"] },
+
+      { id: "workbench",
+        keys: ["workbench", "analyst workbench", "open the workbench", "triage workbench",
+          "live tool", "where do i paste", "run an alert"],
+        html: "<p>The workbench is the analyst tool: paste an alert, run it, read the evidence " +
+              "behind every verdict and take the ticket at the end.</p>" +
+              "<p>It runs on bundled synthetic data with no backend at all, so you can try it here.</p>",
+        acts: ["workbench", "graph"] },
+
+      { id: "console",
+        keys: ["console", "dashboard", "operator console", "open the console", "overview page",
+          "show me the dashboard", "the numbers"],
+        html: "<p>The console is the posture view — open findings, how they are split by severity " +
+              "and state, the attack surface and the intelligence sources behind it.</p>",
+        acts: ["console", "workbench"] },
+
+      { id: "help",
+        keys: ["help", "what can you do", "what can i ask", "what do you know", "options",
+          "commands", "how do you work", "what are you", "who are you", "capabilities"],
+        html: "<p>I answer from this project's documentation and the dataset already on this page. " +
+              "No model is called and nothing leaves the tab, so I would rather say I do not know " +
+              "than invent something.</p>" +
+              "<p>Ask me about <strong>the scoring model</strong> and its weights, <strong>the sources</strong> " +
+              "and the offline feeds, <strong>what you can paste</strong>, <strong>the graph</strong>, " +
+              "<strong>the ticket</strong> it writes, <strong>the security controls</strong>, or anything " +
+              "about <strong>the findings loaded here</strong>.</p>" +
+              "<p>I can also take you somewhere: the main page, the console, the workbench or the graph.</p>",
+        acts: ["scoring", "sources", "workbench", "home"] },
+
       { id: "what",
-        keys: ["what is intelpulse", "what does it do", "what is this", "tell me about intelpulse", "intelpulse", "overview", "purpose"],
+        keys: ["what is intelpulse", "what does it do", "what is this", "tell me about intelpulse",
+          "intelpulse", "overview", "purpose", "about this project", "about intelpulse",
+          "who built this", "who made this", "why does this exist", "what am i looking at"],
         html: "<p><strong>IntelPulse correlates one alert across every intelligence source in a single pass.</strong></p>" +
               "<p>Paste an indicator list, a raw syslog line or a JSON alert export. It pulls the indicators out, " +
               "queries every applicable source concurrently, scores them into one auditable verdict, maps how they " +
@@ -916,9 +967,23 @@
     ];
 
     const norm = (t) => t.toLowerCase().replace(/[^a-z0-9+ ]+/g, " ").replace(/\s+/g, " ").trim();
+
+    /* A few words name an intent only when they ARE the whole question. "about"
+       asked alone means "what is this"; inside "tell me about ssrf" it is just
+       framing, and letting it score would answer the wrong question — which it
+       did, beating the SSRF entry on a tie. Matched against the full text. */
+    const WHOLE = {
+      "about": "what", "about this": "what", "about this page": "what", "about it": "what",
+      "about the project": "what", "info": "what", "tell me more": "what",
+      "help": "help", "menu": "help", "what else": "help",
+      "top": "top", "up": "top",
+      "home": "home", "back": "home", "main": "home"
+    };
+
     function match(question) {
       const text = norm(question);
       if (!text) return null;
+      if (WHOLE[text]) return KB.find((entry) => entry.id === WHOLE[text]) || null;
       const words = text.split(" ");
       let best = null, high = 0;
       for (const entry of KB) {
@@ -973,8 +1038,9 @@
             "<p>I do not have an answer for that one, and I would rather say so than invent it.</p>" +
             "<p>What I can cover: the scoring model and its weights, the sources and the offline feeds, what you " +
             "can paste, the graph, the generated ticket, the security controls, and anything about the dataset " +
-            "loaded on this page.</p>",
-            ["scoring", "sources", "workbench"]);
+            "loaded on this page.</p>" +
+            "<p>Ask me &ldquo;what can you do&rdquo; for the full list, or take one of these.</p>",
+            ["scoring", "sources", "workbench", "home"]);
           return;
         }
         bubble("bot", hit.live ? hit.live() : hit.html, hit.acts, hit.src);

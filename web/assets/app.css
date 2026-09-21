@@ -316,6 +316,15 @@ label.field { display: flex; justify-content: space-between; align-items: center
 /* ——————————————————————————————————————— KPI + hero */
 .kpi { display: grid; grid-template-columns: 1.25fr repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
 @media (max-width: 900px) { .kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* The verdict is the number the whole view leads with, and "CRITICAL" is a wide
+   word. On a phone it takes the row rather than sharing a 64px-wide column with
+   three other stats, which left no line the badge could fit on at all. */
+@media (max-width: 560px) {
+  .kpi > #hero-stat { grid-column: 1 / -1; }
+  /* With the verdict on its own row, three stats in two columns leave a hole.
+     The last one takes the width rather than the grid showing a gap. */
+  .kpi > .stat:last-child:nth-child(even) { grid-column: 1 / -1; }
+}
 .stat {
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: var(--r-2); padding: var(--s-3);
@@ -327,12 +336,20 @@ label.field { display: flex; justify-content: space-between; align-items: center
 .stat .v small { font-size: 11.5px; color: var(--ink-3); font-weight: 500; letter-spacing: 0; }
 
 /* The one number the view leads with. Same sans, proportional figures. */
-.hero { display: flex; align-items: baseline; gap: var(--s-3); }
+/* The score, "/100" and the verdict badge are three things on one line until the
+   column is too narrow for them, and then they are two lines. Without the wrap
+   the row could not shrink below its content and pushed the badge out of the
+   card — 161px of content in a 64px box on a phone. */
+.hero { display: flex; align-items: baseline; gap: var(--s-3); flex-wrap: wrap; }
 .hero .figure { font: 650 52px/1 var(--sans); letter-spacing: -.035em; }
 .hero .of { font-size: 13px; color: var(--ink-3); }
 
 /* ——————————————————————————————————— severity badges */
 /* Colour is never the only channel: label + glyph + lightness rank. */
+/* Same rule as the site's capsules: sized by its label, never broken, never
+   squeezed by the flex row it sits in. */
+.pill, .badge { flex: 0 0 auto; }
+.pill { white-space: nowrap; }
 .badge {
   display: inline-flex; align-items: center; gap: 5px;
   font: 650 10.5px var(--sans); letter-spacing: .05em; text-transform: uppercase;
