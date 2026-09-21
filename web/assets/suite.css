@@ -9,8 +9,13 @@
   --flame:       #fe5729;
   --flame-deep:  #e8431a;
   --flame-wash:  #fff1ec;
+  /* Flame carries fills; these two carry text. White on --flame is 3.18:1 and
+     --flame-deep on --flame-wash is 3.63:1 — neither passes at label sizes. */
+  --flame-ink:   #d93d15;   /* white on it: 4.54:1 */
+  --flame-ink-2: #b3300e;   /* on --flame-wash: 5.69:1 */
   --azure:       #4a9fdd;
   --azure-wash:  #eaf4fd;
+  --azure-ink:   #0b6ea8;   /* on --azure-wash: 4.95:1 */
 
   /* neutrals, biased a touch warm so they sit under the flame */
   --ink:         #1c1c1c;
@@ -54,7 +59,10 @@
   --line:       #262b33;
   --line-2:     #333a45;
   --flame-wash: #2a150f;
+  --flame-ink:  #e8431a;
+  --flame-ink-2:#ff8f6b;
   --azure-wash: #10202c;
+  --azure-ink:  #7cc0f0;
   --sky-top:    #0f2233;
   --sky-mid:    #122536;
   --sky-low:    #0d0f12;
@@ -406,15 +414,27 @@ button { font-family: inherit; cursor: pointer; }
 .sev { display: flex; gap: 4px; height: 44px; margin-top: 8px; }
 .sev span {
   display: grid; place-items: center; border-radius: var(--r-sm); font-size: 11.5px; font-weight: 600;
-  white-space: nowrap; overflow: hidden; transition: flex-grow var(--t-slow) var(--ease);
+  white-space: nowrap; overflow: hidden; padding-inline: 10px;
+  /* Bands are sized by count, but a band whose label does not fit stops being a
+     label — and severity here is never carried by colour alone. The floor is
+     the text; the free space above it is what gets shared out by count. */
+  min-width: max-content;
+  transition: flex-grow var(--t-slow) var(--ease);
 }
 .sev .critical { background: var(--ink); color: var(--paper); }
 :root[data-theme="dark"] .sev .critical { background: #f3f5f8; color: #15181d; }
-.sev .high { background: var(--flame); color: #fff; }
+/* --flame-ink, not --flame: white on #fe5729 is 3.18:1, which is fine for a
+   4px bar and not fine for an 11.5px bold label sitting on it. */
+.sev .high { background: var(--flame-ink); color: #fff; }
 .sev .medium { background: var(--ground-2); color: var(--ink-2); }
-.sev .rest {
-  flex: 0 0 62px; border-radius: var(--r-sm);
-  background: repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px 5px);
+.sev .low { background: var(--azure-wash); color: var(--azure-ink); }
+/* Below the action threshold, so it is drawn as a band you can read past —
+   hatched, but still labelled and still counted. */
+.sev .info {
+  color: var(--ink-3);
+  background:
+    repeating-linear-gradient(135deg, var(--line-2) 0 1px, transparent 1px 7px),
+    var(--ground);
 }
 .state-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .state-row div {
@@ -485,8 +505,11 @@ button { font-family: inherit; cursor: pointer; }
 .pill-sev { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-full); }
 .pill-sev.critical { background: var(--ink); color: var(--paper); }
 :root[data-theme="dark"] .pill-sev.critical { background: #f3f5f8; color: #15181d; }
-.pill-sev.high { background: var(--flame-wash); color: var(--flame-deep); }
+/* --flame-deep on --flame-wash is 3.63:1 at 10.5px. --flame-ink-2 is 5.69:1. */
+.pill-sev.high { background: var(--flame-wash); color: var(--flame-ink-2); }
 .pill-sev.medium { background: var(--ground-2); color: var(--ink-2); }
+.pill-sev.low { background: var(--azure-wash); color: var(--azure-ink); }
+.pill-sev.info { background: var(--ground-2); color: var(--ink-3); }
 
 /* ──────────────────────────────────────────────── marketing sections */
 .strip { padding-block: 30px 42px; }

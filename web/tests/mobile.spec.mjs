@@ -179,9 +179,9 @@ for (const [name, width, height] of [
   const { context, page } = await phone();
   await page.evaluate(() => { location.hash = "#/console"; });
   await page.waitForTimeout(900);
-  const bands = await page.$$eval("#console-body [data-sev] span:not(.rest)", (els) =>
+  const bands = await page.$$eval("#console-body [data-sev] span", (els) =>
     els.map((el) => ({ text: el.textContent.trim(), clipped: el.scrollWidth > el.clientWidth + 1 })));
-  check("severity labels are not cut short", bands.length >= 3 && bands.every((b) => !b.clipped),
+  check("severity labels are not cut short", bands.length === 5 && bands.every((b) => !b.clipped),
     bands.map((b) => b.text).join(", "));
   const table = await page.evaluate(() => {
     const wrap = document.querySelector("#console-body .table-wrap");
@@ -305,7 +305,7 @@ for (const [name, width, height] of [
     ["is this real data", "RFC 5737"],
     ["does anything leave my browser", "Nothing leaves"],
     ["what is critical right now", "203.0.113.10"],
-    ["how many findings are there", "26 findings"],
+    ["how many findings are there", "40 findings"],
     ["what is the attack surface", "68"],
     ["which month was busiest", "Apr"],
     ["how do I install it", "docker compose"],

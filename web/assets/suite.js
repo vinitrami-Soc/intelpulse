@@ -16,15 +16,22 @@
       { id: "closed",  icon: "i-check-circle", label: "Closed findings",    value: 235, delta: "8% down", dir: "down", note: "vs 90 days ago" },
       { id: "mttr",    icon: "i-clock",        label: "Avg time to triage", value: 390, delta: "24% up",  dir: "up",   note: "seconds, median" }
     ],
+    /* Five bands, because the scoring model has five. The hatched remainder used
+       to be "30 minus whatever is shown", which meant filtering to Closed
+       claimed 21 unclassified findings out of nowhere; informational is a real
+       band now and every filter reconciles: open + close equals all, band by
+       band, and the states sum to the same totals. */
     severity: {
-      all:   [{ k: "critical", n: 9, t: "9 Critical" }, { k: "high", n: 11, t: "11 High" }, { k: "medium", n: 6, t: "6 Medium" }],
-      open:  [{ k: "critical", n: 6, t: "6 Critical" }, { k: "high", n: 8,  t: "8 High" },  { k: "medium", n: 3, t: "3 Medium" }],
-      close: [{ k: "critical", n: 3, t: "3 Critical" }, { k: "high", n: 3,  t: "3 High" },  { k: "medium", n: 3, t: "3 Medium" }]
+      all:   [{ k: "critical", n: 9, t: "9 Critical" }, { k: "high", n: 11, t: "11 High" }, { k: "medium", n: 6, t: "6 Medium" }, { k: "low", n: 5, t: "5 Low" }, { k: "info", n: 9, t: "9 Informational" }],
+      open:  [{ k: "critical", n: 6, t: "6 Critical" }, { k: "high", n: 8,  t: "8 High" },  { k: "medium", n: 3, t: "3 Medium" }, { k: "low", n: 3, t: "3 Low" }, { k: "info", n: 6, t: "6 Informational" }],
+      close: [{ k: "critical", n: 3, t: "3 Critical" }, { k: "high", n: 3,  t: "3 High" },  { k: "medium", n: 3, t: "3 Medium" }, { k: "low", n: 2, t: "2 Low" }, { k: "info", n: 3, t: "3 Informational" }]
     },
+    /* "Reset ready" named nothing in a triage tool. These are the three states
+       an indicator is actually in, and they add up to the severity totals. */
     state: {
-      all:   ["9 Pending fix", "6 In progress", "6 Reset ready"],
-      open:  ["9 Pending fix", "6 In progress", "0 Reset ready"],
-      close: ["0 Pending fix", "0 In progress", "6 Reset ready"]
+      all:   ["17 Awaiting triage", "9 In progress", "14 Closed"],
+      open:  ["17 Awaiting triage", "9 In progress", "0 Closed"],
+      close: ["0 Awaiting triage", "0 In progress", "14 Closed"]
     },
     months: [
       { m: "Jan", v: 248 }, { m: "Feb", v: 215 }, { m: "Mar", v: 230 },
@@ -35,7 +42,8 @@
       { ioc: "cdn.example.org", type: "domain", sev: "high", src: "URLhaus + 2",    seen: "14 min ago" },
       { ioc: "5d41402abc…f90", type: "hash", sev: "high",    src: "OTX + 3",        seen: "38 min ago" },
       { ioc: "198.51.100.42", type: "ip",   sev: "medium",   src: "AbuseIPDB + 1",  seen: "1 hr ago" },
-      { ioc: "secure-login.example.com", type: "domain", sev: "medium", src: "OTX + 1", seen: "3 hrs ago" }
+      { ioc: "secure-login.example.com", type: "domain", sev: "medium", src: "OTX + 1", seen: "3 hrs ago" },
+      { ioc: "198.51.100.7",  type: "ip",   sev: "low",      src: "GreyNoise",     seen: "5 hrs ago" }
     ],
     surface: { score: 68, ip: 56, svc: 24 }
   };
@@ -125,11 +133,10 @@
 
   /* ───────────────────────────────────────────────── chart pieces */
   function severityBar(host, key) {
-    const rows = DATA.severity[key];
-    const total = rows.reduce((s, r) => s + r.n, 0);
-    host.innerHTML = rows.map((r) =>
-      '<span class="' + r.k + '" style="flex:' + r.n + ' 1 0">' + r.t + "</span>").join("") +
-      '<span class="rest" title="' + (30 - total) + ' unclassified"></span>';
+    /* Every segment is a band with a count and a visible label. Nothing here is
+       sized by a constant the data does not know about. */
+    host.innerHTML = DATA.severity[key].map((r) =>
+      '<span class="' + r.k + '" style="flex:' + r.n + ' 1 0">' + r.t + "</span>").join("");
   }
 
   function stateRow(host, key) {
@@ -259,7 +266,7 @@
           '<div class="seg" role="group" aria-label="Filter findings">' +
             '<button data-filter="all" aria-pressed="true">All</button>' +
             '<button data-filter="open" aria-pressed="false">Open</button>' +
-            '<button data-filter="close" aria-pressed="false">Close</button></div></div>' +
+            '<button data-filter="close" aria-pressed="false">Closed</button></div></div>' +
         '<div class="label-xs">Severity</div><div class="sev" data-sev></div>' +
         '<div class="label-xs" style="margin-top:14px">State</div><div class="state-row" data-state></div>' +
         (compact ? "" : '<div class="label-xs" style="margin-top:18px">Latest</div>' +

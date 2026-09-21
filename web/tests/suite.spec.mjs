@@ -45,7 +45,30 @@ await page.waitForTimeout(1200);
 /* ───────────────────────────────────────────────────────── structure */
 check("the landing page renders its hero", await page.$eval("h1", (h) => h.textContent.trim().length > 20));
 check("the hero mock draws the console", (await page.$$("#console-preview .kpi")).length === 4);
-check("the severity bar draws every band", (await page.$$("#sev-landing span")).length >= 4);
+check("the severity bar draws all five bands", (await page.$$("#sev-landing span")).length === 5,
+  (await page.$$eval("#sev-landing span", (els) => els.map((e) => e.textContent.trim()).join(" \u00b7 "))));
+
+/* The hatched remainder used to be sized as "30 minus whatever is shown", so
+   filtering to Closed invented 21 unclassified findings. Every band is data
+   now, and the three filters have to reconcile with the state row. */
+for (const filter of ["All", "Open", "Closed"]) {
+  await page.evaluate((f) => {
+    [...document.querySelectorAll("#page-home .seg button")].find((b) => b.textContent.trim() === f)?.click();
+  }, filter);
+  await page.waitForTimeout(320);
+  const sums = await page.evaluate(() => {
+    const count = (t) => parseInt(t, 10) || 0;
+    const sev = [...document.querySelectorAll("#sev-landing span")].reduce((s, e) => s + count(e.textContent), 0);
+    const state = [...document.querySelectorAll("#state-landing div")].reduce((s, e) => s + count(e.textContent), 0);
+    return { sev, state };
+  });
+  check("the " + filter + " filter reconciles severity with state",
+    sums.sev > 0 && sums.sev === sums.state, sums.sev + " vs " + sums.state);
+}
+await page.evaluate(() => {
+  [...document.querySelectorAll("#page-home .seg button")].find((b) => b.textContent.trim() === "All")?.click();
+});
+await page.waitForTimeout(280);
 check("the attack-surface gauge draws", (await page.$$("#gauge-landing svg")).length === 1);
 check("the hero mock is inert", await page.$eval("#preview-scaler", (el) =>
   el.hasAttribute("inert") && getComputedStyle(el).pointerEvents === "none"),
