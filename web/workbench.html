@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IntelPulse — Threat Intelligence &amp; Triage Workbench</title>
+<meta name="description" content="Paste an alert. IntelPulse correlates it across AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus and offline datasets in one pass, scores it, graphs it, and writes the SOC ticket.">
+<meta name="theme-color" content="#0b1020">
+<!-- A SOC tool renders attacker-controlled text (log lines, vendor responses).
+     The CSP is the backstop behind output encoding: no inline script, no eval,
+     scripts only from this origin and the graph CDN. frame-ancestors cannot be
+     set from a meta tag, so nginx.conf sends it as a real header. -->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' https://cdnjs.cloudflare.com;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  font-src 'self' https://fonts.gstatic.com;
+  img-src 'self' data:;
+  connect-src 'self' https: http://localhost:* http://127.0.0.1:*;
+  form-action 'none';
+  base-uri 'none';
+  object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="IntelPulse — Threat Intelligence &amp; Triage Workbench">
+<meta property="og:description" content="One pass across every source, one auditable verdict, one ready-to-paste SOC ticket.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23887aee'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='%230b1020' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the workbench</a>
+
+<div class="app" id="app">
+
+  <!-- ———————————————————————————————————————————— rail -->
+  <nav class="rail" id="rail" aria-label="Sections">
+    <button class="rail-brand" id="brand" title="IntelPulse">
+      <span class="rail-mark" aria-hidden="true">IP</span>
+      <span class="rail-word" translate="no">IntelPulse<small>triage workbench</small></span>
+    </button>
+
+    <div class="rail-group">Investigation</div>
+    <button class="rail-btn" data-nav="triage" aria-current="true" title="Indicators">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+      <span>Indicators</span><span class="rail-kbd">g i</span>
+    </button>
+    <button class="rail-btn" data-nav="graph" title="Relationship graph">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="9" r="2.2"/><circle cx="9" cy="18" r="2.2"/><path d="M7.1 7.2 16.9 8.4M6.4 8.1l2 7.6M10.9 16.6l6.5-5.6"/></svg>
+      <span>Graph</span><span class="rail-kbd">g g</span>
+    </button>
+    <button class="rail-btn" data-nav="report" title="SOC ticket">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+      <span>SOC ticket</span><span class="rail-kbd">g t</span>
+    </button>
+    <button class="rail-btn" data-nav="history" title="Case history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.5l3.5 2"/></svg>
+      <span>History</span><span class="rail-kbd">g h</span>
+    </button>
+
+    <div class="rail-group">Reference</div>
+    <button class="rail-btn" data-nav="sources" title="Intelligence sources">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg>
+      <span>Sources</span>
+    </button>
+    <button class="rail-btn" data-nav="scoring" title="Scoring model">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 8H5a2 2 0 0 0-2 2v9M17 8h2a2 2 0 0 1 2 2v9"/><path d="M3 19h6M15 19h6M12 3l5 5M12 3 7 8"/></svg>
+      <span>Scoring model</span>
+    </button>
+
+    <div class="rail-spacer"></div>
+
+    <div class="rail-foot">
+      <button class="rail-btn" id="rail-toggle" aria-expanded="true" title="Collapse navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ———————————————————————————————————————————— main -->
+  <div class="main" id="main">
+    <header class="topbar">
+      <h1 class="page-title">Triage workbench<small>Correlate one alert across every source in a single pass</small></h1>
+      <div class="topbar-spacer"></div>
+
+      <button class="cmd-hint" id="cmd-hint" aria-label="Open the command palette">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+        Search or jump… <kbd>⌘K</kbd>
+      </button>
+
+      <div class="seg" id="mode-switch" role="group" aria-label="Data source">
+        <button data-mode="demo" aria-pressed="true">Demo data</button>
+        <button data-mode="live" aria-pressed="false">Live API</button>
+      </div>
+
+      <span class="pill demo" id="conn-pill"><span class="dot"></span> demo mode</span>
+
+      <button class="icon-btn" id="theme-toggle" aria-label="Cycle theme">
+        <svg viewBox="0 0 24 24" aria-hidden="true" id="theme-icon"></svg>
+      </button>
+      <button class="icon-btn" id="shortcuts-btn" aria-label="Keyboard shortcuts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg>
+      </button>
+    </header>
+
+    <div class="banner" id="demo-banner">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4.5M12 17v.01"/><path d="M10.3 3.9 2.6 17.4A2 2 0 0 0 4.3 20.4h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <span><b>Demo mode — synthetic data.</b> Indicators are scored in your browser against a bundled
+      sample dataset using the same weights, authority floor and verdict bands as the API. The addresses
+      are RFC 5737 documentation ranges and the domains are RFC 2606 reserved names, so nothing here
+      describes a real host. Switch to <b>Live API</b> and point it at a running backend
+      (<code translate="no">docker compose up</code>) for real AbuseIPDB / OTX / GreyNoise / abuse.ch lookups.</span>
+    </div>
+
+    <div class="grid">
+      <!-- ————————————————————————————————— input column -->
+      <div>
+        <section class="card">
+          <div class="card-head"><h2>Ingest</h2></div>
+          <div class="card-body">
+            <label class="field" for="title">Case title</label>
+            <input type="text" id="title" name="case-title" autocomplete="off" spellcheck="false"
+                   placeholder="IR-2026-114 — perimeter block burst…" value="Ad-hoc triage">
+
+            <label class="field" for="input" style="margin-top:12px">
+              <span>Indicators, syslog, or JSON alert</span><kbd>/</kbd>
+            </label>
+            <textarea id="input" name="indicators" autocomplete="off" spellcheck="false" aria-describedby="input-error" placeholder="Paste anything an alert gives you:
+  185.220.101.34
+  hxxp://bad-domain[.]top/payload.bin
+  Sep 18 02:14:11 fw-edge-01 kernel: [UFW BLOCK] SRC=... DST=...
+  {&quot;alert_id&quot;: &quot;EDR-...&quot;, &quot;sha256&quot;: &quot;...&quot;}"></textarea>
+
+            <p class="field-error" id="input-error" hidden>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.01"/></svg>
+              <span></span>
+            </p>
+
+            <div class="samples" id="samples"></div>
+
+            <div class="dropzone" id="dropzone">
+              Drop a <b>.log / .txt / .csv / .json</b> export here, or click to browse (max 5 MB)
+              <input type="file" id="file" accept=".log,.txt,.csv,.json,text/*" hidden>
+            </div>
+
+            <div class="btn-row">
+              <button class="btn primary" id="run">Run triage <kbd>⌘↵</kbd></button>
+              <button class="btn" id="parse">Parse only</button>
+              <button class="btn ghost" id="clear">Clear</button>
+            </div>
+            <div id="preview" style="margin-top:10px"></div>
+          </div>
+        </section>
+
+        <section class="card" id="card-sources">
+          <div class="card-head"><h2>Sources</h2></div>
+          <div class="card-body">
+            <div id="api-config" hidden style="margin-bottom:12px">
+              <label class="field" for="api-base">Backend base URL</label>
+              <div style="display:flex;gap:8px">
+                <input type="url" id="api-base" name="api-base" autocomplete="url" spellcheck="false" aria-describedby="api-error"
+                       inputmode="url" placeholder="http://localhost:8000">
+                <button class="btn small" id="api-save">Connect</button>
+              </div>
+              <p class="field-error" id="api-error" hidden>
+                <svg viewBox="0 0 24 24" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.01"/></svg>
+                <span></span>
+              </p>
+            </div>
+            <div id="providers"></div>
+          </div>
+        </section>
+
+        <section class="card" id="card-scoring">
+          <div class="card-head"><h2>How the score is built</h2></div>
+          <div class="card-body" style="font-size:12.5px;color:var(--ink-2)">
+            <p style="margin:0 0 9px">Every source is normalised to a 0–1 signal, then:</p>
+            <pre class="report" style="font-size:11px;padding:11px">score = 100 × max(
+    Σ(weight × signal) / Σ(weight),   ← weighted mean of the sources
+                                         that actually answered
+    max(signal × authority)           ← authority floor: one confirmed
+)                                        C2 listing still reads critical</pre>
+            <p style="margin:9px 0 0">Then the modifiers an analyst would apply by hand: GreyNoise
+            <b>benign</b> damps the score ×0.45, an allowlist entry forces 0, a blocklist entry forces
+            ≥ 90. <b>Confidence</b> is reported separately — 85/100 from one source is not 85/100 from
+            five. Open any indicator and press <b>Scoring math</b> to see the arithmetic.</p>
+          </div>
+        </section>
+      </div>
+
+      <!-- ———————————————————————————————— result column -->
+      <div>
+        <section class="card" id="results" hidden>
+          <div class="card-head">
+            <h2>Investigation</h2>
+            <div class="tabs" role="tablist">
+              <button data-tab="triage" role="tab" aria-selected="true">Indicators</button>
+              <button data-tab="graph" role="tab" aria-selected="false">Graph</button>
+              <button data-tab="report" role="tab" aria-selected="false">SOC ticket</button>
+              <button data-tab="history" role="tab" aria-selected="false">History</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="kpi" id="kpi"></div>
+            <p id="summary" style="margin:14px 0;color:var(--ink-2);font-size:13px"></p>
+
+            <div class="tab-panel" id="panel-triage"></div>
+
+            <div class="tab-panel" id="panel-graph" hidden>
+              <div class="graph-wrap">
+                <div id="graph"></div>
+                <div class="graph-tools" role="toolbar" aria-label="Graph controls">
+                  <button data-graph="in" title="Zoom in" aria-label="Zoom in">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M11 8v6M8 11h6M16.5 16.5 21 21"/></svg>
+                  </button>
+                  <button data-graph="out" title="Zoom out" aria-label="Zoom out">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M8 11h6M16.5 16.5 21 21"/></svg>
+                  </button>
+                  <button data-graph="fit" title="Re-centre" aria-label="Re-centre">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/><circle cx="12" cy="12" r="2.5"/></svg>
+                  </button>
+                  <span class="sep" aria-hidden="true"></span>
+                  <button data-graph="export" title="Export graph" aria-label="Export graph">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div id="graph-note" class="mono" style="font-size:10.5px;color:var(--ink-3);margin-top:7px"></div>
+              <div class="graph-legend">
+                <span><i style="background:var(--sev-critical)"></i> critical</span>
+                <span><i style="background:var(--sev-high)"></i> high</span>
+                <span><i style="background:var(--sev-medium)"></i> medium</span>
+                <span><i style="background:var(--sev-low)"></i> low</span>
+                <span><i style="background:var(--ramp-3)"></i> linked entity</span>
+                <span>★ malware · ▭ ASN, country, campaign · ⬡ hash · ◇ URL</span>
+              </div>
+            </div>
+
+            <div class="tab-panel" id="panel-report" hidden>
+              <div class="btn-row" style="margin:0 0 10px">
+                <button class="btn small" id="copy-report">Copy Markdown</button>
+                <button class="btn small ghost" id="download-md">Download .md</button>
+                <button class="btn small ghost" id="download-json">Download .json</button>
+              </div>
+              <pre class="report" id="report"></pre>
+            </div>
+
+            <div class="tab-panel" id="panel-history" hidden></div>
+          </div>
+        </section>
+
+        <section class="card" id="intro">
+          <div class="card-head"><h2>Start a triage</h2><span style="font-size:11.5px;color:var(--ink-3)">or press <kbd>⌘K</kbd></span></div>
+          <div class="card-body">
+            <p style="margin:0 0 14px;color:var(--ink-2);font-size:13px">One alert normally costs six
+            browser tabs: AbuseIPDB for reputation, OTX for the campaign, GreyNoise to ask whether it is
+            just Shodan again, ThreatFox and URLhaus for the payload, GeoIP for the hosting. IntelPulse
+            does that pass in a single request and writes the ticket at the end of it.</p>
+
+            <div class="starters" id="starters"></div>
+
+            <div class="steps">
+              <div class="step"><span class="n">1</span><div><b>Paste anything</b>IOC list, raw syslog, or a JSON alert export. Private and reserved address space is dropped before any lookup.</div></div>
+              <div class="step"><span class="n">2</span><div><b>Every source at once</b>Each provider is queried concurrently; a dead vendor degrades the result instead of failing it.</div></div>
+              <div class="step"><span class="n">3</span><div><b>One auditable verdict</b>A weighted composite with an authority floor, the evidence behind it, and a ticket you can paste into Jira.</div></div>
+            </div>
+
+            <div id="recent-cases"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span>IntelPulse · FastAPI · Celery · Redis · PostgreSQL · Cytoscape.js — built by
+        <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Vinit Rami</a></span>
+      <span><a href="https://github.com/vinitrami-Soc/vinitrami-Soc.github.io/tree/main/intelpulse" target="_blank" rel="noopener noreferrer">Source &amp; docs ↗</a></span>
+    </footer>
+  </div>
+</div>
+
+<!-- ——————————————————————————————————————————— overlays -->
+<div class="scrim" id="sheet-scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div class="sheet-head">
+      <h2 id="sheet-title">Details</h2>
+      <button class="icon-btn" id="sheet-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Cytoscape powers the relationship graph only; if the CDN is blocked the
+     dashboard falls back to a built-in SVG renderer on that tab. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script src="assets/engine.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/cmdk.js" defer></script>
+<script src="assets/demo-data.js" defer></script>
+<script src="assets/app.js" defer></script>
+</body>
+</html>

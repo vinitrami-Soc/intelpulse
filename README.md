@@ -168,6 +168,32 @@ type and verdict. Indicators are defanged in the report so a ticket comment can 
 
 ---
 
+## Three pages, one dataset
+
+![The landing page](docs/screenshots/site-hero.png)
+
+<p align="center">
+  <img src="docs/screenshots/site-console.png" width="49%" alt="Operator console">
+  <img src="docs/screenshots/site-console-dark.png" width="49%" alt="Operator console, dark">
+</p>
+
+| Page | What it is |
+| --- | --- |
+| `web/index.html` | The site and the operator console — what a visitor lands on. A light, sky-gradient landing page that explains the correlation model, and a console route (`#/console`) with the posture metrics, severity split and attack-surface gauge. |
+| `web/workbench.html` | The analyst tool. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket. This is the one with the command palette and the live-API toggle. |
+| `web/explorer.html` | The campaign graph — one investigation drawn as a radial map with a first-seen timeline. |
+
+They share the demo dataset and the scoring engine, so a number shown on the landing page is the same
+number the workbench computes.
+
+The landing page is deliberately a *page*, not an app shell: it has one accent colour, one typeface
+pair, glass panels over a sky gradient, reveal-on-scroll for every section, a sources rail that scrolls
+sideways on its own (and can be dragged, wheeled or arrow-keyed), and a theme button that wipes the new
+theme in as a circle growing out of the button. All of it degrades to plain, still, readable layout
+under `prefers-reduced-motion`.
+
+---
+
 ## Using it
 
 | Key | Action |
@@ -206,7 +232,8 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ```bash
 make test        # 63 backend tests: extraction, scoring, API contract, reports, security controls
 make test-web    # 21 node tests: engine parity + design-system guards
-make test-ui     # 56 Chromium checks: XSS, hostile URLs, degradation, palette, theming, a11y
+make test-ui     # Chromium: the workbench suite (XSS, hostile URLs, degradation, palette,
+                 # theming, a11y) plus the site suite (every control, the side rail, routing)
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```
@@ -220,6 +247,13 @@ real pipeline. The UI suite drives a real Chromium: it pastes `<script>`, `<img 
 hostile provider response and asserts the link is dropped, and kills the backend mid-request to check
 the page degrades instead of freezing. It also drives the command palette, the key sequences, the
 theme cycle and the charts, and asserts zero horizontal overflow at 390 / 768 / 1024 / 1440px.
+
+`web/tests/suite.spec.mjs` covers the site and console in front of it, and the rule it exists to
+enforce is that **every control a visitor can see does something**: it enumerates every visible
+button and link on both routes, clicks each one, and fails on any that leaves the page unchanged.
+It also pins the side rail (auto-advance, pause under the cursor, drag both ways, seamless wrap),
+the routing, the theme wipe and its persistence, the sign-up validation, and the scaled hero mock —
+each of which broke at least once while the page was being built.
 
 ---
 

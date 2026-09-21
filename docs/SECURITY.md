@@ -6,7 +6,7 @@ SOC's API quota, the box it runs on, the analyst's browser, and the internal
 network the backend can see. Every control below exists for one of those four.
 
 Each control names the test that proves it works — `backend/tests/test_security.py`
-for the service, `web/tests/ui.spec.mjs` for the browser.
+for the service, `web/tests/ui.spec.mjs` and `web/tests/suite.spec.mjs` for the browser.
 
 ---
 
@@ -157,7 +157,8 @@ never from the image.
 cd backend && pytest -q                 # 63 tests incl. the security suite
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
-node web/tests/ui.spec.mjs              # 13 browser checks (needs Playwright)
+node web/tests/ui.spec.mjs              # workbench browser checks (needs Playwright)
+node web/tests/suite.spec.mjs           # site + console browser checks
 ```
 
 ## Reporting

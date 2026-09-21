@@ -184,6 +184,84 @@ the ticket to the clipboard and says so, and the graph export opens in a new
 tab. A button that silently does nothing is worse than one that tells you where
 the file went.
 
+## The site and the console
+
+`web/index.html` is the page a visitor lands on: a light, sky-gradient marketing
+page with a console route behind it. It was built to a set of reference shots of
+a light cybersecurity SaaS — the brief was the *composition*, not the company.
+
+What was taken: the light sky gradient with soft cloud shapes, the floating pill
+navigation, a single hot accent (`--flame`, `#fe5729`) against near-black text,
+glass cards with generous radii, the alternating text/figure showcase rows, the
+device mock of the product under the hero, the sources rail, and the rounded
+call-to-action band above the footer. What was not taken: any wordmark, logo,
+copy or claim belonging to anyone. Every figure on the page is IntelPulse's own
+synthetic dataset, and the page says so in the footer.
+
+### Two palettes, on purpose — and the honest caveat
+
+The site and console run a light palette built around one hot accent
+(`--flame`), defined in `web/assets/suite.css`. The analyst workbench keeps the
+dark, violet-accented ramp in `web/assets/tokens.css`, which is the one the
+contrast tests in `web/tests/tokens.test.mjs` validate.
+
+That is a deliberate split — a marketing surface and a room an analyst stares at
+for eight hours want different things — but it is still two palettes in one
+product, and worth saying plainly rather than leaving for a reviewer to notice.
+If the workbench is ever brought onto the flame palette, the ramps have to be
+recomputed for contrast first, not eyeballed; that is what the tokens test is
+there to stop.
+
+### Every control does something
+
+The page has a lot of surface — two routes, a sidebar with collapsible groups,
+segment filters, panel menus, a sign-up form, four footer columns. It would be
+easy to leave half of it as decoration. So the rule is stated and then enforced:
+`web/tests/suite.spec.mjs` enumerates every visible `button`, `a[href]` and
+`[role="button"]` on both routes, clicks each one, and fails the suite if any
+click leaves the page unchanged. The first run found fifteen dead controls —
+three footer icons pointing at `#/home`, two unwired panel menus, and a brand
+mark that did nothing when you were already at the top. They are wired now, and
+the test is what keeps them wired.
+
+The hero's device mock went the other way. It is a real render of the console
+scaled down, so its buttons were real buttons — a second, tiny, confusing set of
+controls. It is now `inert` with `pointer-events: none`: a picture of the
+product, which is what it was always meant to be.
+
+### The side rail
+
+The sources strip scrolls sideways on its own, stops under the cursor, and can
+be dragged, wheeled or arrow-keyed. Two things about it are worth writing down.
+
+* **A fractional `scrollLeft` is rounded away.** Chromium snaps a programmatic
+  scroll offset to whole pixels, so `rail.scrollLeft += 0.4` every frame writes
+  `1639.4`, gets `1639` back, and never moves. The position is kept in a float
+  and written to `scrollLeft`; the loop resyncs from the element whenever
+  something else (a drag, the wheel) has moved it.
+* **Three runs, not two.** With two copies you can loop forwards seamlessly, but
+  dragging backwards hits `scrollLeft: 0` and stops dead. With three identical
+  runs the rail parks in the middle one and wraps by exactly one run width in
+  either direction — a shift that is invisible because the runs are identical.
+
+### The theme button
+
+It does the obvious thing (swap `data-theme`, persist the choice) and one extra:
+where `document.startViewTransition` exists, the new theme wipes in as a circle
+growing out of the button that was pressed, sized so the circle always reaches
+the furthest corner. Under `prefers-reduced-motion`, or without the API, the
+swap is instant and nothing else changes.
+
+### The hero mock, and a transform-origin worth remembering
+
+The mock renders at its true 1180px width and is then scaled to whatever the
+frame is, so the internals keep their real proportions instead of being
+re-laid-out at 390px. That only works from `transform-origin: top left`. With
+`top center` — the value that looks more natural — the fixed point is the middle
+of the *1180px scaler*, not the middle of the frame, so on a phone the whole
+mock lands outside the frame and the hero shows an empty white box. It did,
+until a responsive screenshot caught it.
+
 ## Campaign graph explorer
 
 `web/explorer.html` is a second view of the same investigation, built to a

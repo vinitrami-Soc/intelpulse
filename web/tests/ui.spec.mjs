@@ -7,6 +7,9 @@
  * and that the command palette, key sequences, theme and charts actually work
  * in a real browser.
  *
+ * The workbench is the analyst tool at web/workbench.html; the marketing
+ * site and operator console in front of it are covered by suite.spec.mjs.
+ *
  * Run:  python3 -m http.server 8123 --directory web   # one terminal
  *       node web/tests/ui.spec.mjs                    # another
  * Needs Playwright with Chromium available.
@@ -22,7 +25,7 @@ try {
   process.exit(2);
 }
 
-const BASE = process.env.INTELPULSE_URL || "http://127.0.0.1:8123/";
+const BASE = (process.env.INTELPULSE_URL || "http://127.0.0.1:8123/") + "workbench.html";
 let failures = 0;
 const check = (name, ok, detail) => {
   console.log((ok ? "PASS  " : "FAIL  ") + name + (detail ? "  — " + detail : ""));

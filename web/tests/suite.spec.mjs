@@ -1,0 +1,347 @@
+/* Browser tests for the landing page and operator console (web/index.html).
+ *
+ * The workbench tests cover the analyst tool; these cover the surface in front
+ * of it. The rule this file exists to enforce is simple: every control a
+ * visitor can see does something. A button that looks pressable and answers
+ * nothing is a bug, so the sweep below clicks all of them and fails on any
+ * that leave the page unchanged.
+ *
+ * It also pins the three things that broke while the page was being built —
+ * the side scroller (a fractional scrollLeft is rounded away by Chromium), the
+ * scaled hero mock (a centre transform-origin pushes it off a phone screen),
+ * and the theme wipe — so they cannot regress silently.
+ *
+ * Run:  python3 -m http.server 8123 --directory web   # one terminal
+ *       node web/tests/suite.spec.mjs                 # another
+ * Needs Playwright with Chromium available.
+ */
+let chromium;
+try {
+  ({ chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright"));
+} catch {
+  console.error("Playwright is required for these tests: npm i -D playwright");
+  console.error("(or set PLAYWRIGHT_MODULE to an installed copy)");
+  process.exit(2);
+}
+
+const BASE = process.env.INTELPULSE_URL || "http://127.0.0.1:8123/";
+let failures = 0;
+const check = (name, ok, detail) => {
+  console.log((ok ? "PASS  " : "FAIL  ") + name + (detail ? "  — " + detail : ""));
+  if (!ok) failures++;
+};
+
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message));
+page.on("console", (m) => {
+  if (m.type() === "error" && !/net::|favicon|font/i.test(m.text())) errors.push("console: " + m.text());
+});
+
+await page.goto(BASE, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(1200);
+
+/* ───────────────────────────────────────────────────────── structure */
+check("the landing page renders its hero", await page.$eval("h1", (h) => h.textContent.trim().length > 20));
+check("the hero mock draws the console", (await page.$$("#console-preview .kpi")).length === 4);
+check("the severity bar draws every band", (await page.$$("#sev-landing span")).length >= 4);
+check("the attack-surface gauge draws", (await page.$$("#gauge-landing svg")).length === 1);
+check("the hero mock is inert", await page.$eval("#preview-scaler", (el) =>
+  el.hasAttribute("inert") && getComputedStyle(el).pointerEvents === "none"),
+  "a scaled picture of the console must not be a second set of controls");
+
+/* ───────────────────────── every visible control answers when clicked */
+/* The page's own CSP forbids inline script — which is the point of having it —
+   so the probe goes in through the debugger rather than a <script> tag. */
+const installProbe = () => page.evaluate(() => {
+  window.__probe = {
+    mut: 0,
+    list() {
+      return [...document.querySelectorAll('button, a[href], [role="button"]')].filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 1 && r.height > 1 && el.offsetParent !== null;
+      });
+    },
+    label: (el) => (el.textContent || el.getAttribute("aria-label") || el.tagName)
+      .trim().replace(/\s+/g, " ").slice(0, 40)
+  };
+  new MutationObserver((records) => { window.__probe.mut += records.length; })
+    .observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+});
+await installProbe();
+
+const page_of = (url) => url.split("#")[0];
+async function reset(where) {
+  /* Some controls are ordinary links to the workbench or the graph. Following
+     one is a correct answer, not a failure — come back and carry on. */
+  if (page_of(page.url()) !== page_of(BASE)) {
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    await installProbe();
+    await page.waitForTimeout(700);
+  }
+  await page.evaluate((w) => { location.hash = w === "console" ? "#/console" : "#/home"; scrollTo(0, 0); }, where);
+  await page.waitForTimeout(260);
+  if (where === "console") {
+    await page.evaluate(() => {
+      const shell = document.querySelector("#console-full");
+      if (shell && shell.classList.contains("compact")) document.querySelector("#c-collapse")?.click();
+      document.querySelectorAll("#side-nav-full [data-group]").forEach((g) => {
+        if (g.getAttribute("aria-expanded") !== "true") g.click();
+      });
+      [...document.querySelectorAll("#side-nav-full .nav-item")]
+        .find((n) => n.dataset.pane === "dashboard")?.click();
+    });
+    await page.waitForTimeout(480);
+  }
+}
+
+const inert = [];
+let probed = 0;
+async function sweep(where) {
+  await reset(where);
+  const total = await page.evaluate(() => window.__probe.list().length);
+  for (let i = 0; i < total; i++) {
+    const shot = await page.evaluate(async (index) => {
+      const el = window.__probe.list()[index];
+      if (!el) return null;
+      const label = window.__probe.label(el);
+      el.scrollIntoView({ block: "center", behavior: "instant" });
+      /* A control pinned to the viewport (the brand, the theme button) does not
+         move the page when scrolled into view. Leave the page off the very top
+         so a "back to top" control has something to do and its answer shows —
+         but stay under the 220px mark, past which the nav tucks itself away. */
+      if (scrollY < 8) scrollTo(0, 180);
+      await new Promise((r) => setTimeout(r, 140));
+      const box = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      const reachable = !!hit && (el.contains(hit) || hit.contains(el));
+      window.__probe.mut = 0;
+      window.__probe.before = { hash: location.hash, y: Math.round(scrollY) };
+      el.click();
+      return { label, reachable };
+    }, i);
+    if (!shot) continue;
+    probed++;
+    await page.waitForTimeout(360);
+    let answered = page_of(page.url()) !== page_of(BASE);
+    if (!answered) {
+      const now = await page.evaluate(() => ({
+        mut: window.__probe.mut, hash: location.hash, y: Math.round(scrollY), before: window.__probe.before
+      })).catch(() => null);
+      answered = !now || now.mut > 0 || now.hash !== now.before.hash || Math.abs(now.y - now.before.y) > 4;
+    }
+    if (!shot.reachable) inert.push(where + " › " + shot.label + " (not hit-testable)");
+    else if (!answered) inert.push(where + " › " + shot.label + " (no effect)");
+    await reset(where);
+  }
+}
+await sweep("home");
+await sweep("console");
+check("every visible control answers a click", inert.length === 0,
+  inert.length ? probed + " probed, dead: " + inert.slice(0, 6).join("; ") : probed + " controls probed");
+
+/* ── the brand link is the one control whose answer is invisible from the top */
+await reset("home");
+await page.evaluate(() => scrollTo(0, 2400));
+await page.waitForTimeout(400);
+await page.evaluate(() => scrollBy(0, -120));   // scrolling up brings the nav back
+await page.waitForTimeout(500);
+await page.click("#nav .brand");
+await page.waitForTimeout(900);
+check("the brand mark returns you to the top", await page.evaluate(() => scrollY) < 40);
+
+/* ─────────────────────────────────────────────────── the side scroller */
+await reset("home");
+await page.evaluate(() => document.querySelector("#partners").scrollIntoView({ block: "center" }));
+await page.waitForTimeout(450);
+const at = () => page.evaluate(() => document.querySelector("#marquee").scrollLeft);
+const runs = await page.$$("#partners .mq-run");
+const span = await page.$eval("#partners .mq-run", (el) => el.getBoundingClientRect().width);
+const track = await page.$eval("#partners .mq-track", (el) => el.getBoundingClientRect().width);
+check("the rail is built from three identical runs", runs.length === 3 && Math.abs(track - span * 3) < 3,
+  "a shift of exactly one run has to be invisible");
+check("the second and third runs are hidden from assistive tech",
+  await page.$$eval("#partners .mq-run", (els) => els.slice(1).every((e) => e.getAttribute("aria-hidden") === "true")));
+
+const before = await at();
+await page.waitForTimeout(1400);
+const after = await at();
+check("the rail advances on its own", after - before > 12, Math.round(after - before) + "px in 1.4s");
+
+await page.hover("#marquee");
+await page.waitForTimeout(120);
+const held0 = await at();
+await page.waitForTimeout(800);
+const held1 = await at();
+check("the rail stops under the cursor", Math.abs(held1 - held0) < 1);
+
+const rail = await page.$eval("#marquee", (el) => {
+  const r = el.getBoundingClientRect();
+  return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+});
+await page.mouse.move(rail.x, rail.y);
+await page.mouse.down();
+await page.mouse.move(rail.x - 220, rail.y, { steps: 12 });
+await page.mouse.up();
+const dragged = await at();
+check("the rail can be dragged", Math.abs(dragged - held1 - 220) < 40, Math.round(dragged - held1) + "px for a 220px drag");
+
+await page.mouse.move(rail.x, rail.y);
+await page.mouse.down();
+await page.mouse.move(rail.x + 1400, rail.y, { steps: 20 });
+await page.mouse.up();
+const back = await at();
+check("dragging the other way wraps instead of hitting a wall",
+  back > span * 0.4 && back < span * 2.1, Math.round(back) + "px, run span " + Math.round(span));
+
+await page.mouse.move(6, 6);
+const left0 = await at();
+await page.waitForTimeout(900);
+check("the rail resumes when the cursor leaves", (await at()) - left0 > 8);
+
+/* ───────────────────────────────────────────────────────────── theme */
+/* The nav tucks away while you scroll down, so come back to the top first. */
+await page.evaluate(() => scrollTo(0, 0));
+await page.waitForTimeout(500);
+await page.click("#theme-btn");
+await page.waitForTimeout(900);
+check("the theme button switches to dark", await page.evaluate(() => document.documentElement.dataset.theme) === "dark");
+check("the icon flips to its opposite",
+  await page.$eval("#theme-icon use", (u) => u.getAttribute("href")) === "#i-sun");
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForTimeout(900);
+check("the choice survives a reload", await page.evaluate(() => document.documentElement.dataset.theme) === "dark");
+check("dark mode still draws the charts", (await page.$$("#gauge-landing svg")).length === 1);
+await page.click("#theme-btn");
+await page.waitForTimeout(900);
+check("the theme button switches back to light", await page.evaluate(() => document.documentElement.dataset.theme) === "light");
+
+/* ──────────────────────────────────────────────────────────── routing */
+await page.evaluate(() => { location.hash = "#/console"; });
+await page.waitForTimeout(700);
+check("the console route shows the console", await page.$eval("#page-console", (el) => !el.hidden));
+check("the console route hides the landing page", await page.$eval("#page-home", (el) => el.hidden));
+check("the nav call-to-action offers the way back",
+  (await page.$eval("#nav-cta", (el) => el.textContent)).includes("Back to site"));
+check("the console renders its metrics", (await page.$$("#console-body .kpi")).length === 4);
+check("the console renders the findings table", (await page.$$("#console-body .table tbody tr")).length >= 4);
+check("the console links on to the live workbench",
+  (await page.$eval("#console-body .head-right a", (el) => el.getAttribute("href"))) === "workbench.html");
+
+await page.evaluate(() => {
+  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "attacks")?.click();
+});
+await page.waitForTimeout(500);
+check("a sidebar entry changes the pane",
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("All attacks"));
+await page.click("#c-collapse");
+await page.waitForTimeout(420);
+check("the sidebar collapses", await page.$eval("#console-full", (el) => el.classList.contains("compact")));
+await page.click("#c-collapse");
+await page.waitForTimeout(420);
+check("the sidebar comes back", await page.$eval("#console-full", (el) => !el.classList.contains("compact")));
+
+const firstSeg = await page.$("#console-body .seg button:nth-child(2)");
+const bandsBefore = await page.$$eval("#console-body [data-sev] span", (n) => n.length);
+await firstSeg.click();
+await page.waitForTimeout(400);
+check("a severity filter redraws the bar",
+  (await page.$$eval("#console-body [data-sev] span", (n) => n.length)) !== bandsBefore ||
+  (await page.$eval("#console-body .seg button:nth-child(2)", (b) => b.getAttribute("aria-pressed"))) === "true");
+
+/* The findings table is the one thing wide enough to burst its card: nowrap
+   cells made an auto-layout table grow straight through the panel edge. */
+for (const width of [1440, 1024, 390]) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.evaluate(() => {
+    location.hash = "#/console";
+    [...document.querySelectorAll("#side-nav-full .nav-item")]
+      .find((n) => n.dataset.pane === "dashboard")?.click();
+  });
+  await page.waitForTimeout(700);
+  const fit = await page.evaluate(() => {
+    const wrap = document.querySelector("#console-body .table-wrap");
+    if (!wrap) return null;
+    const card = wrap.closest(".card");
+    return {
+      spill: Math.round(wrap.getBoundingClientRect().right - card.getBoundingClientRect().right),
+      scrolls: wrap.scrollWidth > wrap.clientWidth,
+      page: document.documentElement.scrollWidth - document.documentElement.clientWidth
+    };
+  });
+  check("the findings table stays inside its card at " + width + "px",
+    !!fit && fit.spill <= 0 && fit.page === 0,
+    fit ? "spill " + fit.spill + "px, page over " + fit.page + "px" : "no table found");
+}
+await page.setViewportSize({ width: 1440, height: 1000 });
+
+/* ─────────────────────────────────────────────────── forms and anchors */
+await page.evaluate(() => { location.hash = "#/home"; });
+await page.waitForTimeout(500);
+await page.fill("#mail", "not-an-address");
+await page.click("#mail-form button");
+await page.waitForTimeout(300);
+check("the sign-up form rejects a bad address",
+  await page.$eval("#mail", (el) => el.getAttribute("aria-invalid")) === "true");
+await page.fill("#mail", "analyst@soc.example.com");
+await page.click("#mail-form button");
+await page.waitForTimeout(300);
+check("the sign-up form accepts a good one",
+  await page.$eval("#mail", (el) => el.getAttribute("aria-invalid")) === "false");
+
+await page.evaluate(() => { scrollTo(0, 0); location.hash = "#platform"; });
+await page.waitForTimeout(1100);
+const heading = await page.$eval("#platform h2", (el) => el.getBoundingClientRect().top);
+const navBottom = await page.$eval("#nav", (el) => el.getBoundingClientRect().bottom);
+check("an anchor jump clears the floating nav", heading > navBottom - 4,
+  "heading at " + Math.round(heading) + ", nav ends at " + Math.round(navBottom));
+
+/* ───────────────────────────────────────────────────────── responsive */
+for (const width of [390, 768, 1280]) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.evaluate(() => { location.hash = "#/home"; scrollTo(0, 0); });
+  await page.waitForTimeout(800);
+  const overflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check("no sideways scroll at " + width + "px", overflow === 0, overflow + "px over");
+  const fit = await page.evaluate(() => {
+    const frame = document.querySelector("#preview").getBoundingClientRect();
+    const shot = document.querySelector("#preview-scaler .console").getBoundingClientRect();
+    return { left: shot.left - frame.left, right: frame.right - shot.right, width: shot.width };
+  });
+  check("the hero mock sits inside its frame at " + width + "px",
+    fit.left > -2 && fit.right > -2 && fit.width > 40,
+    "left " + Math.round(fit.left) + ", right " + Math.round(fit.right));
+}
+await page.setViewportSize({ width: 1440, height: 1000 });
+
+/* ──────────────────────────────────────────────────── reduced motion */
+const still = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
+const stillErrors = [];
+still.on("pageerror", (e) => stillErrors.push(e.message));
+await still.goto(BASE, { waitUntil: "domcontentloaded" });
+await still.waitForTimeout(1000);
+await still.evaluate(() => document.querySelector("#partners").scrollIntoView({ block: "center" }));
+await still.waitForTimeout(400);
+const quiet0 = await still.evaluate(() => document.querySelector("#marquee").scrollLeft);
+await still.waitForTimeout(1200);
+const quiet1 = await still.evaluate(() => document.querySelector("#marquee").scrollLeft);
+check("the rail holds still for prefers-reduced-motion", Math.abs(quiet1 - quiet0) < 1);
+await still.evaluate(() => scrollTo(0, 0));
+await still.waitForTimeout(300);
+check("reduced motion still reveals the sections",
+  await still.$eval("#platform .rise", (el) => getComputedStyle(el).opacity === "1"));
+await still.click("#theme-btn");
+await still.waitForTimeout(500);
+check("the theme button works without the wipe",
+  await still.evaluate(() => document.documentElement.dataset.theme) === "dark");
+check("reduced motion raises no errors", stillErrors.length === 0, stillErrors[0]);
+await still.close();
+
+/* ───────────────────────────────────────────────────────────── errors */
+check("the page raises no script errors", errors.length === 0, errors.slice(0, 3).join(" | "));
+
+await browser.close();
+console.log("\n" + (failures ? failures + " FAILED" : "all checks passed"));
+process.exit(failures ? 1 : 0);
