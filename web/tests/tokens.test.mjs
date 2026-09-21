@@ -118,6 +118,87 @@ test("focus is never removed without a replacement", () => {
   assert.ok(outlineNone.length <= 2, "too many outline:none rules to audit by hand");
 });
 
+/* ─────────────────── Web Interface Guidelines, the checkable subset
+ * Fetched rules, not remembered ones: github.com/vercel-labs/web-interface-guidelines
+ */
+const PAGES = ["index.html", "workbench.html", "explorer.html"]
+  .map((name) => [name, readFileSync(join(here, "..", name), "utf8")]);
+const SHEETS = [["app.css", APP_CSS], ["suite.css", read("suite.css")],
+  ["explorer.html", PAGES.find(([n]) => n === "explorer.html")[1]]];
+
+test("no focus outline is removed without a visible replacement", () => {
+  for (const [name, css] of SHEETS) {
+    for (const rule of stripComments(css).split("}")) {
+      if (!/outline:\s*none/.test(rule)) continue;
+      assert.match(rule, /box-shadow|outline-offset|border-color/,
+        name + " drops the focus ring with nothing in its place: " + rule.trim().slice(0, 70));
+    }
+  }
+});
+
+test("every icon-only control has an accessible name", () => {
+  for (const [name, html] of PAGES) {
+    const buttons = html.match(/<(?:button|a)\b[^>]*>[\s\S]*?<\/(?:button|a)>/g) || [];
+    for (const tag of buttons) {
+      const open = tag.slice(0, tag.indexOf(">") + 1);
+      const inner = tag.slice(open.length, tag.lastIndexOf("<"));
+      // text left once markup and entities are stripped
+      const words = inner.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/g, "").trim();
+      if (words.length > 0) continue;
+      assert.match(open, /aria-label=/,
+        name + " has an icon-only control with no aria-label: " + open.slice(0, 70));
+    }
+  }
+});
+
+/* Walk the markup keeping a stack of whether a translate="no" ancestor is open.
+   Only standalone wordmarks (a text node that is nothing but the brand) are
+   checked — prose that happens to mention the product should still translate. */
+function unmarkedWordmarks(html) {
+  const VOID = new Set(["meta", "link", "img", "br", "hr", "input", "use", "path",
+    "source", "area", "col", "embed", "track", "wbr", "circle", "rect", "line"]);
+  const token = /<\/?([a-z][a-z0-9]*)\b([^>]*?)(\/?)>|(?<=>)IntelPulse(?=<)/gi;
+  const open = [];
+  const strays = [];
+  let m;
+  while ((m = token.exec(html))) {
+    if (m[0][0] === "I") {                                   // a text node that is only the wordmark
+      if (!open.some((e) => e.marked)) strays.push(html.slice(Math.max(0, m.index - 70), m.index + 12));
+      continue;
+    }
+    const name = m[1].toLowerCase();
+    if (m[0][1] === "/") {
+      const at = open.map((e) => e.name).lastIndexOf(name);
+      if (at >= 0) open.length = at;                         // also drops anything left unclosed
+    } else if (!VOID.has(name) && m[3] !== "/") {
+      open.push({ name, marked: /translate="no"/.test(m[2]) });
+    }
+  }
+  return strays;
+}
+
+test("the brand wordmark is not offered to auto-translation", () => {
+  for (const [name, html] of PAGES) {
+    const strays = unmarkedWordmarks(html);
+    assert.deepEqual(strays, [],
+      name + " renders the wordmark with no translate=\"no\" above it: " + strays.join(" | "));
+  }
+});
+
+test("scrollable overlays contain their scroll", () => {
+  const suite = read("suite.css");
+  const drawer = suite.slice(suite.indexOf("#console-side {"), suite.indexOf("#console-side {") + 400);
+  assert.match(drawer, /overscroll-behavior/,
+    "the console drawer scrolls the page behind it once it hits its end");
+});
+
+test("the email field does not invite a spellchecker or the wrong keyboard", () => {
+  const index = PAGES.find(([n]) => n === "index.html")[1];
+  const field = index.slice(index.indexOf('<input type="email"'), index.indexOf('<input type="email"') + 260);
+  assert.match(field, /spellcheck="false"/, "email input still spellchecks");
+  assert.match(field, /inputmode="email"/, "email input does not ask for the email keyboard");
+});
+
 test("the skill file and the implementation agree on the token names", () => {
   const skill = readFileSync(
     join(here, "..", "..", "..", ".claude", "skills", "design-system-intelpulse", "SKILL.md"), "utf8");

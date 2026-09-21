@@ -158,6 +158,19 @@ for (const [name, width, height] of [
   check("only the dashboard gets the wave",
     !(await page.$eval("#console-body h3", (h) => h.textContent)).includes("\u{1F44B}"));
 
+  /* Re-picking the view that is already open assigns the same hash, which fires
+     no hashchange. If the router is the only thing that closes the drawer, the
+     phone is left with an open rail over a locked page — a dead end. */
+  await page.tap("#c-collapse");
+  await page.waitForTimeout(450);
+  await page.tap('#side-nav-full .nav-item[data-pane="campaigns"]');
+  await page.waitForTimeout(700);
+  check("re-picking the open view still puts the rail away",
+    !(await page.$eval("#console-full", (el) => el.classList.contains("drawer"))) &&
+    (await page.evaluate(() => document.body.style.overflow)) !== "hidden",
+    "drawer " + (await page.$eval("#console-full", (el) => el.className)) +
+    " / body overflow " + (await page.evaluate(() => document.body.style.overflow || "(none)")));
+
   await page.tap("#c-collapse");
   await page.waitForTimeout(450);
   await page.keyboard.press("Escape");

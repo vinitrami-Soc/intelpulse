@@ -89,6 +89,7 @@
     document.documentElement.setAttribute("data-theme", mode);
     $("#theme-icon").innerHTML = '<use href="#' + (mode === "dark" ? "i-sun" : "i-moon") + '"/>';
     $("#theme-btn").setAttribute("aria-label", mode === "dark" ? "Switch to light theme" : "Switch to dark theme");
+    syncChrome();
     store.set("theme", mode);
   }
   applyTheme(store.get("theme", "light"));
@@ -240,8 +241,7 @@
       $$(".nav-item", host).forEach((n) => n.removeAttribute("aria-current"));
       item.setAttribute("aria-current", "true");
       const pane = item.dataset.pane;
-      if (host.id === "side-nav-full") { renderConsole(pane); openDrawer(false); }
-      else { location.hash = "#/console"; setTimeout(() => renderConsole(pane), 60); }
+      go("#/console/" + pane);   // the router renders it, marks it current and closes this drawer
       toast(($("span", item)?.textContent || item.textContent).trim() + " opened");
     }));
     const first = $(".nav-item", host);
@@ -423,8 +423,50 @@
     if ($("#console-full")?.classList.contains("drawer")) { openDrawer(false); }
   });
 
+  /* #/console/sources rather than #/console: which view is open is state, and
+     state that cannot be linked to cannot be shared, bookmarked or reloaded. */
+  function hashParts() { return location.hash.replace(/^#\/?/, "").split("/"); }
+  /* Which of the two pages the URL names. Deliberately free of PANES: the theme
+     runs this during boot, before that table has been initialised. */
+  function routeIsConsole() { return hashParts()[0] === "console"; }
+
+  function paneFromHash() {
+    if (!routeIsConsole()) return null;
+    /* Own properties only: "#/console/__proto__" is a URL anyone can type, and a
+       bare lookup hands back Object.prototype rather than falling back. */
+    const name = hashParts()[1];
+    return Object.prototype.hasOwnProperty.call(PANES, name) ? name : "dashboard";
+  }
+
+  /* Assigning the hash it already holds fires no hashchange, so the router would
+     never run — and whatever opened the link (the drawer) would stay open. */
+  function go(hash) {
+    if (location.hash === hash) route();
+    else location.hash = hash;
+  }
+
+  /* The browser paints its chrome with this colour, so it has to match what is
+     really at the top of the page: the sky on the site, the console's own ground
+     inside the tool. Read the live token rather than repeating its value. */
+  function syncChrome() {
+    const meta = $('meta[name="theme-color"]');
+    if (!meta) return;
+    const token = routeIsConsole() ? "--ground" : "--sky-top";
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    if (value) meta.content = value;
+  }
+
+  let shownRoute = null;
   function route() {
-    const toConsole = location.hash.startsWith("#/console");
+    const pane = paneFromHash();
+    const toConsole = pane !== null;
+    /* The pane is part of the route: switching views is a navigation too. */
+    const name = toConsole ? "console/" + pane : "home";
+    /* First call is the page loading: leave the browser's restored scroll alone. */
+    const moved = shownRoute !== null && shownRoute !== name;
+    const arrived = toConsole !== (shownRoute || "").startsWith("console");
+    shownRoute = name;
+
     $("#page-home").hidden = toConsole;
     $("#page-console").hidden = !toConsole;
     const label = toConsole ? "Back to site" : "Open console";
@@ -433,25 +475,50 @@
       cta.innerHTML = label + '<svg><use href="#i-arrow"/></svg>';
     });
     if (toConsole) {
-      renderConsole($(".nav-item[aria-current='true']", $("#side-nav-full"))?.dataset.pane || "dashboard");
-      $("#page-console").classList.remove("route"); void $("#page-console").offsetWidth;
-      $("#page-console").classList.add("route");
+      $$(".nav-item", $("#side-nav-full")).forEach((item) => {
+        if (item.dataset.pane === pane) item.setAttribute("aria-current", "true");
+        else item.removeAttribute("aria-current");
+      });
+      renderConsole(pane);
+      if (arrived) {
+        $("#page-console").classList.remove("route"); void $("#page-console").offsetWidth;
+        $("#page-console").classList.add("route");
+      }
     }
+    const skip = $("#skip");
+    if (skip) {
+      skip.href = toConsole ? "#console-body" : "#page-home";
+      skip.textContent = toConsole ? "Skip to the findings" : "Skip to the content";
+    }
+    syncChrome();
     openDrawer(false);
     openMenu(false);
-    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    if (moved) window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
   }
   addEventListener("hashchange", route);
+
+  /* An <a href="#console-body"> would rewrite the hash the router reads, which
+     would throw the reader back to the site. Move the focus by hand instead. */
+  $("#skip")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const target = $(routeIsConsole() ? "#console-body" : "#page-home");
+    if (!target) return;
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  });
 
   document.addEventListener("click", (event) => {
     const routeBtn = event.target.closest("[data-route]");
     if (routeBtn) {
       event.preventDefault();
-      const want = routeBtn.dataset.route === "console" ? "#/console" : "#/home";
-      const here = location.hash.startsWith("#/console") ? "#/console" : "#/home";
-      /* Already there: the link still has a job — take the reader back to the top. */
-      if (want === here) scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-      else location.hash = want;
+      const wantConsole = routeBtn.dataset.route === "console";
+      /* Compare the route, not the hash: #/console/sources is still the console.
+         Already there and the link still has a job — take the reader to the top. */
+      if (wantConsole === (paneFromHash() !== null)) {
+        openDrawer(false); openMenu(false);
+        scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+      } else go(wantConsole ? "#/console/dashboard" : "#/home");
       return;
     }
     const more = event.target.closest(".kpi-more");
@@ -459,7 +526,7 @@
     const scrollBtn = event.target.closest("[data-scroll]");
     if (scrollBtn) {
       event.preventDefault();
-      if (location.hash.startsWith("#/console")) location.hash = "#/home";
+      if (paneFromHash() !== null) go("#/home");
       setTimeout(() => {
         const target = $(scrollBtn.dataset.scroll);
         if (target) target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
@@ -574,7 +641,7 @@
     lineChart($("#bento-line"));
     renderPreview();
     requestAnimationFrame(fitPreview);
-    if (!$("#page-console").hidden) renderConsole("dashboard");
+    if (!$("#page-console").hidden) renderConsole(paneFromHash() || "dashboard");
   }
 
   sideNav($("#side-nav-preview"), "pv");
@@ -608,7 +675,7 @@
     /* label → what pressing it does. Kept as data so the answer HTML never
        has to carry a function or an inline handler past the CSP. */
     const ACT = {
-      console: ["Open the console", () => { location.hash = "#/console"; }],
+      console: ["Open the console", () => { go("#/console/dashboard"); }],
       workbench: ["Open the workbench", () => { location.href = "workbench.html"; }],
       graph: ["Open the campaign graph", () => { location.href = "explorer.html"; }],
       scoring: ["Show the scoring section", () => jump("#scoring")],
@@ -618,7 +685,7 @@
       theme: ["Switch the theme", () => $("#theme-btn").click()]
     };
     function jump(sel) {
-      if (location.hash.startsWith("#/console")) location.hash = "#/home";
+      if (paneFromHash() !== null) go("#/home");
       setTimeout(() => $(sel)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }), 90);
     }
 

@@ -195,7 +195,7 @@ body {
   font: 500 12.5px var(--sans); padding: 4px 0;
 }
 .ask input::placeholder { color: var(--ink-3); }
-.ask input:focus { outline: none; }
+.ask input:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 .send {
   width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center; cursor: pointer;
   border: 0; border-radius: 999px; background: var(--ember); color: #ffffff;
@@ -262,35 +262,35 @@ body {
         <span class="mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
         </span>
-        <span><b>IntelPulse</b><span>campaign graph</span></span>
+        <span translate="no"><b>IntelPulse</b><span>campaign graph</span></span>
       </a>
     </div>
 
     <div class="tools">
       <div class="glass tool-group">
-        <button class="tool" aria-pressed="true" data-layout="radial" title="Radial layout">
+        <button class="tool" aria-pressed="true" data-layout="radial" title="Radial layout" aria-label="Radial layout">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="4" r="1.6"/><circle cx="19" cy="16" r="1.6"/><circle cx="5" cy="16" r="1.6"/><path d="M12 6.6v2.8M13.8 13.4l3.7 2.1M10.2 13.4l-3.7 2.1"/></svg>
         </button>
-        <button class="tool" aria-pressed="false" data-layout="tree" title="Cluster layout">
+        <button class="tool" aria-pressed="false" data-layout="tree" title="Cluster layout" aria-label="Cluster layout">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.8"/><circle cx="6" cy="18" r="1.8"/><circle cx="12" cy="18" r="1.8"/><circle cx="18" cy="18" r="1.8"/><path d="M12 6.8v4.2M6 16.2v-2.4h12v2.4M12 13.8v2.4"/></svg>
         </button>
       </div>
       <div class="glass tool-group">
-        <button class="tool" data-zoom="in" title="Zoom in">
+        <button class="tool" data-zoom="in" title="Zoom in" aria-label="Zoom in">
           <svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
         </button>
-        <button class="tool" data-zoom="out" title="Zoom out">
+        <button class="tool" data-zoom="out" title="Zoom out" aria-label="Zoom out">
           <svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg>
         </button>
       </div>
       <div class="glass tool-group">
-        <button class="tool" data-filter="severity" title="Filter by severity">
+        <button class="tool" data-filter="severity" title="Filter by severity" aria-label="Filter by severity">
           <svg viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8Z"/></svg>
         </button>
-        <button class="tool" data-filter="sort" title="Sort clusters by share">
+        <button class="tool" data-filter="sort" title="Sort clusters by share" aria-label="Sort clusters by share">
           <svg viewBox="0 0 24 24"><path d="M5 7h10M5 12h7M5 17h4M17 6v12M17 18l3-3M17 18l-3-3"/></svg>
         </button>
-        <button class="tool" data-filter="fit" title="Fit to view">
+        <button class="tool" data-filter="fit" title="Fit to view" aria-label="Fit to view">
           <svg viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4"/></svg>
         </button>
       </div>
@@ -301,10 +301,10 @@ body {
         <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         New investigation
       </button>
-      <button class="round" title="Replay timeline" id="replay">
+      <button class="round" title="Replay timeline" id="replay" aria-label="Replay timeline">
         <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>
       </button>
-      <button class="round" title="Search" id="search">
+      <button class="round" title="Search" id="search" aria-label="Search">
         <svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
       </button>
       <div class="avatar" role="button" tabindex="0" aria-label="Analyst menu">

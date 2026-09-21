@@ -348,6 +348,110 @@ for (const width of [1440, 1024, 390]) {
 }
 await page.setViewportSize({ width: 1440, height: 1000 });
 
+/* Web Interface Guidelines: stateful UI should be deep-linkable, and the
+   browser chrome colour should match the page it is sitting above. */
+await page.evaluate(() => { location.hash = "#/console/sources"; });
+await page.waitForTimeout(800);
+check("a console view can be linked to directly",
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Intelligence sources"),
+  await page.$eval("#console-body h3", (h) => h.textContent.trim()));
+
+await page.evaluate(() => {
+  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "campaigns")?.click();
+});
+await page.waitForTimeout(600);
+check("picking a view puts it in the address bar",
+  (await page.evaluate(() => location.hash)) === "#/console/campaigns",
+  await page.evaluate(() => location.hash));
+
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForTimeout(1100);
+check("and it survives a reload",
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns"));
+
+/* Measure what is actually painted under the browser chrome rather than
+   trusting the tag: read the topmost non-fixed surface at the top of the
+   viewport and take the colour it starts with. */
+/* Ten sidebar entries sit between the top of the console and the findings.
+   The first Tab should offer a way past them — and taking it must not navigate. */
+for (const [where, hash, target] of [
+  ["the site", "#/home", "page-home"],
+  ["the console", "#/console/all-findings", "console-body"]
+]) {
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  /* Reload rather than blur: it is the only way to be sure the tab sequence
+     starts at the top of the document and not wherever the last check left it. */
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1100);
+  await page.keyboard.press("Tab");
+  const first = await page.evaluate(() => document.activeElement.id);
+  check("the first tab stop on " + where + " is the skip link", first === "skip", first || "(none)");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(500);
+  check("taking it lands in the content, not another page",
+    (await page.evaluate(() => document.activeElement.id)) === target &&
+    (await page.evaluate(() => location.hash)) === hash,
+    (await page.evaluate(() => document.activeElement.id)) + " @ " + (await page.evaluate(() => location.hash)));
+}
+
+/* A hash is user input. "#/console/__proto__" is a URL anyone can type, and a
+   bare PANES[name] lookup answers it with Object.prototype. */
+for (const junk of ["__proto__", "toString", "nope"]) {
+  await page.evaluate((h) => { location.hash = "#/console/" + h; }, junk);
+  await page.waitForTimeout(500);
+  const heading = await page.$eval("#console-body h3", (h) => h.textContent.trim()).catch(() => "");
+  check("#/console/" + junk + " falls back to the dashboard",
+    heading.length > 0 && heading !== "undefined", heading || "(nothing rendered)");
+}
+
+/* Redrawing on a theme flip must redraw the view that is open — swapping the
+   body back to the dashboard leaves the URL and the sidebar lying about it. */
+await page.evaluate(() => { location.hash = "#/console/sources"; });
+await page.waitForTimeout(600);
+await page.click("#theme-btn");
+await page.waitForTimeout(900);
+check("flipping the theme keeps the open view",
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Intelligence sources"),
+  await page.$eval("#console-body h3", (h) => h.textContent.trim()));
+await page.click("#theme-btn");
+await page.waitForTimeout(900);
+
+const chrome = async () => page.evaluate(() => {
+  const stack = document.elementsFromPoint(Math.round(innerWidth / 2), 2);
+  const el = stack.find((n) => getComputedStyle(n).position !== "fixed" &&
+    getComputedStyle(n).background !== "none") || document.body;
+  let paint = "";
+  for (let n = el; n && !paint; n = n.parentElement) {
+    const cs = getComputedStyle(n);
+    const stop = cs.backgroundImage.match(/rgba?\([\d.,\s]+\)/);
+    if (stop) paint = stop[0];
+    else if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") paint = cs.backgroundColor;
+  }
+  const rgb = (paint.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+  return {
+    meta: document.querySelector('meta[name="theme-color"]').content.trim().toLowerCase(),
+    paint: "#" + rgb.map((n) => Math.round(n).toString(16).padStart(2, "0")).join(""),
+    where: el.tagName.toLowerCase() + "." + (el.className || "")
+  };
+});
+
+for (const [where, hash] of [["the site", "#/home"], ["the console", "#/console/dashboard"]]) {
+  await page.evaluate((h) => { location.hash = h; scrollTo(0, 0); }, hash);
+  await page.waitForTimeout(700);
+  const light = await chrome();
+  check("the browser chrome matches " + where, light.meta === light.paint,
+    light.meta + " vs " + light.paint + " (" + light.where + ")");
+  await page.click("#theme-btn");
+  await page.waitForTimeout(900);
+  const dark = await chrome();
+  check("and still matches it in the dark", dark.meta === dark.paint,
+    dark.meta + " vs " + dark.paint);
+  check("so the chrome changed with the theme", light.meta !== dark.meta,
+    light.meta + " \u2192 " + dark.meta);
+  await page.click("#theme-btn");
+  await page.waitForTimeout(900);
+}
+
 /* ─────────────────────────────────────────────────── forms and anchors */
 await page.evaluate(() => { location.hash = "#/home"; });
 await page.waitForTimeout(500);

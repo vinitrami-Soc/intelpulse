@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>IntelPulse — Unified Threat Intelligence &amp; Alert Correlation</title>
 <meta name="description" content="One pass across every intelligence source, one auditable verdict, one SOC ticket. IntelPulse correlates the indicators in an alert against AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus and the offline feeds, and shows its arithmetic.">
-<meta name="theme-color" content="#eef6fd">
+<!-- the sky the site opens on; syncChrome() keeps it in step with theme and route -->
+<meta name="theme-color" content="#a9d3f2">
 <!-- A SOC tool renders attacker-controlled text (log lines, vendor responses).
      The CSP is the backstop behind output encoding: no inline script, no eval,
      scripts only from this origin. frame-ancestors cannot be set from a meta
@@ -30,6 +31,10 @@
 <link rel="stylesheet" href="assets/suite.css">
 </head>
 <body>
+
+<!-- The console sidebar is ten entries deep; a keyboard visitor should not
+     have to tab past it to reach the findings. -->
+<a class="skip" id="skip" href="#page-home">Skip to the content</a>
 
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
   <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -65,7 +70,7 @@
   <nav class="nav" id="nav" aria-label="Main">
     <a class="brand" href="#/home" data-route="home">
       <span class="mk"><svg><use href="#i-pulse"/></svg></span>
-      <b>IntelPulse</b>
+      <b translate="no">IntelPulse</b>
     </a>
     <div class="nav-links">
       <a href="#how">How it works</a>
@@ -117,7 +122,7 @@
          <div class="preview-scaler" id="preview-scaler" inert>
           <div class="console" data-preview="1">
             <aside class="side">
-              <div class="side-logo"><span class="mk"><svg><use href="#i-pulse"/></svg></span><b>IntelPulse</b></div>
+              <div class="side-logo"><span class="mk"><svg><use href="#i-pulse"/></svg></span><b translate="no">IntelPulse</b></div>
               <div id="side-nav-preview"></div>
             </aside>
             <div class="console-main" id="console-preview"></div>
@@ -306,11 +311,12 @@
     <footer class="foot rise">
       <div class="about">
         <div class="brand" style="padding:0"><span class="mk" style="background:var(--ink)"><svg style="stroke:var(--paper)"><use href="#i-pulse"/></svg></span>
-          <b style="color:var(--ink)">IntelPulse</b></div>
+          <b style="color:var(--ink)" translate="no">IntelPulse</b></div>
         <p>A triage workbench that correlates one alert across every source in a single pass, and writes the
           ticket at the end of it.</p>
         <form class="mail" id="mail-form" novalidate>
-          <input type="email" id="mail" name="email" placeholder="you@soc.example.com" aria-label="Email address" autocomplete="email">
+          <input type="email" id="mail" name="email" placeholder="you@soc.example.com"
+                 aria-label="Email address" autocomplete="email" inputmode="email" spellcheck="false">
           <button type="submit">Notify me</button>
         </form>
         <p class="mail-note" id="mail-note"></p>
@@ -335,7 +341,7 @@
     <div class="drawer-scrim" id="drawer-scrim"></div>
     <aside class="side" id="console-side">
       <div class="side-logo">
-        <span class="mk"><svg><use href="#i-pulse"/></svg></span><b>IntelPulse</b>
+        <span class="mk"><svg><use href="#i-pulse"/></svg></span><b translate="no">IntelPulse</b>
       </div>
       <button class="round-btn side-close" id="side-close" aria-label="Close the menu"><svg><use href="#i-close"/></svg></button>
       <div id="side-nav-full"></div>
