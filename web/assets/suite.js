@@ -247,7 +247,7 @@
         '<div class="label-xs" style="margin-top:14px">State</div><div class="state-row" data-state></div>' +
         (compact ? "" : '<div class="label-xs" style="margin-top:18px">Latest</div>' +
           '<div class="table-wrap"><table class="table"><thead><tr><th>Indicator</th><th>Type</th><th>Severity</th><th>Sources</th><th>Seen</th></tr></thead><tbody>' +
-          DATA.findings.map((f) => "<tr><td class=\"mono\">" + f.ioc + "</td><td>" + f.type +
+          DATA.findings.map((f) => '<tr><td class="mono" title="' + f.ioc + '">' + f.ioc + "</td><td>" + f.type +
             '</td><td><span class="pill-sev ' + f.sev + '">' + f.sev + "</span></td><td>" + f.src +
             '</td><td style="color:var(--ink-3)">' + f.seen + "</td></tr>").join("") + "</tbody></table></div>") +
       "</section>" +
