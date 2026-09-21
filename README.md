@@ -255,9 +255,21 @@ make test        # 63 backend tests: extraction, scoring, API contract, reports,
 make test-web    # 21 node tests: engine parity + design-system guards
 make test-ui     # Chromium: the workbench suite (XSS, hostile URLs, degradation, palette,
                  # theming, a11y) plus the site suite (every control, the side rail, routing)
+                 # and the phone/tablet/assistant suite
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```
+
+All of it runs on every push and pull request that touches `intelpulse/`
+(`.github/workflows/intelpulse.yml`) — the same commands, so a green run there
+means what a green run in a terminal means. The three browser suites are a
+matrix, so a failure names which surface broke rather than "browser tests".
+
+`pip-audit` is deliberately **not** in that workflow. A new advisory against a
+pinned dependency is worth knowing about, but it has nothing to do with whoever
+opened the pull request that happened to run next, and blocking their change on
+it is how people learn to ignore red. It runs weekly on its own schedule
+instead (`.github/workflows/audit.yml`).
 
 Provider classes are stubbed in the API tests, so assertions describe pipeline behaviour rather than
 whatever AbuseIPDB happens to say today. The backend suite needs no network, no API keys and no Redis.
