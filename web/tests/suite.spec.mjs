@@ -60,7 +60,12 @@ const installProbe = () => page.evaluate(() => {
     list() {
       return [...document.querySelectorAll('button, a[href], [role="button"]')].filter((el) => {
         const r = el.getBoundingClientRect();
-        return r.width > 1 && r.height > 1 && el.offsetParent !== null;
+        if (r.width <= 1 || r.height <= 1 || el.offsetParent === null) return false;
+        /* Controls inside a CLOSED overlay are not being offered to anyone yet;
+           they get their own checks, opened. Named explicitly rather than by
+           computed opacity, which would also skip every section still waiting
+           on its reveal animation. */
+        return !el.closest(".menu:not(.on)") && !el.closest("#ai-panel:not(.on)");
       });
     },
     label: (el) => (el.textContent || el.getAttribute("aria-label") || el.tagName)
@@ -150,6 +155,32 @@ await page.waitForTimeout(500);
 await page.click("#nav .brand");
 await page.waitForTimeout(900);
 check("the brand mark returns you to the top", await page.evaluate(() => scrollY) < 40);
+
+/* The assistant's controls only exist once it is open, so the sweep above
+   cannot reach them. They answer to the same rule. */
+await reset("home");
+/* The sweep clicked the assistant open on its way past; the button hides itself
+   behind the panel while it is open, so put it back first. */
+await page.evaluate(() => {
+  if (document.querySelector("#ai-panel").classList.contains("on")) document.querySelector("#ai-close").click();
+});
+await page.waitForTimeout(400);
+await page.click("#ai-fab");
+await page.waitForTimeout(500);
+check("the assistant opens from its button", await page.$eval("#ai-panel", (el) => el.classList.contains("on")));
+const chips = await page.$$("#ai-chips button");
+check("it suggests somewhere to start", chips.length >= 4, chips.length + " suggestions");
+const saidBefore = (await page.$$("#ai-log .ai-msg.bot")).length;
+await chips[0].click();
+await page.waitForTimeout(600);
+check("a suggestion is answered", (await page.$$("#ai-log .ai-msg.bot")).length === saidBefore + 1);
+check("the answer carries its source",
+  (await page.$$eval("#ai-log .ai-src", (els) => els.length)) >= 1);
+const acts = await page.$$("#ai-log [data-act]");
+check("the answer offers somewhere to go", acts.length >= 1);
+await page.click("#ai-close");
+await page.waitForTimeout(400);
+check("the close button closes it", !(await page.$eval("#ai-panel", (el) => el.classList.contains("on"))));
 
 /* ─────────────────────────────────────────────────── the side scroller */
 await reset("home");

@@ -137,7 +137,7 @@ button { font-family: inherit; cursor: pointer; }
 .nav-links a:hover { color: #fff; background: rgba(255, 255, 255, .08); }
 .nav-links svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.2; opacity: .7; }
 .nav-cta {
-  display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; white-space: nowrap;
   border-radius: var(--r-full); border: 0; background: #fff; color: #1c1c1c;
   font-size: 13.5px; font-weight: 600;
   transition: transform var(--t-fast) var(--ease), box-shadow var(--t-fast);
@@ -151,11 +151,50 @@ button { font-family: inherit; cursor: pointer; }
 }
 .icon-ghost:hover { background: rgba(255, 255, 255, .16); }
 .icon-ghost svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; }
-.burger { display: none; }
+.burger {
+  display: none; width: 34px; height: 34px; place-items: center; border-radius: var(--r-full);
+  border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .06); color: #fff;
+}
+.burger svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
 @media (max-width: 900px) {
   .nav-links { display: none; }
   .burger { display: grid; }
 }
+/* On a phone the pill cannot hold brand + theme + burger + a call to action
+   without wrapping the button onto two lines. The drawer carries it instead. */
+@media (max-width: 560px) { .nav-cta { display: none; } }
+
+/* The drawer the burger opens. Below 900px it is the only way to reach the
+   sections, so it carries the nav links and both routes, not a subset. */
+.menu-scrim {
+  position: fixed; inset: 0; z-index: 98; background: rgba(12, 18, 28, .38);
+  opacity: 0; pointer-events: none; transition: opacity var(--t) var(--ease);
+  backdrop-filter: blur(2px);
+}
+.menu-scrim.on { opacity: 1; pointer-events: auto; }
+.menu {
+  position: fixed; z-index: 99; top: 72px; left: 16px; right: 16px;
+  max-width: 420px; margin-inline: auto; padding: 10px;
+  border-radius: var(--r-lg); background: rgba(28, 28, 28, .94);
+  border: 1px solid rgba(255, 255, 255, .12);
+  backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, .7);
+  display: grid; gap: 2px;
+  opacity: 0; transform: translateY(-10px) scale(.98); transform-origin: top center;
+  pointer-events: none; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.menu.on { opacity: 1; transform: none; pointer-events: auto; }
+.menu a, .menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px;
+  border: 0; background: none; border-radius: var(--r-md); text-align: left;
+  color: rgba(255, 255, 255, .78); font-size: 15px; font-weight: 500;
+}
+.menu a:hover, .menu button:hover, .menu a:focus-visible, .menu button:focus-visible { background: rgba(255, 255, 255, .09); color: #fff; }
+.menu svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; opacity: .75; }
+.menu .menu-cta { margin-top: 6px; background: #fff; color: #1c1c1c; font-weight: 600; justify-content: center; }
+.menu .menu-cta:hover { background: #fff; }
+.menu .menu-cta svg { opacity: 1; }
+.menu hr { border: 0; border-top: 1px solid rgba(255, 255, 255, .10); margin: 6px 4px; }
 
 /* ───────────────────────────────────────────────────────────────── hero */
 .sky {
@@ -172,6 +211,15 @@ button { font-family: inherit; cursor: pointer; }
 
 .hero { position: relative; text-align: center; padding-block: 44px 0; }
 .hero h1 { font-size: clamp(34px, 5.6vw, 62px); line-height: 1.04; font-weight: 700; }
+/* A phone on its side is 844x390: 5.6vw of the WIDTH fills the whole height. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .sky { padding-top: 88px; }
+  .hero { padding-block: 22px 0; }
+  .hero h1 { font-size: clamp(26px, 3.4vw + 2vh, 40px); }
+  .hero p.lede { font-size: 14.5px; margin-top: 12px; }
+  .hero-cta { margin-top: 18px; }
+  .preview-wrap { margin-top: 26px; }
+}
 .hero h1 span { display: block; }
 .hero p.lede { margin: 18px auto 0; max-width: 560px; color: var(--ink-2); font-size: 15.5px; }
 .hero-cta { display: flex; gap: 10px; justify-content: center; margin-top: 26px; flex-wrap: wrap; }
@@ -212,6 +260,40 @@ button { font-family: inherit; cursor: pointer; }
 .console { display: grid; grid-template-columns: 208px minmax(0, 1fr); min-height: 520px; background: var(--paper); }
 .console.compact { grid-template-columns: 64px minmax(0, 1fr); }
 .side { border-right: 1px solid var(--line); padding: 14px 10px; background: var(--paper); }
+.side-close { display: none; }
+@media (max-width: 1100px) and (min-width: 901px) {
+  .console { grid-template-columns: 176px minmax(0, 1fr); }
+}
+/* Below 900px the rail cannot share the width — it becomes a drawer and the
+   console body gets the whole screen. Without this the main column was laid
+   out off-screen and clipped away by the shell's own overflow. */
+@media (max-width: 900px) {
+  .console, .console.compact { grid-template-columns: minmax(0, 1fr); }
+  /* #console-side, never ".side": the hero mock contains a picture of this same
+     rail, and a blanket rule pulled that picture's sidebar out of the mock and
+     pinned it to the viewport. */
+  #console-side {
+    position: fixed; z-index: 141; top: 0; bottom: 0; left: 0; width: min(280px, 84vw);
+    border-right: 1px solid var(--line); overflow-y: auto; padding: 16px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-110%); transition: transform var(--t) var(--ease);
+    box-shadow: 0 0 60px -10px rgba(12, 18, 28, .45);
+  }
+  .console.drawer #console-side { transform: none; }
+  /* #console-side qualifies it: .round-btn sets position:relative later in the
+     sheet, and an unqualified .side-close would lose to it. */
+  #console-side .side-close { display: grid; position: absolute; top: 14px; right: 12px; z-index: 1; }
+  #console-side .side-logo { padding-right: 56px; }
+  .drawer-scrim {
+    position: fixed; inset: 0; z-index: 140; background: rgba(12, 18, 28, .42);
+    opacity: 0; pointer-events: none; transition: opacity var(--t) var(--ease);
+  }
+  .drawer-scrim.on { opacity: 1; pointer-events: auto; }
+  .page-console .console { border-radius: var(--r-lg); }
+  .console-main { padding: 14px; }
+}
+
+/* the drawer must not stay open when the layout goes back to two columns */
+@media (min-width: 901px) { .drawer-scrim { display: none; } }
 .side-logo { display: flex; align-items: center; gap: 9px; padding: 4px 8px 14px; }
 .side-logo .mk { width: 28px; height: 28px; border-radius: 9px; background: var(--ink); display: grid; place-items: center; }
 :root[data-theme="dark"] .side-logo .mk { background: #fff; }
@@ -247,6 +329,13 @@ button { font-family: inherit; cursor: pointer; }
 /* ────────────────────────────────────────────────────── console body */
 .console-main { padding: 16px; display: grid; gap: 14px; align-content: start; background: var(--ground); }
 .console-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .head-right { margin-left: 0; width: 100%; flex-wrap: wrap; }
+}
+@media (max-width: 480px) {
+  .console-head .status-pill, .console-head .avatar { display: none; }
+  .console-head h3 { font-size: 17px; }
+}
 .console-head h3 { font-size: 19px; font-weight: 600; letter-spacing: -.03em; }
 .console-head p { color: var(--ink-3); font-size: 12.5px; max-width: 420px; margin-top: 2px; }
 .head-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -335,6 +424,16 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11.5px; font-weight: 500; color: var(--ink-2); text-align: center;
 }
 
+/* Proportional widths cannot hold "6 Medium" on a phone — it printed as
+   "6 Mediu". Severity is never carried by colour alone here, so the labels
+   stay and the bar becomes a stack instead. */
+@media (max-width: 560px) {
+  .sev { flex-direction: column; height: auto; gap: 6px; }
+  .sev span { flex: none !important; min-height: 38px; justify-content: flex-start; padding-inline: 14px; }
+  .sev .rest { min-height: 20px; }
+  .state-row { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* gauge */
 .gauge-wrap { display: grid; place-items: center; padding: 6px 0 2px; }
 .gauge { position: relative; width: 210px; max-width: 100%; }
@@ -368,11 +467,11 @@ button { font-family: inherit; cursor: pointer; }
    of the card. Fixed layout plus stated column widths keeps it inside, and the
    wrapper takes over on a narrow screen instead of squeezing every column. */
 .table-wrap { overflow-x: auto; }
-.table { width: 100%; min-width: 460px; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
+.table { width: 100%; min-width: 520px; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
 .table th { text-align: left; padding: 8px 10px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--line); }
-.table th:nth-child(1) { width: 32%; }
-.table th:nth-child(2) { width: 13%; }
-.table th:nth-child(3) { width: 15%; }
+.table th:nth-child(1) { width: 30%; }
+.table th:nth-child(2) { width: 12%; }
+.table th:nth-child(3) { width: 18%; }   /* wide enough for the word "critical" */
 .table th:nth-child(4) { width: 22%; }
 .table th:nth-child(5) { width: 18%; }
 .table td { padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -529,9 +628,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 :root[data-theme="dark"] .toast { background: #fff; color: #111; }
 .toast.on { opacity: 1; translate: -50% 0; }
+@media (max-width: 560px) { .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); } }
 .toast svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2.3; }
 
-.route { animation: routeIn 420ms var(--ease) both; }
+/* backwards, not both: an animation that keeps a transform applied also keeps
+   a containing block, and position:fixed children inside it stop being fixed
+   to the viewport. The entrance looks identical either way. */
+.route { animation: routeIn 420ms var(--ease) backwards; }
 @keyframes routeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 [hidden] { display: none !important; }
 
@@ -549,3 +652,141 @@ button { font-family: inherit; cursor: pointer; }
 /* full console page */
 .page-console { padding-top: 92px; padding-bottom: 30px; }
 .page-console .console { border-radius: var(--r-xl); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shade); min-height: 640px; }
+
+/* ═════════════════════════════════════════════ touch: 44px, everywhere
+   A finger is not a cursor. Every control the page offers has to clear the
+   44px target on a coarse pointer, including the ones that look like text. */
+@media (pointer: coarse) {
+  .btn, .nav-cta, .burger, .icon-ghost, .round-btn, .kpi-more, .to-top, .ai-fab,
+  .nav-item, .nav-group, .seg button, .socials a, .mail button, .mail input,
+  .menu a, .menu button, .ai-chips button, .ai-form button, .ai-form input,
+  .nav-links a, .ai-acts button, .tick-list button { min-height: 44px; }
+  .burger, .icon-ghost, .round-btn, .socials a, .kpi-more, .to-top, .side-close { min-width: 44px; }
+  .brand, .side-logo { min-height: 44px; }
+  .foot a { padding-block: 10px; }
+  .nav-item, .nav-group { padding-block: 11px; }
+  .kpi-more { margin: -6px -6px -6px 0; }
+  .strip .src { padding-block: 8px; }
+}
+
+/* ═══════════════════════════════════════════════════ assistant
+   A help panel, not a chat bot: every answer is assembled in the browser from
+   this project's own documentation and the dataset already loaded on the page.
+   Nothing is sent anywhere, so the panel says so where you can read it. */
+.ai-fab {
+  position: fixed; right: 20px; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); z-index: 128;
+  display: inline-flex; align-items: center; gap: 9px; padding: 12px 18px 12px 14px;
+  border: 0; border-radius: var(--r-full); background: var(--ink); color: var(--paper);
+  font-size: 14px; font-weight: 600; box-shadow: 0 18px 40px -16px rgba(12, 18, 28, .55);
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease), opacity var(--t) var(--ease);
+}
+:root[data-theme="dark"] .ai-fab { background: #fff; color: #111; }
+.ai-fab:hover { transform: translateY(-2px); box-shadow: 0 24px 50px -18px rgba(12, 18, 28, .6); }
+.ai-fab svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+.ai-fab .spark { color: var(--flame); }
+:root[data-theme="dark"] .ai-fab .spark { color: var(--flame); }
+.ai-fab[aria-expanded="true"] { opacity: 0; pointer-events: none; transform: translateY(8px) scale(.96); }
+@media (max-width: 560px) { .ai-fab span { display: none; } .ai-fab { padding: 14px; } }
+
+.to-top { bottom: calc(86px + env(safe-area-inset-bottom, 0px)); }
+
+.ai-scrim {
+  position: fixed; inset: 0; z-index: 129; background: rgba(12, 18, 28, .34);
+  opacity: 0; pointer-events: none; transition: opacity var(--t) var(--ease);
+}
+.ai-scrim.on { opacity: 1; pointer-events: auto; }
+
+.ai {
+  position: fixed; z-index: 130; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  width: min(404px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 120px));
+  /* Grid tracks size to content by default, so one <pre> of scoring arithmetic
+     pushed the whole panel wider than its own box. Every track and every item
+     in the chain has to be allowed to shrink. */
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr);
+  border-radius: var(--r-lg); overflow: hidden;
+  background: var(--paper); border: 1px solid var(--line);
+  box-shadow: 0 40px 90px -30px rgba(12, 18, 28, .5);
+  opacity: 0; transform: translateY(14px) scale(.985); transform-origin: bottom right;
+  pointer-events: none; transition: opacity var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.ai.on { opacity: 1; transform: none; pointer-events: auto; }
+@media (max-width: 560px) {
+  .ai {
+    right: 0; left: 0; bottom: 0; width: auto; border-radius: var(--r-lg) var(--r-lg) 0 0;
+    max-height: 88vh; max-height: 88dvh; transform-origin: bottom center;
+  }
+}
+
+.ai-head { display: flex; align-items: center; gap: 11px; padding: 14px 14px 12px; border-bottom: 1px solid var(--line); }
+.ai-mark {
+  width: 34px; height: 34px; flex: none; border-radius: 11px; display: grid; place-items: center;
+  background: var(--flame-wash); color: var(--flame-deep);
+}
+:root[data-theme="dark"] .ai-mark { background: rgba(254, 87, 41, .16); color: #ff8f6b; }
+.ai-mark svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
+.ai-head b { display: block; font-size: 14px; font-weight: 600; letter-spacing: -.02em; }
+.ai-head small { display: block; color: var(--ink-3); font-size: 11.5px; margin-top: 1px; }
+.ai-head .round-btn { margin-left: auto; }
+
+.ai-log {
+  overflow-y: auto; overscroll-behavior: contain; padding: 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; min-width: 0;
+}
+.ai-msg { display: grid; gap: 6px; min-width: 0; max-width: 100%; justify-items: start; }
+.ai-msg.you { justify-items: end; }
+.ai-bubble {
+  padding: 10px 13px; border-radius: 14px; font-size: 13.5px; line-height: 1.5;
+  background: var(--ground-2); color: var(--ink);
+  min-width: 0; max-width: 100%; overflow-wrap: anywhere;
+}
+.ai-msg.you .ai-bubble { background: var(--ink); color: var(--paper); border-bottom-right-radius: 5px; }
+:root[data-theme="dark"] .ai-msg.you .ai-bubble { background: #fff; color: #111; }
+.ai-msg.bot .ai-bubble { border-bottom-left-radius: 5px; }
+.ai-bubble p { margin: 0 0 8px; }
+.ai-bubble p:last-child { margin-bottom: 0; }
+.ai-bubble strong { font-weight: 600; }
+.ai-bubble code { font-family: var(--mono); font-size: 12px; background: var(--paper); padding: 1px 5px; border-radius: 5px; border: 1px solid var(--line); }
+.ai-bubble pre {
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.55; margin: 8px 0 0;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 10px; overflow-x: auto; white-space: pre;
+}
+.ai-bubble ul { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; }
+.ai-bubble ul:last-child { margin-bottom: 0; }
+.ai-acts { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; max-width: 100%; }
+.ai-acts button {
+  padding: 7px 12px; border-radius: var(--r-full); border: 1px solid var(--line);
+  background: var(--paper); color: var(--ink-2); font-size: 12.5px; font-weight: 600;
+  transition: background-color var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+}
+.ai-acts button:hover { background: var(--flame); border-color: var(--flame); color: #fff; }
+.ai-src { font-size: 11px; color: var(--ink-3); }
+
+.ai-typing { display: inline-flex; gap: 4px; align-items: center; padding: 12px 14px; }
+.ai-typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); animation: aiblink 1.1s infinite; }
+.ai-typing i:nth-child(2) { animation-delay: .16s; }
+.ai-typing i:nth-child(3) { animation-delay: .32s; }
+@keyframes aiblink { 0%, 60%, 100% { opacity: .25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .ai-typing i { animation: none; opacity: .6; } }
+
+.ai-chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 14px 0; scrollbar-width: none; }
+.ai-chips::-webkit-scrollbar { display: none; }
+.ai-chips button {
+  flex: none; padding: 7px 12px; border-radius: var(--r-full); border: 1px solid var(--line);
+  background: var(--ground-2); color: var(--ink-2); font-size: 12px; font-weight: 500; white-space: nowrap;
+}
+.ai-chips button:hover { color: var(--ink); border-color: var(--ink-3); }
+
+.ai-form { display: flex; gap: 8px; padding: 10px 14px; }
+.ai-form input {
+  flex: 1; min-width: 0; padding: 11px 13px; border-radius: var(--r-full);
+  border: 1px solid var(--line); background: var(--ground-2); color: var(--ink); font-size: 13.5px;
+}
+.ai-form input:focus-visible { outline: 2px solid var(--flame); outline-offset: 1px; border-color: transparent; }
+.ai-form button {
+  padding: 0 16px; border-radius: var(--r-full); border: 0;
+  background: var(--ink); color: var(--paper); font-size: 13.5px; font-weight: 600;
+}
+:root[data-theme="dark"] .ai-form button { background: #fff; color: #111; }
+.ai-note { padding: 0 14px calc(12px + env(safe-area-inset-bottom, 0px)); color: var(--ink-3); font-size: 11px; }

@@ -192,6 +192,27 @@ sideways on its own (and can be dragged, wheeled or arrow-keyed), and a theme bu
 theme in as a circle growing out of the button. All of it degrades to plain, still, readable layout
 under `prefers-reduced-motion`.
 
+**On a phone or tablet** the site nav becomes a drawer and the console rail slides in from the left,
+both closing on a tap outside, on `Escape` and after you pick something. Every control clears the 44px
+touch target on a coarse pointer, the severity bar stacks so its labels stay whole, and the headline
+sizes against viewport height so a phone held sideways does not get one word per screen.
+
+<p align="center">
+  <img src="docs/screenshots/site-phone-console.png" width="24%" alt="Console on a phone">
+  <img src="docs/screenshots/site-phone-drawer.png" width="24%" alt="The console rail as a drawer">
+  <img src="docs/screenshots/site-phone-assistant.png" width="24%" alt="The assistant on a phone">
+  <img src="docs/screenshots/site-tablet-console.png" width="24%" alt="Console on a tablet">
+</p>
+
+**Ask it something.** The button in the corner opens a help assistant. It is not a chat bot: there is
+no model behind it and no network call. It matches your question against topics compiled into the page
+and computes the rest from the dataset already loaded, so it can explain the scoring formula, the
+authority values, the verdict bands or the security controls — and tell you what is critical in the
+current sample. Below its match threshold it says it does not know rather than inventing something,
+which for a tool that explains how a security verdict was reached is the only acceptable behaviour.
+
+![The assistant](docs/screenshots/site-assistant.png)
+
 ---
 
 ## Using it
@@ -254,6 +275,15 @@ button and link on both routes, clicks each one, and fails on any that leaves th
 It also pins the side rail (auto-advance, pause under the cursor, drag both ways, seamless wrap),
 the routing, the theme wipe and its persistence, the sign-up validation, and the scaled hero mock —
 each of which broke at least once while the page was being built.
+
+`web/tests/mobile.spec.mjs` covers phones and tablets across six viewports and the assistant panel.
+It exists because the page reported zero horizontal overflow on a phone while the console's entire
+main column was being laid out off-screen and clipped away, so it asserts the body actually covers the
+screen rather than just checking for overflow. It measures every control against the 44px touch target,
+checks both drawers open and close by tap, `Escape` and selection, and puts eighteen questions to the
+assistant whose expected answers are facts that live in `backend/app` — so the panel cannot drift away
+from the code without a test going red. It also pastes an `<img onerror>` into the question box and
+asserts nothing becomes DOM.
 
 ---
 

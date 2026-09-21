@@ -198,6 +198,71 @@ call-to-action band above the footer. What was not taken: any wordmark, logo,
 copy or claim belonging to anyone. Every figure on the page is IntelPulse's own
 synthetic dataset, and the page says so in the footer.
 
+### Phones and tablets
+
+The page reported zero horizontal overflow on a phone for days while being
+unusable on one. Below 900px the console kept its two-column grid, so the whole
+main column was laid out off-screen and quietly clipped by the shell's own
+`overflow: hidden`. Nothing scrolled sideways because there was nothing left to
+scroll — the content was simply gone.
+
+That is the reason `web/tests/mobile.spec.mjs` exists, and why it asserts the
+console body covers at least 80% of the viewport rather than just checking for
+overflow. What the pass turned up:
+
+* **Two drawers.** Below 900px the site nav becomes a burger drawer (it carries
+  every section, both sibling pages and the route button — not a subset), and
+  the console rail slides in from the left. Both close on a tap outside, on
+  `Escape`, and after you pick something. Widening the window closes them, so a
+  rotation cannot strand one open with the page scroll still locked.
+* **44px, everywhere, on coarse pointers only.** A `@media (pointer: coarse)`
+  block floors every control — including the ones that look like text, such as
+  the footer columns and the desktop nav links on a touch tablet.
+* **The severity bar stacks below 560px.** Proportional widths printed
+  "6 Mediu". Since severity is never carried by colour alone here, the labels
+  could not be dropped, so the bar becomes a column of full-width rows instead.
+* **The headline answers to viewport height.** `clamp(34px, 5.6vw, 62px)` reads
+  the width, and a phone on its side is 844×390 — so the hero filled the entire
+  screen. A `max-height` query caps it.
+* **The pill drops its call to action under 560px.** Brand, theme, burger and a
+  button do not fit, and the button wrapped onto two lines. The drawer carries
+  it, and its label flips with the route like the pill's does.
+
+Two bugs were introduced *by* this work and caught by the same pass, which is
+the argument for writing the test before trusting the fix:
+
+* A drawer rule written for `.side` also matched the hero mock's picture of the
+  rail, pulled it out of the scaled mock and pinned it to the viewport. The
+  rule is `#console-side` now.
+* `.route { animation: … both }` leaves the animation's transform applied for
+  good, and Chromium keeps a containing block with it — so `position: fixed`
+  children stopped being fixed to the viewport and the closed drawer sat 10px
+  on screen. `backwards` gives the same entrance and lets go afterwards.
+
+### The assistant, and what it is not
+
+The panel behind the button in the corner is a **help assistant, not a chat
+bot**. There is no model behind it and no network call: it matches the question
+against a list of topics compiled into the page, and computes the rest from the
+dataset already loaded. The panel says exactly that, in the panel, where it can
+be read — not in a tooltip.
+
+Three rules hold it honest:
+
+* **It does not guess.** Below the match threshold it says it has no answer and
+  names the topics it does have. A confident wrong answer about how a security
+  tool scores an indicator is worse than no answer.
+* **Its facts are the repository's facts.** The weights, the authority values
+  and the verdict bands in the answers are the numbers `backend/app` ships, and
+  `mobile.spec.mjs` asserts each one — so the panel and the code cannot drift
+  apart without a test going red.
+* **It encodes what you type.** The panel echoes the question back, which makes
+  it an injection surface like any other; the test pastes an `<img onerror>`
+  and a `<script>` into it and asserts neither becomes DOM.
+
+Every answer that has somewhere to go carries the button for it, so the panel
+is a way through the product rather than a place to read about it.
+
 ### Two palettes, on purpose — and the honest caveat
 
 The site and console run a light palette built around one hot accent

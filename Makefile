@@ -18,6 +18,7 @@ test-web: ## engine parity + design-system guards (needs node >= 18)
 test-ui: ## browser security + UX tests (needs playwright; serve web/ on :8123 first)
 	node web/tests/ui.spec.mjs
 	node web/tests/suite.spec.mjs
+	node web/tests/mobile.spec.mjs
 
 lint: ## ruff check
 	cd backend && .venv/bin/ruff check app tests

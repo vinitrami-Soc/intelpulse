@@ -56,6 +56,9 @@
   <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4h9l1 2h5v9h-6l-1-2H5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9M18 12v3.5M15.5 12v2.5" stroke-linecap="round"/></symbol>
   <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A2 2 0 0 1 5.5 5.5h3.6l1.8 2.2h7.6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z" stroke-linejoin="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.2 13.9 9l5.8 1.9-5.8 1.9L12 18.6l-1.9-5.8L4.3 10.9 10.1 9Z" stroke-linejoin="round"/><path d="M18.5 3v3.4M20.2 4.7h-3.4" stroke-linecap="round"/></symbol>
   <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></symbol>
 </defs></svg>
 
@@ -77,9 +80,23 @@
     <button class="icon-ghost" id="theme-btn" aria-label="Switch theme">
       <svg id="theme-icon"><use href="#i-moon"/></svg>
     </button>
+    <button class="burger" id="burger" aria-label="Open the menu" aria-expanded="false" aria-controls="menu">
+      <svg id="burger-icon"><use href="#i-menu"/></svg>
+    </button>
     <button class="nav-cta" id="nav-cta" data-route="console">Open console <svg><use href="#i-arrow"/></svg></button>
   </nav>
 </div>
+<div class="menu-scrim" id="menu-scrim"></div>
+<nav class="menu" id="menu" aria-label="Sections">
+  <a href="#platform" data-scroll="#platform"><svg><use href="#i-layers"/></svg> Platform</a>
+  <a href="#pricing" data-scroll="#pricing"><svg><use href="#i-target"/></svg> Scoring model</a>
+  <a href="#resources" data-scroll="#resources"><svg><use href="#i-doc"/></svg> Resources</a>
+  <a href="#partners" data-scroll="#partners"><svg><use href="#i-globe"/></svg> Sources</a>
+  <hr>
+  <a href="workbench.html"><svg><use href="#i-pulse"/></svg> Analyst workbench</a>
+  <a href="explorer.html"><svg><use href="#i-grid"/></svg> Campaign graph</a>
+  <button class="menu-cta" id="menu-cta" data-route="console">Open console <svg><use href="#i-arrow"/></svg></button>
+</nav>
 
 <!-- ══════════════════════════════════════════════════════ LANDING ══ -->
 <main id="page-home" class="route">
@@ -318,10 +335,12 @@
 <!-- ══════════════════════════════════════════════════════ CONSOLE ══ -->
 <main id="page-console" class="wrap page-console" hidden>
   <div class="console" id="console-full">
-    <aside class="side">
+    <div class="drawer-scrim" id="drawer-scrim"></div>
+    <aside class="side" id="console-side">
       <div class="side-logo">
         <span class="mk"><svg><use href="#i-pulse"/></svg></span><b>IntelPulse</b>
       </div>
+      <button class="round-btn side-close" id="side-close" aria-label="Close the menu"><svg><use href="#i-close"/></svg></button>
       <div id="side-nav-full"></div>
     </aside>
     <div class="console-main" id="console-body"></div>
@@ -329,6 +348,31 @@
 </main>
 
 <button class="to-top" id="to-top" aria-label="Back to top"><svg><use href="#i-up"/></svg></button>
+
+<button class="ai-fab" id="ai-fab" aria-expanded="false" aria-controls="ai-panel">
+  <svg class="spark"><use href="#i-spark"/></svg><span>Ask IntelPulse</span>
+</button>
+<div class="ai-scrim" id="ai-scrim"></div>
+<section class="ai" id="ai-panel" aria-label="IntelPulse assistant" aria-hidden="true">
+  <header class="ai-head">
+    <span class="ai-mark" aria-hidden="true"><svg><use href="#i-spark"/></svg></span>
+    <div>
+      <b>IntelPulse assistant</b>
+      <small>Answers from this project's docs and the loaded sample data</small>
+    </div>
+    <button class="round-btn" id="ai-close" aria-label="Close the assistant"><svg><use href="#i-close"/></svg></button>
+  </header>
+  <div class="ai-log" id="ai-log" role="log" aria-live="polite" aria-label="Conversation"></div>
+  <div class="ai-chips" id="ai-chips" role="group" aria-label="Suggested questions"></div>
+  <form class="ai-form" id="ai-form" novalidate>
+    <input id="ai-input" name="question" autocomplete="off" spellcheck="false"
+           aria-label="Ask a question" placeholder="Ask about scoring, sources, this data…">
+    <button type="submit">Ask</button>
+  </form>
+  <p class="ai-note">Runs entirely in your browser — it reads this project's documentation and the
+    dataset already on the page. No model is called and nothing leaves this tab.</p>
+</section>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="assets/suite.js" defer></script>

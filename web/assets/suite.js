@@ -216,9 +216,9 @@
       $$(".nav-item", host).forEach((n) => n.removeAttribute("aria-current"));
       item.setAttribute("aria-current", "true");
       const pane = item.dataset.pane;
-      if (host.id === "side-nav-full") renderConsole(pane);
+      if (host.id === "side-nav-full") { renderConsole(pane); openDrawer(false); }
       else { location.hash = "#/console"; setTimeout(() => renderConsole(pane), 60); }
-      toast(item.textContent.trim() + " opened");
+      toast(($("span", item)?.textContent || item.textContent).trim() + " opened");
     }));
     const first = $(".nav-item", host);
     if (first) first.setAttribute("aria-current", "true");
@@ -304,7 +304,8 @@
     const host = $("#console-body");
     host.innerHTML =
       '<header class="console-head route">' +
-        "<div><h3>" + spec.title + ' <span aria-hidden="true">👋</span></h3><p>' + spec.sub + "</p></div>" +
+        "<div><h3>" + spec.title + (pane === "dashboard" ? ' <span aria-hidden="true">👋</span>' : "") +
+          "</h3><p>" + spec.sub + "</p></div>" +
         '<div class="head-right">' +
           '<button class="round-btn" id="c-search" aria-label="Search">' + icon("i-search") + "</button>" +
           '<a class="btn btn-dark btn-sm" href="workbench.html">Live triage' + icon("i-arrow") + "</a>" +
@@ -318,9 +319,13 @@
     $("#c-search").addEventListener("click", () => toast("Search is a demo control"));
     $("#c-bell").addEventListener("click", () => toast("3 new findings since your last visit"));
     $("#c-collapse").addEventListener("click", () => {
+      /* Wide enough for two columns: collapse the rail to icons. Narrow: the
+         rail is a drawer, so the same button opens it. */
+      if (narrow.matches) { openDrawer(true); return; }
       $("#console-full").classList.toggle("compact");
       toast($("#console-full").classList.contains("compact") ? "Sidebar collapsed" : "Sidebar expanded");
     });
+    $("#c-collapse").setAttribute("aria-label", narrow.matches ? "Open the menu" : "Collapse sidebar");
   }
 
   function renderPreview() {
@@ -336,18 +341,61 @@
   }
 
   /* ─────────────────────────────────────────────────────── routing */
+  /* ───────────────────────────────── drawers: the console rail, the nav menu */
+  const narrow = matchMedia("(max-width: 900px)");
+
+  function openDrawer(open) {
+    const shell = $("#console-full");
+    if (!shell) return;
+    shell.classList.toggle("drawer", open);
+    $("#drawer-scrim").classList.toggle("on", open);
+    document.body.style.overflow = open ? "hidden" : "";
+    if (open) $(".nav-item", $("#side-nav-full"))?.focus();
+  }
+  $("#drawer-scrim").addEventListener("click", () => openDrawer(false));
+  $("#side-close").addEventListener("click", () => openDrawer(false));
+
+  function openMenu(open) {
+    $("#menu").classList.toggle("on", open);
+    $("#menu-scrim").classList.toggle("on", open);
+    $("#burger").setAttribute("aria-expanded", String(open));
+    $("#burger-icon").innerHTML = '<use href="#' + (open ? "i-close" : "i-menu") + '"/>';
+    $("#burger").setAttribute("aria-label", open ? "Close the menu" : "Open the menu");
+    if (open) $("a", $("#menu"))?.focus();
+  }
+  $("#burger").addEventListener("click", () => openMenu(!$("#menu").classList.contains("on")));
+  $("#menu-scrim").addEventListener("click", () => openMenu(false));
+  $$("#menu a, #menu button").forEach((el) => el.addEventListener("click", () => openMenu(false)));
+
+  /* Going back to two columns must not leave a drawer stranded open. */
+  narrow.addEventListener("change", (event) => {
+    if (!event.matches) { openDrawer(false); openMenu(false); }
+    const collapse = $("#c-collapse");
+    if (collapse) collapse.setAttribute("aria-label", event.matches ? "Open the menu" : "Collapse sidebar");
+  });
+
+  addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if ($("#menu").classList.contains("on")) { openMenu(false); $("#burger").focus(); }
+    if ($("#console-full")?.classList.contains("drawer")) { openDrawer(false); }
+  });
+
   function route() {
     const toConsole = location.hash.startsWith("#/console");
     $("#page-home").hidden = toConsole;
     $("#page-console").hidden = !toConsole;
-    const cta = $("#nav-cta");
-    cta.dataset.route = toConsole ? "home" : "console";
-    cta.innerHTML = (toConsole ? "Back to site" : "Open console") + '<svg><use href="#i-arrow"/></svg>';
+    const label = toConsole ? "Back to site" : "Open console";
+    [$("#nav-cta"), $("#menu-cta")].forEach((cta) => {
+      cta.dataset.route = toConsole ? "home" : "console";
+      cta.innerHTML = label + '<svg><use href="#i-arrow"/></svg>';
+    });
     if (toConsole) {
       renderConsole($(".nav-item[aria-current='true']", $("#side-nav-full"))?.dataset.pane || "dashboard");
       $("#page-console").classList.remove("route"); void $("#page-console").offsetWidth;
       $("#page-console").classList.add("route");
     }
+    openDrawer(false);
+    openMenu(false);
     window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
   }
   addEventListener("hashchange", route);
@@ -499,6 +547,389 @@
   onScroll();
   fitPreview();
   addEventListener("load", fitPreview);
+
+  /* ══════════════════════════════════════════════════════════ assistant
+     A help panel, and deliberately not a chat bot. Every answer below is
+     assembled here in the browser from two sources: this project's own
+     documentation (the scoring constants are the same numbers backend/app
+     ships) and the sample dataset already loaded on this page. There is no
+     model call and no network request, which is why the panel says so in
+     writing rather than leaving you to guess. Where an answer would be a
+     guess, it says it does not know and offers the topics it does have. */
+  (function assistant() {
+    const esc = (t) => String(t).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const sev = (key) => DATA.severity[key].map((b) => b.n + " " + b.k).join(", ");
+    const total = (key) => DATA.severity[key].reduce((n, b) => n + b.n, 0);
+
+    /* label → what pressing it does. Kept as data so the answer HTML never
+       has to carry a function or an inline handler past the CSP. */
+    const ACT = {
+      console: ["Open the console", () => { location.hash = "#/console"; }],
+      workbench: ["Open the workbench", () => { location.href = "workbench.html"; }],
+      graph: ["Open the campaign graph", () => { location.href = "explorer.html"; }],
+      scoring: ["Show the scoring section", () => jump("#pricing")],
+      platform: ["Show how it correlates", () => jump("#platform")],
+      evidence: ["Show the evidence view", () => jump("#resources")],
+      sources: ["Show the sources", () => jump("#partners")],
+      theme: ["Switch the theme", () => $("#theme-btn").click()]
+    };
+    function jump(sel) {
+      if (location.hash.startsWith("#/console")) location.hash = "#/home";
+      setTimeout(() => $(sel)?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" }), 90);
+    }
+
+    const KB = [
+      { id: "what",
+        keys: ["what is intelpulse", "what does it do", "what is this", "tell me about intelpulse", "intelpulse", "overview", "purpose"],
+        html: "<p><strong>IntelPulse correlates one alert across every intelligence source in a single pass.</strong></p>" +
+              "<p>Paste an indicator list, a raw syslog line or a JSON alert export. It pulls the indicators out, " +
+              "queries every applicable source concurrently, scores them into one auditable verdict, maps how they " +
+              "relate, and writes the SOC ticket at the end of it.</p>" +
+              "<p>The usual cost of that is six browser tabs per alert. This is one request.</p>",
+        acts: ["platform", "workbench"] },
+
+      { id: "scoring",
+        keys: ["scoring", "score", "scored", "formula", "math", "arithmetic", "calculate", "calculated", "computed", "weighted mean", "how does scoring work"],
+        html: "<p>A source never decides on its own. Every provider is normalised to a 0–1 signal, then:</p>" +
+              "<pre>score = 100 × max(\n    Σ(weight × signal) / Σ(weight),   ← weighted mean, over the\n                                     providers that ANSWERED\n    max(signal × authority)          ← authority floor\n)</pre>" +
+              "<p>The weighted mean is the consensus. The authority floor is the safety net: one confirmed " +
+              "ThreatFox C2 listing still reads critical even when four quiet sources drag the mean down.</p>",
+        acts: ["scoring", "workbench"], src: "backend/app/scoring.py · docs/SCORING.md" },
+
+      { id: "authority",
+        keys: ["authority", "authority floor", "floor", "trust", "how much do you trust"],
+        html: "<p>Each source carries an authority value — how much one confirmed hit from it is worth on its own:</p>" +
+              "<ul><li>ThreatFox <code>0.95</code> · URLhaus <code>0.95</code> — confirmed C2 / distribution</li>" +
+              "<li>Local blocklist <code>0.90</code> — curated historical feeds</li>" +
+              "<li>AbuseIPDB <code>0.80</code> — crowd-sourced, corroboration-weighted</li>" +
+              "<li>AlienVault OTX <code>0.70</code> — community pulses, prone to syndication</li>" +
+              "<li>GreyNoise <code>0.50</code> — context more than verdict</li>" +
+              "<li>GeoIP <code>0.30</code> — hosting context only</li></ul>" +
+              "<p>The floor is <code>max(signal × authority)</code>. It is why a single trustworthy hit cannot be averaged away.</p>",
+        acts: ["scoring"], src: "backend/app/scoring.py" },
+
+      { id: "weights",
+        keys: ["weights", "weighting", "how much does each source count"],
+        html: "<p>The weights in the mean: ThreatFox <code>1.2</code>, URLhaus <code>1.1</code>, " +
+              "AbuseIPDB <code>1.0</code>, local blocklist <code>1.0</code>, OTX <code>0.9</code>, " +
+              "GreyNoise <code>0.6</code>, GeoIP/ASN <code>0.25</code>.</p>" +
+              "<p>They are configuration, not constants baked into the logic, and the API returns them with " +
+              "the verdict — so any score can be reproduced from the evidence that produced it.</p>",
+        src: "backend/app/config.py" },
+
+      { id: "verdict",
+        keys: ["verdict", "bands", "thresholds", "how high is high", "what counts as critical", "what makes it critical"],
+        html: "<p>Bands on the 0–100 composite:</p>" +
+              "<ul><li><strong>critical</strong> — 85 and above</li><li><strong>high</strong> — 70 to 84</li>" +
+              "<li><strong>medium</strong> — 40 to 69</li><li><strong>low</strong> — 15 to 39</li>" +
+              "<li><strong>informational</strong> — below 15</li></ul>" +
+              "<p>Severity is never carried by colour alone anywhere in this interface — every band is labelled.</p>",
+        src: "backend/app/scoring.py" },
+
+      { id: "confidence",
+        keys: ["confidence", "confident", "how confident", "how sure", "certainty", "reliable", "how confident are you"],
+        html: "<p>Confidence is reported <strong>separately from the score</strong>, because 85/100 from one " +
+              "source is not 85/100 from five.</p>" +
+              "<p>It is built from coverage (how many applicable sources actually answered) and agreement " +
+              "(how close their signals are), so a lone verdict reads as a lone verdict rather than as certainty.</p>",
+        src: "docs/SCORING.md" },
+
+      { id: "modifiers",
+        keys: ["modifiers", "greynoise benign", "benign", "allowlist", "blocklist", "allow list", "block list", "noise", "false positive"],
+        html: "<p>After the composite, the adjustments an analyst would make by hand:</p>" +
+              "<ul><li><strong>GreyNoise says benign</strong> — score × 0.45. Mass scanners are noise, not a campaign.</li>" +
+              "<li><strong>On the allowlist</strong> — forced to 0.</li>" +
+              "<li><strong>On the blocklist</strong> — floored at 90.</li></ul>" +
+              "<p>Each applied modifier is listed on the indicator, so nothing moves the number invisibly.</p>",
+        acts: ["workbench"], src: "backend/app/scoring.py" },
+
+      { id: "sources",
+        keys: ["sources", "vendors", "providers", "apis", "which services", "who do you query", "third party"],
+        html: "<p>Live sources, all queried concurrently:</p>" +
+              "<ul><li><strong>AbuseIPDB</strong> — address reputation</li><li><strong>AlienVault OTX</strong> — campaign pulses</li>" +
+              "<li><strong>GreyNoise</strong> — is this just an internet-wide scanner</li>" +
+              "<li><strong>ThreatFox</strong> (abuse.ch) — confirmed C2</li><li><strong>URLhaus</strong> (abuse.ch) — malware distribution URLs</li></ul>" +
+              "<p>A source with no key configured reports <code>skipped</code>. It never reports <em>clean</em> — " +
+              "the difference matters when someone reads the ticket later.</p>",
+        acts: ["sources"], src: "docs/API.md" },
+
+      { id: "offline",
+        keys: ["offline", "feodo", "firehol", "kev", "cisa", "nvd", "cve", "geolite", "maxmind", "geoip", "no keys", "without api keys"],
+        html: "<p>It still works with no API keys at all. The offline datasets carry the triage:</p>" +
+              "<ul><li><strong>Feodo Tracker</strong> and <strong>FireHOL</strong> — historical C2 and blocklists</li>" +
+              "<li><strong>CISA KEV</strong> — known exploited vulnerabilities</li>" +
+              "<li><strong>NVD slice</strong> — local CVE lookups</li>" +
+              "<li><strong>MaxMind GeoLite2</strong> — hosting and ASN context</li></ul>" +
+              "<p>Import them with <code>make feeds</code>.</p>",
+        acts: ["sources"] },
+
+      { id: "ioctypes",
+        keys: ["ioc", "what can i paste", "what can it read", "input", "formats", "hash", "domain", "url", "syslog", "json", "refang", "defang"],
+        html: "<p>Paste whatever the alert actually gave you:</p>" +
+              "<ul><li>IPv4 and IPv6 addresses</li><li>Domains and URLs, defanged or not (<code>hxxp://bad[.]top</code> is fine)</li>" +
+              "<li>MD5 / SHA1 / SHA256 hashes</li><li>CVE identifiers</li><li>Raw syslog lines and JSON alert exports</li></ul>" +
+              "<p>Private, loopback, CGNAT and documentation ranges are dropped before any lookup leaves the machine.</p>",
+        acts: ["workbench"], src: "backend/app/ioc.py" },
+
+      { id: "triage",
+        keys: ["run a triage", "how do i run", "try it", "get started", "start", "use it", "paste an alert", "demo"],
+        html: "<p>The workbench is the tool: paste into the ingest box, press <code>⌘↵</code>, and the " +
+              "indicators, the evidence behind each score, the graph and the ticket all appear together.</p>" +
+              "<p>The console here is the posture view over the same dataset — metrics, severity split, attack surface.</p>",
+        acts: ["workbench", "console"] },
+
+      { id: "graph",
+        keys: ["graph", "relationship", "campaign", "network", "map", "visualise", "visualize", "explorer"],
+        html: "<p>The relationship graph is where the point of a correlation tool shows up: shared infrastructure " +
+              "between two malware families is a picture, not a table.</p>" +
+              "<p>Hub-to-cluster edges alone would only make a star — the cross-links between clusters are the part " +
+              "worth looking at.</p>",
+        acts: ["graph", "workbench"] },
+
+      { id: "ticket",
+        keys: ["ticket", "report", "jira", "servicenow", "markdown", "export", "output", "soc ticket"],
+        html: "<p>Every triage ends in a ticket written to be pasted straight into Jira or ServiceNow: severity " +
+              "with a priority SLA, an executive summary, what each source said in its own words, the MITRE ATT&amp;CK " +
+              "techniques the evidence actually supports, and a containment checklist scoped to the indicator type.</p>" +
+              "<p>Indicators are defanged in the report, so a ticket comment can never be click-through.</p>",
+        acts: ["workbench"], src: "backend/app/reporting.py" },
+
+      { id: "data",
+        keys: ["real data", "is this real", "synthetic", "fake", "sample data", "dataset", "made up", "where does this data come from"],
+        html: "<p>Everything on this page is <strong>synthetic</strong>. The addresses are RFC 5737 documentation " +
+              "ranges (<code>203.0.113.0/24</code>, <code>198.51.100.0/24</code>) and the domains are RFC 2606 " +
+              "reserved names. Nothing here describes a real host, and no vendor API is called in demo mode.</p>" +
+              "<p>Point the workbench at a running backend and the same screens are driven by real responses.</p>",
+        acts: ["workbench"] },
+
+      { id: "privacy",
+        keys: ["privacy", "private", "leave", "send", "track", "tracking", "telemetry", "upload", "does anything leave"],
+        html: "<p>Nothing leaves this tab. The page has no analytics, no telemetry and no backend — the demo " +
+              "engine is a JavaScript port of the Python scoring module, running in your browser.</p>" +
+              "<p>This assistant is the same: it matches your question against a list of topics compiled into the " +
+              "page and reads the dataset already loaded. No model is called.</p>" },
+
+      { id: "security",
+        keys: ["security", "ssrf", "xss", "csp", "rate limit", "hardening", "safe", "injection", "secure"],
+        html: "<p>A tool that renders attacker-controlled text has to assume the text is hostile:</p>" +
+              "<ul><li><strong>Egress is allowlisted</strong> — twelve known hosts, HTTPS only, every resolved " +
+              "address checked against private, loopback, link-local and metadata space, on redirects too</li>" +
+              "<li><strong>Output is encoded</strong>, with a CSP behind it that forbids inline script</li>" +
+              "<li><strong>Sliding-window rate limits</strong> per bucket, and bounded request bodies</li>" +
+              "<li><strong>Logs mask credentials</strong> before anything is written</li></ul>" +
+              "<p>Each control has a test that proves it — 63 on the backend alone.</p>",
+        src: "docs/SECURITY.md" },
+
+      { id: "live",
+        keys: ["live api", "backend", "docker", "self host", "run locally", "install", "deploy", "compose"],
+        html: "<p><code>docker compose up --build</code> brings up the API on <code>:8000</code> and the dashboard " +
+              "on <code>:8080</code>. Switch the workbench to <strong>Live API</strong>, point it at the backend, and " +
+              "the same screens run on real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.</p>" +
+              "<p>FastAPI, async httpx, Celery, Redis, PostgreSQL.</p>",
+        acts: ["workbench"] },
+
+      { id: "shortcuts",
+        keys: ["shortcuts", "keyboard", "hotkey", "command palette"],
+        html: "<p>On this page: <code>?</code> opens this assistant, <code>Esc</code> closes whatever is open.</p>" +
+              "<p>In the workbench: <code>⌘K</code> for the command palette, <code>⌘↵</code> to run a triage, " +
+              "<code>/</code> to focus the ingest box, <code>g i</code> / <code>g g</code> / <code>g t</code> / " +
+              "<code>g h</code> to jump between views, <code>t</code> to cycle the theme.</p>",
+        acts: ["workbench"] },
+
+      { id: "theme",
+        keys: ["theme", "dark mode", "light mode", "dark", "light", "night"],
+        html: "<p>The button beside the logo switches it, and the choice is remembered. Where the browser supports " +
+              "View Transitions the new theme wipes in as a circle growing out of the button itself.</p>" +
+              "<p>Under <code>prefers-reduced-motion</code> the swap is instant and every other animation on the page stops.</p>",
+        acts: ["theme"] },
+
+      { id: "tests",
+        keys: ["tests", "tested", "quality", "how is it tested", "coverage"],
+        html: "<p>63 backend tests (extraction, scoring, API contract, reports, security controls), 21 node tests " +
+              "(the JavaScript engine pinned to the Python rules, plus design-system guards), and browser suites " +
+              "that drive a real Chromium.</p>" +
+              "<p>One of them clicks every visible button on this page and fails if any of them does nothing.</p>" },
+
+      { id: "stack",
+        keys: ["stack", "built with", "technology", "tech", "framework", "language"],
+        html: "<p>Backend: FastAPI, async httpx with concurrent fan-out, SQLAlchemy 2.0, Celery + Redis, PostgreSQL " +
+              "(SQLite for local runs).</p>" +
+              "<p>Front end: no framework and no build step. Plain HTML, a CSS custom-property token system and " +
+              "vanilla JavaScript — a reviewer clones the repo and opens the file.</p>" },
+
+      { id: "author",
+        keys: ["who built", "author", "vinit", "rami", "contact", "portfolio", "hire"],
+        html: "<p>Built by Vinit Rami as part of a defensive-security portfolio. The source, the design notes and " +
+              "the security write-up are all in the repository.</p>" },
+
+      /* ── answers computed from the dataset on the page, not written by hand */
+      { id: "now",
+        keys: ["how many findings", "current findings", "right now", "summary", "how many", "status", "overview of findings", "severity split"],
+        live: () => "<p>On the dataset loaded here: <strong>" + total("all") + " findings</strong> — " + sev("all") + ".</p>" +
+              "<p>By state: " + DATA.state.all.join(", ").toLowerCase() + ". Open cases account for " +
+              total("open") + " of them (" + sev("open") + ").</p>",
+        acts: ["console"], src: "the sample dataset on this page" },
+
+      { id: "criticals",
+        keys: ["critical findings", "what is critical", "worst indicators", "worst findings", "most severe", "show me the critical", "which indicators", "list the indicators", "list findings", "top findings", "worst"],
+        live: () => {
+          const rows = DATA.findings.filter((f) => f.sev === "critical" || f.sev === "high");
+          return "<p>The " + rows.length + " indicators at high or critical in this sample:</p><ul>" +
+            rows.map((f) => "<li><code>" + esc(f.ioc) + "</code> — " + f.sev + ", " + esc(f.src) +
+              ", seen " + esc(f.seen) + "</li>").join("") + "</ul>" +
+            "<p>All of them are RFC 5737 / RFC 2606 placeholders. None is a real host.</p>";
+        },
+        acts: ["console"], src: "the sample dataset on this page" },
+
+      { id: "surface",
+        keys: ["attack surface", "surface", "exposure", "exposed", "assets", "gauge"],
+        live: () => "<p>The attack-surface score here is <strong>" + DATA.surface.score + "</strong>, over " +
+              (DATA.surface.ip + DATA.surface.svc) + " assets — " + DATA.surface.ip + " IP addresses and " +
+              DATA.surface.svc + " services.</p>" +
+              "<p>It is a posture number, not a verdict: it says how much is reachable, not how bad any one thing is.</p>",
+        acts: ["console"], src: "the sample dataset on this page" },
+
+      { id: "metrics",
+        keys: ["kpis", "metrics", "mttr", "time to triage", "how fast", "closed findings"],
+        live: () => "<p>" + DATA.kpis.map((k) => "<strong>" + esc(k.label) + "</strong> " + k.value +
+              " (" + esc(k.delta) + ", " + esc(k.note) + ")").join("<br>") + "</p>" +
+              "<p>Median time to triage is the one worth watching — it is the number the whole tool exists to move.</p>",
+        acts: ["console"], src: "the sample dataset on this page" },
+
+      { id: "trend",
+        keys: ["trend", "over time", "months", "busiest", "history", "assets over time"],
+        live: () => {
+          const peak = DATA.months.reduce((a, b) => (b.v > a.v ? b : a));
+          return "<p>Assets over the last six months: " + DATA.months.map((m) => esc(m.m) + " " + m.v).join(", ") +
+            ".</p><p><strong>" + esc(peak.m) + "</strong> is the peak at " + peak.v +
+            " — the month worth asking a question about.</p>";
+        },
+        acts: ["console"], src: "the sample dataset on this page" }
+    ];
+
+    const CHIPS = [
+      "How is the score calculated?",
+      "What sources do you query?",
+      "Is this real data?",
+      "What is critical right now?",
+      "How do I run a triage?",
+      "What about SSRF and rate limits?"
+    ];
+
+    const norm = (t) => t.toLowerCase().replace(/[^a-z0-9+ ]+/g, " ").replace(/\s+/g, " ").trim();
+    function match(question) {
+      const text = norm(question);
+      if (!text) return null;
+      const words = text.split(" ");
+      let best = null, high = 0;
+      for (const entry of KB) {
+        let score = 0;
+        for (const key of entry.keys) {
+          /* Longer phrases are more specific, so they outrank short ones: without
+             this, "what is critical right now" tied between the findings summary
+             and the critical list purely on KB order. */
+          if (key.includes(" ")) { if (text.includes(key)) score += 1.2 + key.length / 12; continue; }
+          for (const word of words) {
+            if (word === key) { score += 1; break; }
+            /* a light stem: "scoring" should find "score", "vendors" "vendor" */
+            if (key.length >= 4 && word.length >= 4 && (word.startsWith(key.slice(0, 4)) && key.startsWith(word.slice(0, 4)))) {
+              score += 0.7; break;
+            }
+          }
+        }
+        if (score > high) { high = score; best = entry; }
+      }
+      return high >= 1 ? best : null;
+    }
+
+    const log = $("#ai-log"), panel = $("#ai-panel"), fab = $("#ai-fab"), input = $("#ai-input");
+    let greeted = false;
+
+    function bubble(who, html, acts, src) {
+      const row = document.createElement("div");
+      row.className = "ai-msg " + who;
+      row.innerHTML = '<div class="ai-bubble">' + html + "</div>" +
+        (acts && acts.length ? '<div class="ai-acts">' + acts.map((key) =>
+          '<button type="button" data-act="' + key + '">' + esc(ACT[key][0]) + "</button>").join("") + "</div>" : "") +
+        (src ? '<p class="ai-src">Source: ' + esc(src) + "</p>" : "");
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+      return row;
+    }
+
+    function ask(question) {
+      const text = String(question || "").trim().slice(0, 300);
+      if (!text) return;
+      bubble("you", "<p>" + esc(text) + "</p>");
+      const wait = document.createElement("div");
+      wait.className = "ai-msg bot";
+      wait.innerHTML = '<div class="ai-bubble ai-typing"><i></i><i></i><i></i></div>';
+      log.appendChild(wait);
+      log.scrollTop = log.scrollHeight;
+      setTimeout(() => {
+        wait.remove();
+        const hit = match(text);
+        if (!hit) {
+          bubble("bot",
+            "<p>I do not have an answer for that one, and I would rather say so than invent it.</p>" +
+            "<p>What I can cover: the scoring model and its weights, the sources and the offline feeds, what you " +
+            "can paste, the graph, the generated ticket, the security controls, and anything about the dataset " +
+            "loaded on this page.</p>",
+            ["scoring", "sources", "workbench"]);
+          return;
+        }
+        bubble("bot", hit.live ? hit.live() : hit.html, hit.acts, hit.src);
+      }, reduce ? 0 : 260);
+    }
+
+    log.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-act]");
+      if (!button) return;
+      const entry = ACT[button.dataset.act];
+      if (entry) { entry[1](); if (matchMedia("(max-width: 560px)").matches) open(false); }
+    });
+
+    $("#ai-chips").innerHTML = CHIPS.map((q) =>
+      '<button type="button">' + esc(q) + "</button>").join("");
+    $("#ai-chips").addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (button) ask(button.textContent);
+    });
+
+    $("#ai-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      ask(input.value);
+      input.value = "";
+    });
+
+    function open(on) {
+      panel.classList.toggle("on", on);
+      panel.setAttribute("aria-hidden", String(!on));
+      $("#ai-scrim").classList.toggle("on", on && matchMedia("(max-width: 560px)").matches);
+      fab.setAttribute("aria-expanded", String(on));
+      if (!on) { fab.focus(); return; }
+      if (!greeted) {
+        greeted = true;
+        bubble("bot",
+          "<p>Ask me about how IntelPulse scores an indicator, which sources it queries, what you can paste " +
+          "into it, or anything about the dataset on this page.</p>" +
+          "<p>I answer from this project's documentation and the data already loaded here — so if I do not know " +
+          "something, I will say that rather than make it up.</p>");
+      }
+      setTimeout(() => input.focus({ preventScroll: true }), 120);
+    }
+    fab.addEventListener("click", () => open(true));
+    $("#ai-close").addEventListener("click", () => open(false));
+    $("#ai-scrim").addEventListener("click", () => open(false));
+    addEventListener("keydown", (event) => {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable;
+      if (event.key === "Escape" && panel.classList.contains("on")) { open(false); return; }
+      if (event.key === "?" && !typing && !panel.classList.contains("on")) { event.preventDefault(); open(true); }
+    });
+
+    window.IntelPulseAssistant = { ask, open, topics: KB.map((e) => e.id) };
+  })();
 
   window.IntelPulseSuite = { data: DATA, render: drawAll, toast };
 })();

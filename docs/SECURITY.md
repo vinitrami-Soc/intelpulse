@@ -159,6 +159,7 @@ cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench browser checks (needs Playwright)
 node web/tests/suite.spec.mjs           # site + console browser checks
+node web/tests/mobile.spec.mjs          # phones, tablets, and the assistant panel
 ```
 
 ## Reporting
