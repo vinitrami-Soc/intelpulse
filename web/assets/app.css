@@ -92,7 +92,13 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   border-bottom: 1px solid var(--line);
   min-height: 48px; cursor: pointer; user-select: none;
   background: none; border-left: 0; border-right: 0; border-top: 0; width: 100%; text-align: left;
+  color: var(--ink); text-decoration: none;
 }
+.rail-brand:hover { text-decoration: none; }
+.rail-brand:hover .rail-word { color: var(--accent-strong); }
+/* the way back out of the tool, stated rather than implied by the logo */
+.rail-back { color: var(--ink-3); text-decoration: none; margin-bottom: var(--s-2); }
+.rail-back:hover { color: var(--accent-strong); text-decoration: none; }
 .rail-mark {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--r-1);
   display: grid; place-items: center; position: relative; overflow: hidden;
@@ -152,9 +158,22 @@ code, .mono, .ioc-value, pre, .num { font-family: var(--mono); font-variant-liga
   backdrop-filter: blur(18px) saturate(150%);
   border-bottom: 1px solid var(--line);
 }
-.page-title { font-size: 15px; font-weight: 650; letter-spacing: -.015em; margin: 0; }
+.page-title { font-size: 15px; font-weight: 650; letter-spacing: -.015em; margin: 0; min-width: 0; }
 .page-title small { display: block; font-size: 11.5px; font-weight: 450; color: var(--ink-3); letter-spacing: 0; }
-.topbar-spacer { flex: 1; }
+.topbar-spacer { flex: 1; min-width: 0; }
+/* The controls stay on the title's row: the subtitle is the thing that can go,
+   not the row. Before this the two icon buttons dropped to a second line and
+   sat there on their own. */
+@media (max-width: 1180px) {
+  .topbar { flex-wrap: nowrap; }
+  .page-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-title small { display: none; }
+  .topbar-spacer { flex: 0 1 auto; }
+}
+@media (max-width: 860px) {
+  .topbar { flex-wrap: wrap; }
+  .page-title { flex: 1 1 100%; }
+}
 
 .cmd-hint {
   display: inline-flex; align-items: center; gap: var(--s-2);
@@ -604,9 +623,19 @@ body.night-watch { --accent: var(--sev-ok); --ramp-3: var(--sev-ok); }
 @keyframes flicker { 0%, 100% { opacity: .5; } 48% { opacity: .62; } 52% { opacity: .42; } }
 
 /* ———————————————————————————————————— responsive */
+.rail-scrim { display: none; }
 @media (max-width: 860px) {
+  /* The icon rail is always there, so navigation never disappears. Expanding
+     it slides a labelled drawer over the page — and because that drawer covers
+     the content, it needs a scrim and a way out. Without one the page simply
+     read as blank until you found the collapse button. */
   .app, .app.rail-collapsed { grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr); }
-  .app:not(.rail-collapsed) .rail { position: fixed; z-index: 60; width: var(--rail-w); box-shadow: var(--float); }
+  .app:not(.rail-collapsed) .rail { position: fixed; z-index: 61; width: var(--rail-w); box-shadow: var(--float); }
+  .rail-scrim {
+    display: block; position: fixed; inset: 0; z-index: 60; background: var(--overlay);
+    opacity: 0; pointer-events: none; transition: opacity var(--t-base) var(--ease-out);
+  }
+  .app:not(.rail-collapsed) .rail-scrim { opacity: 1; pointer-events: auto; }
   .hero .figure { font-size: 42px; }
 }
 

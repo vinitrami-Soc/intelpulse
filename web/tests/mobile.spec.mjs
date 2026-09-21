@@ -120,7 +120,7 @@ for (const [name, width, height] of [
 
   await page.tap("#burger");
   await page.waitForTimeout(400);
-  await page.tap('#menu a[href="#partners"]');
+  await page.tap('#menu a[href="#sources"]');
   await page.waitForTimeout(1200);
   check("a menu link scrolls the page and closes the menu",
     (await page.evaluate(() => Math.round(scrollY))) > 200 &&
@@ -150,10 +150,10 @@ for (const [name, width, height] of [
   check("the header button opens the rail", await page.$eval("#console-full", (el) => el.classList.contains("drawer")));
   check("the rail is on screen once open",
     await page.$eval("#console-side", (el) => el.getBoundingClientRect().left > -2));
-  await page.tap('#side-nav-full .nav-item[data-pane="attacks"]');
+  await page.tap('#side-nav-full .nav-item[data-pane="campaigns"]');
   await page.waitForTimeout(700);
   check("choosing a pane changes the view and puts the rail away",
-    (await page.$eval("#console-body h3", (h) => h.textContent)).includes("All attacks") &&
+    (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns") &&
     !(await page.$eval("#console-full", (el) => el.classList.contains("drawer"))));
   check("only the dashboard gets the wave",
     !(await page.$eval("#console-body h3", (h) => h.textContent)).includes("\u{1F44B}"));

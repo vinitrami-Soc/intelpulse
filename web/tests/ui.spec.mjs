@@ -466,6 +466,85 @@ await hc.close();
 
 check("no uncaught page errors", errors.length === 0, errors.slice(0, 2).join(" | "));
 
+/* ——————————————————————————— 12. the graph, with the real library
+ *
+ * Every check above ran against the SVG fallback, because the environment that
+ * wrote them could not reach the Cytoscape CDN. That is exactly how the graph
+ * shipped with rotated edge labels over colliding node labels: nothing tested
+ * the path a laptop actually takes. Point CYTOSCAPE_PATH at a local copy and
+ * this block runs the real one.
+ */
+if (process.env.CYTOSCAPE_PATH) {
+  const { readFileSync } = await import("node:fs");
+  const library = readFileSync(process.env.CYTOSCAPE_PATH, "utf8");
+  const real = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const graphErrors = [];
+  real.on("pageerror", (e) => graphErrors.push(e.message));
+  await real.route("**/cytoscape.min.js", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: library }));
+  await real.goto(BASE, { waitUntil: "domcontentloaded" });
+  await real.waitForTimeout(1500);
+  check("the real Cytoscape loads when the CDN is reachable",
+    await real.evaluate(() => typeof cytoscape !== "undefined"));
+
+  await real.click("#samples button");
+  await real.waitForTimeout(300);
+  await real.click("#run");
+  await real.waitForTimeout(2800);
+  await real.click('[data-tab="graph"]');
+  await real.waitForTimeout(2600);
+
+  const plotted = await real.evaluate(() => {
+    const cy = window.IntelPulse?.cy || null;
+    return cy ? cy.nodes().length : 0;
+  });
+  check("it plots the investigation", plotted > 3, plotted + " nodes");
+
+  /* Every edge carrying its name at once was the single biggest source of
+     clutter; the names belong under the cursor. */
+  const labelled = await real.evaluate(() => {
+    const cy = window.IntelPulse.cy;
+    return cy.edges().filter((e) => (e.style("label") || "") !== "").length;
+  });
+  check("no edge shouts its name until you ask", labelled === 0, labelled + " labelled edges");
+
+  const onHover = await real.evaluate(() => {
+    const cy = window.IntelPulse.cy;
+    const node = cy.nodes().first();
+    node.emit("mouseover");
+    return node.connectedEdges().filter((e) => e.hasClass("show-label")).length;
+  });
+  check("hovering a node names its relationships", onHover > 0, onHover + " edges lit");
+
+  /* A graph that fits the box but needs a magnifier has been hidden, not laid
+     out — and labels closer together than their own width will overlap. */
+  const layout = await real.evaluate(() => {
+    const cy = window.IntelPulse.cy;
+    const positions = cy.nodes().map((n) => n.position());
+    let closest = Infinity;
+    for (let i = 0; i < positions.length; i++) {
+      for (let j = i + 1; j < positions.length; j++) {
+        closest = Math.min(closest, Math.hypot(positions[i].x - positions[j].x, positions[i].y - positions[j].y));
+      }
+    }
+    return { zoom: Math.round(cy.zoom() * 100) / 100, closest: Math.round(closest) };
+  });
+  check("it is readable rather than merely fitted", layout.zoom >= 0.85, "zoom " + layout.zoom);
+  check("no two nodes sit on top of each other", layout.closest >= 55, layout.closest + "px apart at the closest");
+
+  check("labels are drawn on a card so they survive an edge",
+    await real.evaluate(() => {
+      const cy = window.IntelPulse.cy;
+      const node = cy.nodes().first();
+      return Number(node.style("text-background-opacity")) > 0.8;
+    }));
+
+  check("the real graph raises no errors", graphErrors.length === 0, graphErrors[0]);
+  await real.close();
+} else {
+  console.log("SKIP  the real-Cytoscape checks (set CYTOSCAPE_PATH to run them)");
+}
+
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

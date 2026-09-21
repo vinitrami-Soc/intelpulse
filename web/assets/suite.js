@@ -40,21 +40,38 @@
     surface: { score: 68, ip: 56, svc: 24 }
   };
 
+  /* Projects, external/internal pentest and password audits came from the
+     reference composition, not from this product — IntelPulse triages
+     indicators, it does not run engagements. A sidebar that lists features
+     nothing behind it implements is the fastest way to lose a reviewer, so
+     every entry below is a view this console actually renders. */
   const NAV = [
-    { group: "Reporting", icon: "i-grid", open: true, items: [
-      { id: "dashboard", label: "Dashboard" }, { id: "activity", label: "Activity" }, { id: "documents", label: "Documents" }
+    { group: "Posture", icon: "i-grid", open: true, items: [
+      { id: "dashboard", label: "Overview" },
+      { id: "surface", label: "Attack surface" },
+      { id: "activity", label: "Triage history" }
     ] },
-    { group: "Findings", icon: "i-search", open: false, items: [
-      { id: "all-findings", label: "All findings" }, { id: "triage", label: "Triage queue" }
+    { group: "Indicators", icon: "i-search", open: false, items: [
+      { id: "triage", label: "Triage queue" },
+      { id: "all-findings", label: "All indicators" }
     ] },
-    { item: { id: "attacks", label: "All attacks", icon: "i-target", badge: "12" } },
+    { item: { id: "campaigns", label: "Campaigns", icon: "i-target", badge: "12" } },
     { item: { id: "narratives", label: "Attack narratives", icon: "i-doc" } },
-    { item: { id: "active", label: "Active attack", icon: "i-bot" } },
-    { item: { id: "surface", label: "Attack surface", icon: "i-layers" } },
-    { item: { id: "projects", label: "Projects", icon: "i-folder", badge: "28", blue: true } },
-    { item: { id: "external", label: "External pentest", icon: "i-globe" } },
-    { item: { id: "internal", label: "Internal pentest", icon: "i-shield" } },
-    { item: { id: "passwords", label: "Password audits", icon: "i-key" } }
+    { item: { id: "sources", label: "Intelligence sources", icon: "i-globe" } },
+    { item: { id: "tickets", label: "SOC tickets", icon: "i-flag" } }
+  ];
+
+  /* The weights and authority values are the ones backend/app ships. A source
+     with no key configured reports "skipped" — never "clean". */
+  const SOURCES = [
+    { name: "AbuseIPDB",      kind: "live",    weight: 1.0,  authority: 0.80, note: "Address reputation, corroboration-weighted" },
+    { name: "AlienVault OTX", kind: "live",    weight: 0.9,  authority: 0.70, note: "Community pulses, prone to syndication" },
+    { name: "ThreatFox",      kind: "live",    weight: 1.2,  authority: 0.95, note: "abuse.ch — confirmed command and control" },
+    { name: "URLhaus",        kind: "live",    weight: 1.1,  authority: 0.95, note: "abuse.ch — malware distribution URLs" },
+    { name: "GreyNoise",      kind: "live",    weight: 0.6,  authority: 0.50, note: "Context: is this an internet-wide scanner" },
+    { name: "Local blocklist",kind: "offline", weight: 1.0,  authority: 0.90, note: "Feodo Tracker and FireHOL, imported" },
+    { name: "GeoIP / ASN",    kind: "offline", weight: 0.25, authority: 0.30, note: "MaxMind GeoLite2 — hosting context only" },
+    { name: "CVE lookup",     kind: "offline", weight: 0,    authority: 0,    note: "Local NVD slice and the CISA KEV list" }
   ];
 
   const icon = (id, cls) => '<svg' + (cls ? ' class="' + cls + '"' : "") + '><use href="#' + id + '"/></svg>';
@@ -283,20 +300,37 @@
     $$("[data-count]", scope).forEach((n) => countTo(n, Number(n.dataset.count)));
   }
 
+  function sourcesMarkup() {
+    const row = (src) => '<tr><td><strong>' + src.name + "</strong><br>" +
+      '<span style="color:var(--ink-3);font-size:11.5px">' + src.note + "</span></td>" +
+      '<td><span class="tag ' + src.kind + '">' + src.kind + "</span></td>" +
+      '<td class="mono">' + (src.weight ? src.weight.toFixed(2) : "\u2014") + "</td>" +
+      '<td class="mono">' + (src.authority ? src.authority.toFixed(2) : "\u2014") + "</td></tr>";
+    return '<section class="card panel">' +
+      '<div class="panel-head"><h4>Every source, and what its word is worth</h4></div>' +
+      '<p style="color:var(--ink-2);font-size:12.5px;margin-bottom:12px">Weight decides how much a source ' +
+      'moves the weighted mean. Authority decides how high it can hold the score on its own — one confirmed ' +
+      'ThreatFox listing still reads critical when four quiet sources disagree.</p>' +
+      '<div class="table-wrap"><table class="table"><thead><tr><th>Source</th><th>Kind</th>' +
+      "<th>Weight</th><th>Authority</th></tr></thead><tbody>" +
+      SOURCES.map(row).join("") + "</tbody></table></div>" +
+      '<p style="color:var(--ink-3);font-size:11.5px;margin-top:12px">A source with no API key configured ' +
+      "reports <code>skipped</code>. It never reports <em>clean</em> \u2014 the difference matters when " +
+      "someone reads the ticket six months later.</p></section>";
+  }
+
+  /* Every pane below is a view this console renders from the loaded dataset.
+     Nothing here is a label over an empty room. */
   const PANES = {
     dashboard: () => ({ title: "Welcome back, analyst", sub: "Remediation efficacy and the attack surface, as of this morning.", body: kpiCards() + panelsMarkup(false) }),
-    activity:  () => ({ title: "Activity", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) }),
-    documents: () => ({ title: "Documents", sub: "Generated SOC tickets and exported evidence.", body: kpiCards() }),
-    "all-findings": () => ({ title: "All findings", sub: "Indicators across every open case.", body: panelsMarkup(false) }),
+    surface:   () => ({ title: "Attack surface", sub: "What is reachable, and how much of it is scored.", body: panelsMarkup(false) }),
+    activity:  () => ({ title: "Triage history", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) }),
     triage:    () => ({ title: "Triage queue", sub: "What needs an analyst next, sorted by composite score.", body: kpiCards() + panelsMarkup(true) }),
-    attacks:   () => ({ title: "All attacks", sub: "12 campaigns correlated from the current indicator set.", body: panelsMarkup(true) }),
+    "all-findings": () => ({ title: "All indicators", sub: "Every indicator across every open case.", body: panelsMarkup(false) }),
+    campaigns: () => ({ title: "Campaigns", sub: "12 campaigns correlated from the current indicator set.", body: panelsMarkup(true) }),
     narratives:() => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() }),
-    active:    () => ({ title: "Active attack", sub: "Live indicators still resolving.", body: panelsMarkup(true) }),
-    surface:   () => ({ title: "Attack surface", sub: "Everything exposed, scored.", body: panelsMarkup(false) }),
-    projects:  () => ({ title: "Projects", sub: "28 engagements sharing this intelligence.", body: kpiCards() }),
-    external:  () => ({ title: "External pentest", sub: "Findings from outside the perimeter.", body: panelsMarkup(true) }),
-    internal:  () => ({ title: "Internal pentest", sub: "Findings from inside the estate.", body: panelsMarkup(true) }),
-    passwords: () => ({ title: "Password audits", sub: "Credential exposure across the directory.", body: kpiCards() })
+    sources:   () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() }),
+    tickets:   () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })
   };
 
   function renderConsole(pane) {
@@ -306,18 +340,21 @@
       '<header class="console-head route">' +
         "<div><h3>" + spec.title + (pane === "dashboard" ? ' <span aria-hidden="true">👋</span>' : "") +
           "</h3><p>" + spec.sub + "</p></div>" +
+        /* Gone from here: a notification bell with nothing behind it, an avatar
+           for an account that does not exist, and a "Testing status: Active"
+           pill that reported on nothing. What is left either works or states a
+           fact about the data. */
         '<div class="head-right">' +
-          '<button class="round-btn" id="c-search" aria-label="Search">' + icon("i-search") + "</button>" +
+          '<button class="round-btn" id="c-search" aria-label="Ask the assistant">' + icon("i-search") + "</button>" +
           '<a class="btn btn-dark btn-sm" href="workbench.html">Live triage' + icon("i-arrow") + "</a>" +
-          '<span class="status-pill">Testing status <span class="on">Active</span></span>' +
-          '<button class="round-btn" id="c-bell" aria-label="Notifications">' + icon("i-bell") + '<span class="ping"></span></button>' +
-          '<span class="avatar" role="img" aria-label="Your profile"></span>' +
+          '<span class="status-pill">Sample data <span class="on">synthetic</span></span>' +
           '<button class="round-btn" id="c-collapse" aria-label="Collapse sidebar">' + icon("i-sidebar") + "</button>" +
         "</div>" +
       "</header>" + '<div class="route">' + spec.body + "</div>";
     wirePanels(host);
-    $("#c-search").addEventListener("click", () => toast("Search is a demo control"));
-    $("#c-bell").addEventListener("click", () => toast("3 new findings since your last visit"));
+    // It used to toast "Search is a demo control". It opens the assistant now,
+    // which is the thing on this page that actually answers a question.
+    $("#c-search").addEventListener("click", () => window.IntelPulseAssistant?.open(true));
     $("#c-collapse").addEventListener("click", () => {
       /* Wide enough for two columns: collapse the rail to icons. Narrow: the
          rail is a drawer, so the same button opens it. */
@@ -334,8 +371,7 @@
       '<header class="console-head">' +
         '<div><h3>Welcome back, analyst <span aria-hidden="true">👋</span></h3>' +
         "<p>Remediation efficacy and the attack surface, as of this morning.</p></div>" +
-        '<div class="head-right"><span class="status-pill">Testing status <span class="on">Active</span></span>' +
-        '<span class="avatar" role="img" aria-label="Profile"></span></div>' +
+        '<div class="head-right"><span class="status-pill">Sample data <span class="on">synthetic</span></span></div>' +
       "</header>" + kpiCards() + panelsMarkup(true);
     wirePanels(host);
   }
@@ -568,10 +604,10 @@
       console: ["Open the console", () => { location.hash = "#/console"; }],
       workbench: ["Open the workbench", () => { location.href = "workbench.html"; }],
       graph: ["Open the campaign graph", () => { location.href = "explorer.html"; }],
-      scoring: ["Show the scoring section", () => jump("#pricing")],
-      platform: ["Show how it correlates", () => jump("#platform")],
-      evidence: ["Show the evidence view", () => jump("#resources")],
-      sources: ["Show the sources", () => jump("#partners")],
+      scoring: ["Show the scoring section", () => jump("#scoring")],
+      how: ["Show how it correlates", () => jump("#how")],
+      evidence: ["Show the evidence view", () => jump("#evidence")],
+      sources: ["Show the sources", () => jump("#sources")],
       theme: ["Switch the theme", () => $("#theme-btn").click()]
     };
     function jump(sel) {
@@ -587,7 +623,7 @@
               "queries every applicable source concurrently, scores them into one auditable verdict, maps how they " +
               "relate, and writes the SOC ticket at the end of it.</p>" +
               "<p>The usual cost of that is six browser tabs per alert. This is one request.</p>",
-        acts: ["platform", "workbench"] },
+        acts: ["how", "workbench"] },
 
       { id: "scoring",
         keys: ["scoring", "score", "scored", "formula", "math", "arithmetic", "calculate", "calculated", "computed", "weighted mean", "how does scoring work"],

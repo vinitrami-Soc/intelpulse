@@ -295,6 +295,55 @@ Bringing them over meant recomputing, not recolouring:
   part of the field, and the closest pair is 0.129 apart in OKLab against a
   0.12 floor. Colour still is not the only channel — every cluster is labelled.
 
+### Naming, and what was cut
+
+The console's sidebar was lifted from the reference composition along with its
+layout, and it listed Projects, External pentest, Internal pentest, Password
+audits and Active attack. IntelPulse triages indicators; it does not run
+engagements or audit directories. A sidebar advertising features nothing
+behind it implements is the fastest way to lose a reviewer, so every entry is
+now a view this console actually renders:
+
+| Was | Is | Why |
+| --- | --- | --- |
+| Reporting → Dashboard | Posture → **Overview** | "Dashboard" names a shape, not a subject |
+| Documents | **SOC tickets** | What the product actually produces |
+| Activity | **Triage history** | What the list is of |
+| All findings | **All indicators** | The product's own noun |
+| All attacks | **Campaigns** | Matches the graph and the ATT&CK mapping |
+| Projects, pentests, password audits, Active attack | *removed* | Not features of this product |
+| — | **Intelligence sources** | New, and real: every source with its weight and authority |
+
+The landing page had the same problem in miniature. `#platform`, `#pricing`
+and `#resources` are section names from a SaaS template — and there is no
+pricing, because there is no product to buy. They are `#how`, `#scoring`,
+`#evidence` and `#sources` now, which is what the sections contain.
+
+Three things went from the console header for the same reason: a notification
+bell that reported a number nobody counted, an avatar for an account that does
+not exist, and a "Testing status: Active" pill that reported on nothing. The
+search button used to answer "Search is a demo control" — it opens the
+assistant now, which is the thing on the page that answers questions.
+
+### The relationship graph
+
+The first version was unreadable, and all three causes were layout rather than
+colour: every edge carried a rotated label, node labels had no background so
+they sat on whatever line ran underneath, and the repulsion was low enough that
+disconnected components stranded in a corner while the rest overlapped.
+
+Edge labels are a hover and selection detail now — `attributed to` and
+`announced by` belong under the cursor, not on screen all at once. Every label
+draws a small card behind it, so crossing an edge costs nothing. Nodes carry a
+ring of their own colour at low opacity, which reads as depth without an image.
+
+The layout needed tuning in both directions. Raising `nodeRepulsion` far enough
+to separate the labels made the graph so large that the fit shrank everything
+to unreadable — a graph that fits the box but needs a magnifier has not been
+laid out, it has been hidden. The layout is now sized to keep edges a little
+longer than a label is wide, and a `layoutstop` handler refuses to zoom below
+0.85 and lets you pan instead.
+
 ### Every control does something
 
 The page has a lot of surface — two routes, a sidebar with collapsible groups,

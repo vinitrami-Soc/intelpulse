@@ -333,7 +333,7 @@ button { font-family: inherit; cursor: pointer; }
   .head-right { margin-left: 0; width: 100%; flex-wrap: wrap; }
 }
 @media (max-width: 480px) {
-  .console-head .status-pill, .console-head .avatar { display: none; }
+  .console-head .status-pill { display: none; }
   .console-head h3 { font-size: 17px; }
 }
 .console-head h3 { font-size: 19px; font-weight: 600; letter-spacing: -.03em; }
@@ -356,8 +356,6 @@ button { font-family: inherit; cursor: pointer; }
 }
 .round-btn:hover { transform: translateY(-1px); color: var(--ink); }
 .round-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.9; }
-.round-btn .ping { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--flame); box-shadow: 0 0 0 2px var(--paper); }
-.avatar { width: 34px; height: 34px; border-radius: var(--r-full); background: linear-gradient(140deg, var(--azure), var(--flame)); border: 2px solid var(--paper); box-shadow: var(--shade-sm); }
 
 /* KPI row */
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
@@ -466,6 +464,13 @@ button { font-family: inherit; cursor: pointer; }
 /* An auto-layout table with nowrap cells grows past width:100% and spills out
    of the card. Fixed layout plus stated column widths keeps it inside, and the
    wrapper takes over on a narrow screen instead of squeezing every column. */
+.tag {
+  display: inline-block; padding: 3px 9px; border-radius: var(--r-full);
+  font-size: 11px; font-weight: 600; letter-spacing: .02em;
+  border: 1px solid var(--line-2); color: var(--ink-2); background: var(--ground-2);
+}
+.tag.live { color: var(--azure); border-color: color-mix(in srgb, var(--azure) 40%, transparent); background: var(--azure-wash); }
+
 .table-wrap { overflow-x: auto; }
 .table { width: 100%; min-width: 520px; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
 .table th { text-align: left; padding: 8px 10px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--line); }

@@ -184,16 +184,16 @@ check("the close button closes it", !(await page.$eval("#ai-panel", (el) => el.c
 
 /* ─────────────────────────────────────────────────── the side scroller */
 await reset("home");
-await page.evaluate(() => document.querySelector("#partners").scrollIntoView({ block: "center" }));
+await page.evaluate(() => document.querySelector("#sources").scrollIntoView({ block: "center" }));
 await page.waitForTimeout(450);
 const at = () => page.evaluate(() => document.querySelector("#marquee").scrollLeft);
-const runs = await page.$$("#partners .mq-run");
-const span = await page.$eval("#partners .mq-run", (el) => el.getBoundingClientRect().width);
-const track = await page.$eval("#partners .mq-track", (el) => el.getBoundingClientRect().width);
+const runs = await page.$$("#sources .mq-run");
+const span = await page.$eval("#sources .mq-run", (el) => el.getBoundingClientRect().width);
+const track = await page.$eval("#sources .mq-track", (el) => el.getBoundingClientRect().width);
 check("the rail is built from three identical runs", runs.length === 3 && Math.abs(track - span * 3) < 3,
   "a shift of exactly one run has to be invisible");
 check("the second and third runs are hidden from assistive tech",
-  await page.$$eval("#partners .mq-run", (els) => els.slice(1).every((e) => e.getAttribute("aria-hidden") === "true")));
+  await page.$$eval("#sources .mq-run", (els) => els.slice(1).every((e) => e.getAttribute("aria-hidden") === "true")));
 
 const before = await at();
 await page.waitForTimeout(1400);
@@ -261,11 +261,29 @@ check("the console links on to the live workbench",
   (await page.$eval("#console-body .head-right a", (el) => el.getAttribute("href"))) === "workbench.html");
 
 await page.evaluate(() => {
-  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "attacks")?.click();
+  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "campaigns")?.click();
 });
 await page.waitForTimeout(500);
 check("a sidebar entry changes the pane",
-  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("All attacks"));
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns"));
+/* The sidebar used to list Projects, pentests and password audits — features
+   this product does not have. Every entry now has to render something. */
+const panes = await page.$$eval("#side-nav-full .nav-item", (els) => els.map((e) => e.dataset.pane));
+check("the sidebar lists nothing the product does not do",
+  !panes.some((p) => ["projects", "external", "internal", "passwords", "active"].includes(p)),
+  panes.join(", "));
+await page.evaluate(() => {
+  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "sources")?.click();
+});
+await page.waitForTimeout(500);
+check("the sources view shows the real weights and authority values",
+  (await page.$eval("#console-body", (el) => el.textContent)).includes("0.95") &&
+  (await page.$$eval("#console-body .table tbody tr", (r) => r.length)) >= 8);
+await page.evaluate(() => {
+  [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "dashboard")?.click();
+});
+await page.waitForTimeout(420);
+
 await page.click("#c-collapse");
 await page.waitForTimeout(420);
 check("the sidebar collapses", await page.$eval("#console-full", (el) => el.classList.contains("compact")));
@@ -321,9 +339,9 @@ await page.waitForTimeout(300);
 check("the sign-up form accepts a good one",
   await page.$eval("#mail", (el) => el.getAttribute("aria-invalid")) === "false");
 
-await page.evaluate(() => { scrollTo(0, 0); location.hash = "#platform"; });
+await page.evaluate(() => { scrollTo(0, 0); location.hash = "#how"; });
 await page.waitForTimeout(1100);
-const heading = await page.$eval("#platform h2", (el) => el.getBoundingClientRect().top);
+const heading = await page.$eval("#how h2", (el) => el.getBoundingClientRect().top);
 const navBottom = await page.$eval("#nav", (el) => el.getBoundingClientRect().bottom);
 check("an anchor jump clears the floating nav", heading > navBottom - 4,
   "heading at " + Math.round(heading) + ", nav ends at " + Math.round(navBottom));
@@ -353,7 +371,7 @@ const stillErrors = [];
 still.on("pageerror", (e) => stillErrors.push(e.message));
 await still.goto(BASE, { waitUntil: "domcontentloaded" });
 await still.waitForTimeout(1000);
-await still.evaluate(() => document.querySelector("#partners").scrollIntoView({ block: "center" }));
+await still.evaluate(() => document.querySelector("#sources").scrollIntoView({ block: "center" }));
 await still.waitForTimeout(400);
 const quiet0 = await still.evaluate(() => document.querySelector("#marquee").scrollLeft);
 await still.waitForTimeout(1200);
@@ -362,7 +380,7 @@ check("the rail holds still for prefers-reduced-motion", Math.abs(quiet1 - quiet
 await still.evaluate(() => scrollTo(0, 0));
 await still.waitForTimeout(300);
 check("reduced motion still reveals the sections",
-  await still.$eval("#platform .rise", (el) => getComputedStyle(el).opacity === "1"));
+  await still.$eval("#how .rise", (el) => getComputedStyle(el).opacity === "1"));
 await still.click("#theme-btn");
 await still.waitForTimeout(500);
 check("the theme button works without the wipe",

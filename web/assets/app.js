@@ -721,7 +721,7 @@
       $("#graph-note").textContent = "Cytoscape CDN unavailable — rendered with the built-in SVG layout.";
       return;
     }
-    $("#graph-note").textContent = "";
+    $("#graph-note").textContent = "Hover or tap a node to name its relationships.";
     if (state.cy) { state.cy.destroy(); state.cy = null; }
 
     const nodes = graph.nodes.map((node) => {
@@ -732,31 +732,81 @@
       return copy;
     });
 
+    /* Three things made the first version unreadable, and all three are layout
+       rather than colour: every edge carried a rotated label, node labels had
+       no background so they sat on top of whatever line ran underneath, and
+       the repulsion was low enough that disconnected components stranded in a
+       corner while the rest overlapped. Edge labels are now a hover/selection
+       detail, every label gets a card behind it, and the layout is given room. */
+    const paper = themeColor("--surface-1");
+    const line = themeColor("--line-2");
     state.cy = cytoscape({
       container,
       elements: { nodes, edges: graph.edges },
       style: [
         { selector: "node", style: {
-          "background-color": "data(color)", label: "data(label)", color: themeColor("--ink-2"),
-          "font-size": "10px", "font-family": "JetBrains Mono, monospace", "text-valign": "bottom",
-          "text-margin-y": 6, "text-wrap": "ellipsis", "text-max-width": "130px",
-          width: 20, height: 20, "border-width": 1, "border-color": themeColor("--line-2")
+          "background-color": "data(color)", label: "data(label)", color: themeColor("--ink"),
+          "font-size": "10px", "font-family": "JetBrains Mono, monospace", "font-weight": 500,
+          "text-valign": "bottom", "text-margin-y": 7, "text-wrap": "ellipsis", "text-max-width": "124px",
+          // the label is a small card, so it survives crossing an edge
+          "text-background-color": paper, "text-background-opacity": 0.92,
+          "text-background-padding": 3, "text-background-shape": "roundrectangle",
+          "text-border-color": themeColor("--line"), "text-border-opacity": 1, "text-border-width": 1,
+          width: 26, height: 26,
+          "border-width": 2, "border-color": paper,
+          // a ring of the node's own colour reads as depth without an image
+          "outline-width": 3, "outline-color": "data(color)", "outline-opacity": 0.22,
+          "transition-property": "outline-width, outline-opacity", "transition-duration": "140ms"
         } },
-        { selector: "node[?root]", style: { width: 32, height: 32, "border-width": 2, "border-color": themeColor("--accent"), "font-size": "11px" } },
-        { selector: 'node[kind = "malware"]', style: { shape: "star", width: 26, height: 26 } },
-        { selector: 'node[kind = "asn"], node[kind = "country"]', style: { shape: "round-rectangle" } },
+        { selector: "node[?root]", style: {
+          width: 42, height: 42, "font-size": "11.5px", "font-weight": 600,
+          "outline-width": 8, "outline-opacity": 0.28, "z-index": 20
+        } },
+        { selector: 'node[kind = "malware"]', style: { shape: "star", width: 32, height: 32 } },
+        { selector: 'node[kind = "asn"], node[kind = "country"]', style: { shape: "round-rectangle", width: 30, height: 22 } },
         { selector: 'node[kind = "hash"]', style: { shape: "hexagon" } },
-        { selector: 'node[kind = "url"]', style: { shape: "diamond" } },
+        { selector: 'node[kind = "url"]', style: { shape: "diamond", width: 28, height: 28 } },
         { selector: "edge", style: {
-          width: 1.2, "line-color": themeColor("--line-2"), "target-arrow-color": themeColor("--line-2"),
-          "target-arrow-shape": "triangle", "curve-style": "bezier", label: "data(label)",
-          "font-size": "8px", color: themeColor("--ink-3"), "text-rotation": "autorotate",
-          "text-background-opacity": 0
+          width: 1.2, "line-color": line, "target-arrow-color": line, "arrow-scale": 0.8,
+          "target-arrow-shape": "triangle", "curve-style": "bezier", "opacity": 0.75,
+          // the relationship name is there when you want it, not all at once
+          label: "", "font-size": "9px", color: themeColor("--ink-2"),
+          "font-family": "var(--sans)", "text-rotation": "autorotate",
+          "text-background-color": paper, "text-background-opacity": 0.92,
+          "text-background-padding": 3, "text-background-shape": "roundrectangle"
         } },
-        { selector: "node:selected", style: { "border-width": 3, "border-color": themeColor("--accent") } }
+        { selector: "edge.show-label", style: { label: "data(label)", "line-color": themeColor("--accent"),
+          "target-arrow-color": themeColor("--accent"), opacity: 1, width: 1.8, "z-index": 30 } },
+        { selector: "node:selected", style: { "border-color": themeColor("--accent"), "border-width": 3,
+          "outline-width": 10, "outline-opacity": 0.35, "z-index": 40 } }
       ],
-      layout: { name: "cose", animate: !C.reduceMotion(), animationDuration: 420, padding: 30, nodeRepulsion: 9000, idealEdgeLength: 90 }
+      minZoom: 0.35,
+      maxZoom: 2.2,
+      layout: {
+        name: "cose", animate: !C.reduceMotion(), animationDuration: 420, padding: 36,
+        // Room to breathe: labels are ~120px wide, so edges much shorter than
+        // that guarantee two labels on top of each other. Too much room is its
+        // own problem — the fit then shrinks everything to unreadable.
+        nodeRepulsion: 12000, idealEdgeLength: 112, edgeElasticity: 110,
+        nodeOverlap: 24, componentSpacing: 70, gravity: 0.9, nestingFactor: 1.1,
+        randomize: false
+      }
     });
+
+    /* A graph that fits the box but needs a magnifier has not been laid out, it
+       has been hidden. Below this zoom, fill the box and let the user pan. */
+    state.cy.one("layoutstop", () => {
+      state.cy.fit(undefined, 40);
+      if (state.cy.zoom() < 0.85) { state.cy.zoom({ level: 0.85, renderedPosition: { x: 0, y: 0 } }); state.cy.center(); }
+    });
+
+    /* Hovering a node lights its relationships and names them; that is where
+       "attributed to" and "announced by" belong, rather than on screen at once. */
+    const lightUp = (node, on) => node.connectedEdges().toggleClass("show-label", on);
+    state.cy.on("mouseover", "node", (event) => lightUp(event.target, true));
+    state.cy.on("mouseout", "node", (event) => { if (!event.target.selected()) lightUp(event.target, false); });
+    state.cy.on("select", "node", (event) => lightUp(event.target, true));
+    state.cy.on("unselect", "node", (event) => lightUp(event.target, false));
     state.cy.on("tap", "node", (event) => focusIoc(event.target.id()));
   }
 
@@ -1064,6 +1114,19 @@
       button.addEventListener("click", () => graphCommand(button.dataset.graph)));
 
     $("#rail-toggle").addEventListener("click", () => setRail(!state.railCollapsed));
+
+    /* On a narrow screen the expanded rail is a drawer over the page, so it
+       closes the way a drawer does: tap outside, Escape, or pick something. */
+    const narrowRail = matchMedia("(max-width: 860px)");
+    const closeDrawer = () => { if (narrowRail.matches && !state.railCollapsed) setRail(true); };
+    $("#rail-scrim").addEventListener("click", closeDrawer);
+    // [data-nav] only: #rail-toggle also carries .rail-btn, and wiring it here
+    // made it expand and immediately close again.
+    $$(".rail-btn[data-nav]").forEach((button) => button.addEventListener("click", closeDrawer));
+    addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+    // Opening on a phone with the drawer already over the content helps nobody.
+    if (narrowRail.matches && !state.railCollapsed) setRail(true);
+    narrowRail.addEventListener("change", (event) => { if (event.matches) setRail(true); });
     $("#theme-toggle").addEventListener("click", cycleTheme);
     $("#cmd-hint").addEventListener("click", () => K.open());
     $("#shortcuts-btn").addEventListener("click", showShortcuts);
@@ -1184,7 +1247,10 @@
     openPalette: () => K.open(),
     get result() { return state.result; },
     get mode() { return state.mode; },
-    get theme() { return state.theme; }
+    get theme() { return state.theme; },
+    // the live Cytoscape instance, so the graph can be asserted on rather than
+    // only looked at — see the CYTOSCAPE_PATH block in web/tests/ui.spec.mjs
+    get cy() { return state.cy; }
   };
 
   document.addEventListener("DOMContentLoaded", init);
