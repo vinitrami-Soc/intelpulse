@@ -46,6 +46,24 @@ class Settings(BaseSettings):
 
     # --- provider behaviour ----------------------------------------------
     provider_timeout_seconds: float = 8.0
+
+    # ── ticket delivery ------------------------------------------------
+    # Set a base URL to turn a sink on; the health endpoint reports which are
+    # configured, and the dashboard only offers a button for those.
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None
+    jira_project_key: str | None = None
+    jira_issue_type: str = "Task"
+    servicenow_base_url: str | None = None
+    servicenow_user: str | None = None
+    servicenow_password: str | None = None
+    servicenow_table: str = "incident"
+    ticket_timeout_seconds: float = 12.0
+    # Off by default: a sink URL that resolves into reserved space is usually a
+    # typo or an SSRF attempt, not a self-hosted instance. Operators running
+    # Jira or ServiceNow on an internal network turn this on deliberately.
+    ticket_allow_private_host: bool = False
     max_iocs_per_request: int = 100
     max_upload_bytes: int = 5 * 1024 * 1024
     max_request_bytes: int = 1024 * 1024      # JSON bodies; uploads use the limit above

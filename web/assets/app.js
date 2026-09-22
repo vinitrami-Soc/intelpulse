@@ -214,11 +214,71 @@
       pill.className = "pill live";
       pill.innerHTML = '<span class="dot"></span> Live · ' + live + "/" + health.providers.length + " sources";
       renderProviders(health);
+      renderTicketButton();
     } catch (error) {
       state.health = null;
+      renderTicketButton();
       pill.className = "pill err";
       pill.innerHTML = '<span class="dot"></span> backend unreachable';
       renderProviders(null, error.message);
+    }
+  }
+
+  /* ───────────────────────────────── raise the case in a real tracker
+   * Downloading Markdown and pasting it by hand is the step that gets skipped,
+   * so the button is here — but only when the backend says it can actually
+   * deliver. Demo mode has no case to raise and no tracker to raise it in, so
+   * it says so rather than offering a control that would fail.
+   */
+  const SINK_LABELS = { jira: "Jira", servicenow: "ServiceNow" };
+
+  function ticketSinks() {
+    return (state.health && Array.isArray(state.health.ticket_sinks))
+      ? state.health.ticket_sinks.filter((s) => SINK_LABELS[s])
+      : [];
+  }
+
+  function renderTicketButton() {
+    const button = $("#raise-ticket");
+    const note = $("#ticket-note");
+    if (!button) return;
+    const sinks = ticketSinks();
+    button.hidden = sinks.length === 0;
+    if (!sinks.length) { if (note) note.textContent = ""; return; }
+    button.dataset.sink = sinks[0];
+    button.textContent = "Raise in " + SINK_LABELS[sinks[0]];
+    button.disabled = false;
+  }
+
+  async function raiseTicket() {
+    const button = $("#raise-ticket");
+    const note = $("#ticket-note");
+    const sink = button.dataset.sink;
+    if (!state.result || !sink) return;
+    if (state.mode !== "live") {
+      note.textContent = "Demo mode has no stored case to raise. Switch to Live API.";
+      return;
+    }
+    button.disabled = true;
+    const label = button.textContent;
+    button.textContent = "Raising…";
+    note.textContent = "";
+    try {
+      const ticket = await api(
+        "/api/cases/" + encodeURIComponent(state.result.case_id) +
+        "/ticket?sink=" + encodeURIComponent(sink),
+        { method: "POST" }
+      );
+      /* The URL comes from the operator's own base URL, but it is rendered as
+         an href, so it goes through the same scheme check as vendor links. */
+      note.innerHTML = "Raised as " + linkOrText(ticket.url, ticket.key || "the ticket", "src-link") + ".";
+      toast("Raised " + (ticket.key || "ticket") + " in " + SINK_LABELS[sink]);
+    } catch (error) {
+      note.textContent = "Could not raise the ticket: " + error.message;
+      toast("Ticket failed: " + error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
     }
   }
 
@@ -1284,6 +1344,7 @@
 
     $("#copy-report").addEventListener("click", copyReport);
     $("#download-md").addEventListener("click", () => downloadReport("md"));
+    $("#raise-ticket").addEventListener("click", raiseTicket);
     $("#download-json").addEventListener("click", () => downloadReport("json"));
 
     document.addEventListener("keydown", onKeydown);

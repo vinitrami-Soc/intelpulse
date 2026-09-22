@@ -251,7 +251,11 @@
                 <button class="btn small" id="copy-report">Copy Markdown</button>
                 <button class="btn small ghost" id="download-md">Download .md</button>
                 <button class="btn small ghost" id="download-json">Download .json</button>
+                <!-- Shown only when the backend reports a configured sink, so
+                     the button never promises delivery it cannot perform. -->
+                <button class="btn small" id="raise-ticket" aria-label="Raise this case in the configured tracker" hidden></button>
               </div>
+              <p class="mail-note" id="ticket-note" role="status" aria-live="polite"></p>
               <pre class="report" id="report"></pre>
             </div>
 

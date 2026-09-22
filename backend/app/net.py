@@ -48,6 +48,27 @@ ALLOWED_HOSTS: frozenset[str] = frozenset({
     "services.nvd.nist.gov",
 })
 
+
+def ticket_sink_hosts() -> frozenset[str]:
+    """Hosts the operator configured for ticket delivery, from env only.
+
+    These come from JIRA_BASE_URL / SERVICENOW_BASE_URL, which an operator sets
+    when they deploy. They are never taken from a request, so widening the
+    allowlist with them does not widen what an attacker-controlled indicator
+    can reach — the rest of the policy (HTTPS only, no reserved space unless
+    explicitly permitted) still applies to them.
+    """
+    from .config import settings
+
+    hosts = set()
+    for raw in (settings.jira_base_url, settings.servicenow_base_url):
+        if not raw:
+            continue
+        host = (httpx.URL(raw).host or "").lower()
+        if host:
+            hosts.add(host)
+    return frozenset(hosts)
+
 # Ranges that an external intelligence API must never resolve to.
 _BLOCKED_NETWORKS = tuple(
     ipaddress.ip_network(cidr)
@@ -91,10 +112,14 @@ async def resolve(host: str) -> tuple[str, ...]:
 
 
 async def assert_allowed(url: httpx.URL) -> None:
+    from .config import settings
+
     host = (url.host or "").lower()
     if url.scheme != "https":
         raise EgressBlocked(f"refused non-HTTPS outbound request to {host or url}")
-    if host not in ALLOWED_HOSTS:
+
+    sinks = ticket_sink_hosts()
+    if host not in ALLOWED_HOSTS and host not in sinks:
         raise EgressBlocked(f"refused outbound request to non-allowlisted host {host!r}")
 
     try:
@@ -103,6 +128,12 @@ async def assert_allowed(url: httpx.URL) -> None:
         raise EgressBlocked(f"could not resolve {host}: {exc}") from exc
     if not addresses:
         raise EgressBlocked(f"no addresses returned for {host}")
+
+    # A self-hosted Jira or ServiceNow legitimately lives on an internal
+    # network, so an operator can permit reserved space for the sinks they
+    # configured — and only those. Intelligence providers never get it.
+    if host in sinks and settings.ticket_allow_private_host:
+        return
 
     blocked = [address for address in addresses if is_blocked_address(address)]
     if blocked:

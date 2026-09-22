@@ -236,6 +236,17 @@
     if (first) first.setAttribute("aria-current", "true");
   }
 
+  /* Every list here renders from a bundled dataset today, which is exactly why
+     the empty branch is easy to forget: it never fires until the data comes
+     from somewhere real, and then it renders a blank panel with a heading over
+     it. One helper, used at every collection, so the zero case is a sentence
+     rather than a hole. */
+  function emptyState(title, detail) {
+    return '<div class="empty-state">' +
+      '<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 13.5h7"/></svg>' +
+      "<b>" + title + "</b><span>" + detail + "</span></div>";
+  }
+
   function kpiCards() {
     return '<div class="kpis">' + DATA.kpis.map((k) =>
       '<article class="card hoverable kpi">' +
@@ -258,10 +269,13 @@
         '<div class="label-xs">Severity</div><div class="sev" data-sev></div>' +
         '<div class="label-xs" style="margin-top:14px">State</div><div class="state-row" data-state></div>' +
         (compact ? "" : '<div class="label-xs" style="margin-top:18px">Latest</div>' +
-          '<div class="table-wrap"><table class="table"><thead><tr><th>Indicator</th><th>Type</th><th>Severity</th><th>Sources</th><th>Seen</th></tr></thead><tbody>' +
+          (DATA.findings.length === 0
+            ? emptyState("No indicators yet",
+                "Run a triage in the workbench and the findings will land here.")
+            : '<div class="table-wrap"><table class="table"><thead><tr><th>Indicator</th><th>Type</th><th>Severity</th><th>Sources</th><th>Seen</th></tr></thead><tbody>' +
           DATA.findings.map((f) => '<tr><td class="mono" title="' + f.ioc + '">' + f.ioc + "</td><td>" + f.type +
             '</td><td><span class="pill-sev ' + f.sev + '">' + f.sev + "</span></td><td>" + f.src +
-            '</td><td style="color:var(--ink-3)">' + f.seen + "</td></tr>").join("") + "</tbody></table></div>") +
+            '</td><td style="color:var(--ink-3)">' + f.seen + "</td></tr>").join("") + "</tbody></table></div>")) +
       "</section>" +
       '<section class="card panel">' +
         '<div class="panel-head"><h4>Attack surface</h4>' +
@@ -306,9 +320,12 @@
       '<p style="color:var(--ink-2);font-size:12.5px;margin-bottom:12px">Weight decides how much a source ' +
       'moves the weighted mean. Authority decides how high it can hold the score on its own — one confirmed ' +
       'ThreatFox listing still reads critical when four quiet sources disagree.</p>' +
-      '<div class="table-wrap"><table class="table"><thead><tr><th>Source</th><th>Kind</th>' +
-      "<th>Weight</th><th>Authority</th></tr></thead><tbody>" +
-      SOURCES.map(row).join("") + "</tbody></table></div>" +
+      (SOURCES.length === 0
+        ? emptyState("No sources configured",
+            "Connect a backend, or add API keys, and every source will be listed here with its weight.")
+        : '<div class="table-wrap"><table class="table"><thead><tr><th>Source</th><th>Kind</th>' +
+          "<th>Weight</th><th>Authority</th></tr></thead><tbody>" +
+          SOURCES.map(row).join("") + "</tbody></table></div>") +
       '<p style="color:var(--ink-3);font-size:11.5px;margin-top:12px">A source with no API key configured ' +
       "reports <code>skipped</code>. It never reports <em>clean</em> \u2014 the difference matters when " +
       "someone reads the ticket six months later.</p></section>";
@@ -328,6 +345,17 @@
     tickets:   () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })
   };
 
+  /* Grey bars standing in for the panels that are about to land. The console
+     renders from bundled data, so on a fast machine this is one frame and
+     nobody sees it — on a slow phone it is the difference between a blank
+     panel and a page that is visibly doing something. */
+  function skeleton() {
+    return '<div class="skeleton" aria-hidden="true">' +
+      '<div class="sk-row"><span class="sk sk-kpi"></span><span class="sk sk-kpi"></span>' +
+      '<span class="sk sk-kpi"></span><span class="sk sk-kpi"></span></div>' +
+      '<span class="sk sk-panel"></span><span class="sk sk-panel sk-short"></span></div>';
+  }
+
   function renderConsole(pane) {
     const spec = (PANES[pane] || PANES.dashboard)();
     const host = $("#console-body");
@@ -345,8 +373,21 @@
           '<span class="status-pill">Sample data <span class="on">synthetic</span></span>' +
           '<button class="round-btn" id="c-collapse" aria-label="Collapse sidebar">' + icon("i-sidebar") + "</button>" +
         "</div>" +
-      "</header>" + '<div class="route">' + spec.body + "</div>";
-    wirePanels(host);
+      "</header>" + '<div class="route" id="console-panels">' + skeleton() + "</div>";
+
+    /* Paint the header and the skeleton first, then swap the panels in on the
+       next frame. Charts measure their container, so they need a layout to
+       exist before they draw — this gives them one, and gives the reader
+       something other than a blank column while it happens. */
+    const fill = () => {
+      const panels = $("#console-panels");
+      if (!panels || panels.dataset.pane === pane) return;
+      panels.dataset.pane = pane;
+      panels.innerHTML = spec.body;
+      wirePanels(host);
+    };
+    if (reduce) fill();
+    else requestAnimationFrame(fill);
     // It used to toast "Search is a demo control". It opens the assistant now,
     // which is the thing on this page that actually answers a question.
     $("#c-search").addEventListener("click", () => window.IntelPulseAssistant?.open(true));

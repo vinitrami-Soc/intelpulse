@@ -101,3 +101,6 @@ class HealthResponse(BaseModel):
     cache: dict[str, Any]
     providers: list[ProviderStatus]
     offline_datasets: dict[str, Any]
+    # Which trackers this deployment can raise a ticket in. Empty is the normal
+    # answer; the dashboard offers a button only for what is listed here.
+    ticket_sinks: list[str] = []

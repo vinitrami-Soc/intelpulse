@@ -280,6 +280,31 @@ test("a modal scrim is dark enough to isolate what it sits under", () => {
     "the two surfaces scrim differently: site " + siteAlpha + " vs workbench " + alpha);
 });
 
+test("an icon's stroke is set by its size, not by whoever added it", () => {
+  /* Icons are drawn in a 24-unit viewBox, so the stroke a reader SEES is
+     stroke-width x rendered-size / 24. Holding that near 1.2px keeps every
+     icon the same visual weight whatever its box — which is why the scale runs
+     the opposite way to the sizes. Before this guard, 15px icons shipped with
+     five different stroke widths (1.8, 1.9, 2.0, 2.1 and 2.3), which is drift
+     wearing the costume of optical compensation. */
+  const TIERS = [[9, 3], [12, 2.4], [14, 2.1], [17, 1.8]];
+  const strokeFor = (px) => (TIERS.find(([limit]) => px <= limit) || [0, 1.3])[1];
+
+  const wrong = [];
+  for (const [name, css] of [["suite.css", read("suite.css")], ["app.css", APP_CSS]]) {
+    for (const rule of stripComments(css).split("}")) {
+      const size = rule.match(/width:\s*(\d+)px/);
+      const stroke = rule.match(/stroke-width:\s*([\d.]+)/);
+      if (!size || !stroke) continue;
+      const want = strokeFor(Number(size[1]));
+      if (Number(stroke[1]) !== want) {
+        wrong.push(`${name}: ${size[1]}px icon has stroke ${stroke[1]}, expected ${want}`);
+      }
+    }
+  }
+  assert.deepEqual(wrong, [], wrong.join(" | "));
+});
+
 test("every page has exactly one h1", () => {
   for (const [name, html] of PAGES) {
     const ones = [...html.matchAll(/<h1\b/g)].length;

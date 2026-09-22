@@ -453,6 +453,32 @@ for (const [where, hash, target] of [
     (await page.evaluate(() => document.activeElement.id)) + " @ " + (await page.evaluate(() => location.hash)));
 }
 
+/* A panel with no rows should say why, not sit blank under its heading. The
+   dataset is bundled today, which is exactly why the empty branch is easy to
+   forget — it never fires until the data comes from somewhere real. */
+await page.evaluate(() => { location.hash = "#/console/dashboard"; });
+await page.waitForTimeout(800);
+check("the console fills in behind its skeleton",
+  (await page.$$(".skeleton")).length === 0 &&
+  (await page.$$eval("#console-panels .card", (e) => e.length)) >= 4,
+  (await page.$$eval("#console-panels .card", (e) => e.length)) + " panels");
+
+await page.evaluate(() => { window.IntelPulseSuite.data.findings.length = 0; });
+await page.evaluate(() => { location.hash = "#/console/sources"; });
+await page.waitForTimeout(600);
+await page.evaluate(() => { location.hash = "#/console/dashboard"; });
+await page.waitForTimeout(800);
+const emptied = await page.$$eval(".empty-state", (els) =>
+  els.map((el) => el.textContent.replace(/\s+/g, " ").trim()));
+check("an empty dataset renders a reason, not a blank table",
+  emptied.length >= 1 && /No indicators yet/.test(emptied[0] || ""),
+  emptied[0] || "(nothing)");
+check("the empty state says what would fill it",
+  /workbench/i.test(emptied[0] || ""), (emptied[0] || "").slice(0, 70));
+
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForTimeout(1100);
+
 /* A hash is user input. "#/console/__proto__" is a URL anyone can type, and a
    bare PANES[name] lookup answers it with Object.prototype. */
 for (const junk of ["__proto__", "toString", "nope"]) {

@@ -12,6 +12,7 @@ from ..models import AuditLog, Case, IndicatorResult
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import CaseSummary
 from ..scoring import Contribution, IndicatorVerdict
+from ..services.tickets import TicketError, create_ticket
 
 router = APIRouter(tags=["cases"])
 
@@ -129,6 +130,59 @@ async def case_report(
         duration_ms=case.duration_ms,
     )
     return PlainTextResponse(markdown, media_type="text/markdown")
+
+
+@router.post("/cases/{case_id}/ticket")
+async def raise_ticket(
+    case_id: str,
+    sink: str = Query(..., pattern="^(jira|servicenow)$"),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Create this case as an issue in the tracker the SOC works in.
+
+    Downloading Markdown and pasting it by hand is the step that gets skipped,
+    so the report the download route renders is the report that goes over the
+    wire — same function, same arguments, no second rendering to drift.
+    """
+    case = await session.get(Case, case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="case not found")
+    rows = (
+        await session.execute(select(IndicatorResult).where(IndicatorResult.case_id == case_id))
+    ).scalars().all()
+    verdicts = _rehydrate(list(rows))
+    body = to_markdown(
+        case.id,
+        case.title,
+        verdicts,
+        case.verdict,
+        case.max_score,
+        analyst=case.analyst,
+        duration_ms=case.duration_ms,
+    )
+    meta = {
+        "case_id": case.id,
+        "title": case.title,
+        "verdict": case.verdict,
+        "score": case.max_score,
+        "indicators": [{"value": r.value} for r in rows],
+    }
+    try:
+        ticket = await create_ticket(meta, body, sink)
+    except TicketError as exc:
+        # 409 when the sink is simply not configured, 502 when it refused us.
+        raise HTTPException(status_code=exc.status or 502, detail=str(exc)) from exc
+
+    session.add(
+        AuditLog(
+            action="ticket.created",
+            actor=case.analyst or "anonymous",
+            target=case.id,
+            detail={"sink": ticket.sink, "key": ticket.key, "url": ticket.url},
+        )
+    )
+    await session.commit()
+    return ticket.as_dict()
 
 
 @router.delete("/cases/{case_id}", status_code=204)

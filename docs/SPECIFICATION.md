@@ -76,16 +76,30 @@ Verdict bands: **critical** ≥ 85, **high** ≥ 70, **medium** ≥ 40, **low** 
 A GreyNoise benign classification applies a 0.45 multiplier; analyst allow and block lists override.
 
 **Output.** A SOC ticket with executive summary, per-indicator evidence, MITRE ATT&CK technique
-mapping and containment actions, exportable as Markdown or JSON.
+mapping and containment actions, exportable as Markdown or JSON — or raised directly in **Jira**
+(REST v3) or **ServiceNow** (Table API) in one request. A sink is configured by an operator through
+the environment, never by a request, and the egress allowlist is widened for exactly those hosts.
+The dashboard offers the button only when the backend reports a sink it can actually deliver to.
+
+**Change tracking.** Re-triaging an indicator reports what moved since the last time: score delta,
+band change and its direction, sources that started or stopped answering, and malware families or
+ATT&CK techniques that are new. A provider that was skipped or errored did not answer, so a vendor
+outage is never reported as an intelligence change. The browser engine carries the same comparison,
+so demo mode has it with no backend.
 
 **Security.** Request body limits, sliding-window rate limiting (30/min for triage, which spends
 third-party quota; 60/min writes; 240/min reads), egress policy enforcement against SSRF, credential
 masking in logs, and output encoding plus URL-scheme validation on every piece of attacker-controlled
 text the interface renders. Full posture in [SECURITY.md](SECURITY.md).
 
-**Operations.** Case history, audit trail, per-(provider, indicator) caching so re-triaging the same
-indicator does not spend quota twice, and a health endpoint that reports which providers are actually
-configured.
+**Operations.** Case history, audit trail, and a health endpoint that reports which providers are
+configured and which ticket sinks are reachable.
+
+Quota discipline is enforced rather than assumed: `triage()` de-duplicates its input, and
+`Provider.lookup` single-flights per (provider, indicator), so concurrent callers for the same pair
+collapse to one upstream fetch instead of each spending a unit. Nine tests count real fetches
+against a provider whose network is a counter — including one that proves distinct lookups are still
+concurrent, because collapsing duplicates must not turn a fan-out into a queue.
 
 ---
 
@@ -244,8 +258,9 @@ Two testing problems were worth more than the tests they fixed:
   ink tier against every surface, both themes, both stylesheets — 42 pairs, with dark mode never
   inferred from light-mode values.
 
-Current totals: **63** backend (pytest + ruff) · **40** Node (engine parity, findings model, design
-guards) · **64** workbench · **78** site and console · **83** phone, tablet and assistant.
+Current totals: **109** backend (pytest + ruff) · **51** Node (engine parity, findings model,
+triage-diff parity, design guards) · **69** workbench · **81** site and console · **83** phone,
+tablet and assistant.
 
 ---
 
@@ -258,20 +273,16 @@ Nothing below is implemented. Ordered by what would earn its place soonest.
 - **Split `suite.js`.** At ~1,100 lines it does routing, charts, console rendering and the assistant
   in one IIFE. The workbench is already split across five files; the site should follow the same
   pattern. Extracting the findings model was the first step.
-- **Normalise icon stroke widths.** They run 1.1 to 3 across the two stylesheets. Some of that is
-  genuine optical compensation — a 9px chip needs a heavier stroke than a 17px icon — but not all of
-  it. This needs eyes on a real screen, not a numeric rule.
 - **Bulk actions in the console.** Select several findings and act on them together.
-- **Empty and loading states in the console.** The workbench has them; the console assumes data.
+- **More ticket sinks.** Jira and ServiceNow are in; PagerDuty and Slack are the obvious next two.
+- **A distributed single-flight.** The current one is process-local, which is correct for the
+  single-container deployment this targets but not for replicas behind a load balancer.
 
 ### Medium term
 
 - **More providers.** VirusTotal, Shodan, Censys, and MISP as both source and destination.
 - **Persistent case store.** Cases currently live in browser storage in demo mode. A real backing
   store would make triage history meaningful across sessions and analysts.
-- **Ticket integrations.** Jira and ServiceNow as export targets rather than copy-paste Markdown.
-- **Diff between triages.** Re-running an indicator should show what changed since last time — new
-  pulses, a changed GreyNoise classification, a fresh blocklist hit.
 - **Saved views and filters** in the console, shareable by URL the way panes already are.
 
 ### Longer term
@@ -340,8 +351,22 @@ change, and every one of them is skipped entirely under `prefers-reduced-motion`
 - No emoji used as a structural icon.
 - No question suggested by the assistant that the assistant cannot answer.
 
-### Known gap
+### Icon weight, derived rather than picked
 
-Icon stroke widths are inconsistent (1.1–3). It is recorded in §5 rather than fixed, because
-normalising it is a perceptual judgement and the change was not verifiable from a terminal. A
-half-applied token scale reads as a system without being one, which is worse than the current state.
+Icons are drawn in a 24-unit viewBox, so the stroke a reader actually sees is
+`stroke-width × rendered-size / 24`. Holding that near 1.2px keeps every icon the same visual weight
+whatever its box — which is why the scale runs the opposite way to the sizes:
+
+| Icon size | Stroke | What the reader sees |
+| --- | --- | --- |
+| ≤ 9px | 3.0 | 1.00–1.13px |
+| 10–12px | 2.4 | 1.00–1.20px |
+| 13–14px | 2.1 | 1.14–1.23px |
+| 15–17px | 1.8 | 1.13–1.28px |
+| ≥ 18px | 1.3 | heavier, and meant to be — these are outline illustrations |
+
+This was previously recorded as a known gap on the grounds that it was a perceptual judgement. That
+was half right: 15px icons shipped with five different stroke widths (1.8, 1.9, 2.0, 2.1 and 2.3),
+which is drift wearing the costume of optical compensation. The scale is computed from the formula
+above, was verified against before-and-after renders rather than by eye, and a static guard now
+fails the build on any icon that does not follow it.
