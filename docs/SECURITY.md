@@ -154,7 +154,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 63 tests incl. the security suite
+cd backend && pytest -q                 # 166 tests incl. the security suite
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench browser checks (needs Playwright)

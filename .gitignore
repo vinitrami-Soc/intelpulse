@@ -1,5 +1,12 @@
+# The API creates its SQLite file on first run and `make clean` deletes it,
+# so it is a build artifact. It was tracked by mistake until now.
 data/*.db
+backend/data/*.db
 data/*.mmdb
+backend/data/*.mmdb
+# Refreshed from IANA by `python -m app.cli refresh-tlds`; the compiled
+# snapshot in app/tlds.py is the source of truth a checkout starts from.
+backend/data/tlds.txt
 .env
 __pycache__/
 *.pyc

@@ -18,6 +18,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from .config import settings
+from .tlds import is_tld
 
 IOCType = str  # "ip" | "domain" | "url" | "hash" | "email" | "cve"
 
@@ -53,6 +54,16 @@ _FILE_SUFFIXES = {
     "dat", "bin", "iso", "msi", "conf", "cfg", "ini", "xml", "yml", "yaml",
     "json", "py", "sh", "db", "sqlite", "local", "localdomain", "internal",
     "corp", "lan", "home", "arpa", "invalid", "example", "test",
+    # Web, archive and media extensions a proxy log is full of. Five entries
+    # here also pass the TLD check and so depend on this list: `md` (Moldova),
+    # `pub`, `zip` and `mov` are real delegations, and `gz` passes the
+    # two-letter ccTLD shape rule without being one. In a log line a filename is
+    # overwhelmingly the likelier reading of all five, so the denylist wins
+    # there — but only there. See `declared` in is_plausible_domain below.
+    "html", "htm", "php", "asp", "aspx", "jsp", "cgi", "tar", "gz", "bz2",
+    "dmp", "pub", "config", "sql", "apk", "pem", "key", "crt", "md", "woff",
+    "woff2", "ttf", "eot", "map", "lock", "bak", "old", "swp", "pid", "sock",
+    "mov", "mp3", "mp4", "avi", "wav", "webm", "webp",
 }
 
 # Keys that carry indicators in SIEM/EVTX JSON exports.
@@ -101,6 +112,18 @@ _DOC_NETWORKS = (
     ipaddress.ip_network("2001:db8::/32"),
 )
 
+# Ranges Python's `ipaddress` does not flag but which must never be queried.
+# 100.64.0.0/10 is RFC 6598 carrier-grade NAT: it looks routable to `ipaddress`
+# and is not. Sending one costs quota and tells a vendor nothing, because the
+# address belongs to an ISP's NAT pool and not to any host.
+_NON_ROUTABLE = (
+    ipaddress.ip_network("100.64.0.0/10"),
+)
+
+
+def is_non_routable(addr: ipaddress._BaseAddress) -> bool:
+    return any(addr in network for network in _NON_ROUTABLE)
+
 
 def is_documentation_ip(addr: ipaddress._BaseAddress) -> bool:
     return any(addr in network for network in _DOC_NETWORKS)
@@ -110,6 +133,8 @@ def is_public_ip(value: str) -> bool:
     try:
         addr = ipaddress.ip_address(value)
     except ValueError:
+        return False
+    if is_non_routable(addr):
         return False
     if settings.allow_documentation_ranges and is_documentation_ip(addr):
         return True
@@ -123,12 +148,34 @@ def is_public_ip(value: str) -> bool:
     )
 
 
-def is_plausible_domain(value: str) -> bool:
+def is_plausible_domain(value: str, *, declared: bool = False) -> bool:
+    """Is `value` a hostname worth querying?
+
+    `declared` says the string's position already asserts it is a hostname: a
+    URL host, the part after an `@`, or an entry the analyst typed into the
+    lookup box. Nothing in those positions can be a filename, so the file-suffix
+    denylist is skipped there — which is what keeps the host of
+    `https://invoice-2026.zip/setup.exe`. `.zip`, `.mov`, `.sh`, `.md` and
+    `.pub` are live TLDs as well as file extensions, and are registered by
+    attackers precisely because of the collision. A bare token scraped out of a
+    log line is not declared, so there `payload.zip` stays a file.
+
+    The TLD allowlist applies either way: `svchost.exe` is not a host in any
+    position.
+    """
     value = value.strip(".").lower()
     if "." not in value or len(value) > 253:
         return False
     tld = value.rsplit(".", 1)[-1]
-    if tld in _FILE_SUFFIXES or tld.isdigit():
+    if tld.isdigit():
+        return False
+    if not declared and tld in _FILE_SUFFIXES:
+        return False
+    # The last label must be a real TLD. Checking membership of the published
+    # list, rather than absence from a list of things that are not TLDs, is
+    # what stops `j.doe` and `core.dmp` being sent to a threat-intel vendor:
+    # a denylist of non-TLDs can never be complete.
+    if not is_tld(tld):
         return False
     # A bare "1.2.3.4" is an IP, never a domain.
     return not _IPV4_RE.fullmatch(value)
@@ -154,7 +201,7 @@ def classify(value: str) -> IOCType | None:
         return None  # a valid but non-routable address: deliberately dropped
     except ValueError:
         pass
-    if is_plausible_domain(value):
+    if is_plausible_domain(value, declared=True):
         return "domain"
     return None
 
@@ -181,15 +228,21 @@ def _walk_json(node: object, out: list[str]) -> None:
         out.append(node)
 
 
-def _context_for(text: str, token: str) -> str:
-    idx = text.find(token)
-    if idx < 0:
+def _context_for(text: str, at: int) -> str:
+    """The log line surrounding offset `at`.
+
+    Takes an offset rather than the matched token because every caller already
+    has one from `finditer`. Searching for the token again cost a scan of the
+    whole input per indicator, which on a 5 MB upload was 28% of total runtime.
+    Both scans below stop at the nearest newline, so this is O(line), not
+    O(input).
+    """
+    if at < 0:
         return ""
-    line_start = text.rfind("\n", 0, idx) + 1
-    line_end = text.find("\n", idx)
+    line_start = text.rfind("\n", 0, at) + 1
+    line_end = text.find("\n", at)
     line = text[line_start: line_end if line_end != -1 else len(text)]
-    line = " ".join(line.split())
-    return line[:220]
+    return " ".join(line.split())[:220]
 
 
 def extract(text: str, *, limit: int | None = None) -> list[Indicator]:
@@ -210,7 +263,9 @@ def extract(text: str, *, limit: int | None = None) -> list[Indicator]:
     haystack = refang("\n".join(candidates))
     found: dict[str, Indicator] = {}
 
-    def add(raw: str, ioc_type: IOCType, normalised: str | None = None) -> None:
+    def add(
+        raw: str, ioc_type: IOCType, normalised: str | None = None, *, at: int = -1
+    ) -> None:
         value = (normalised or raw).strip().rstrip(".,;)")
         key = value if ioc_type == "url" else value.lower()
         if key in found:
@@ -219,41 +274,61 @@ def extract(text: str, *, limit: int | None = None) -> list[Indicator]:
             value=value if ioc_type in ("url", "cve") else value.lower(),
             type=ioc_type,
             original=raw,
-            context=_context_for(haystack, raw),
+            context=_context_for(haystack, at),
         )
 
-    urls = _URL_RE.findall(haystack)
-    for url in urls:
-        add(url, "url")
+    url_spans: list[tuple[int, int]] = []
+    for match in _URL_RE.finditer(haystack):
+        url, at = match.group(0), match.start()
+        url_spans.append((at, match.end()))
+        add(url, "url", at=at)
         host = url_host(url)
         if host and is_public_ip(host):
-            add(host, "ip")
-        elif host and is_plausible_domain(host):
-            add(host, "domain")
+            add(host, "ip", at=at)
+        elif host and is_plausible_domain(host, declared=True):
+            add(host, "domain", at=at)
 
-    # Blank URLs out so their hosts/paths are not re-extracted as loose IOCs.
-    masked = haystack
-    for url in urls:
-        masked = masked.replace(url, " " * len(url))
+    # Blank URLs out so their hosts and paths are not re-extracted as loose
+    # IOCs, reusing the spans the loop above already found.
+    #
+    # This used to be one `str.replace` per URL, which rescanned the whole input
+    # for every URL and made a 5 MB upload quadratic: 46% of its 14 s runtime.
+    # Rebuilding from the spans is a single linear pass, and a second regex pass
+    # (`_URL_RE.sub`) would have cost the common case — most calls are one log
+    # line with no URL in it at all, and those now skip the work entirely.
+    # Spaces keep the length identical, so offsets into `masked` remain valid
+    # offsets into `haystack`.
+    if url_spans:
+        parts: list[str] = []
+        prev = 0
+        for start, end in url_spans:
+            parts.append(haystack[prev:start])
+            parts.append(" " * (end - start))
+            prev = end
+        parts.append(haystack[prev:])
+        masked = "".join(parts)
+    else:
+        masked = haystack
 
-    for match in _CVE_RE.findall(masked):
-        add(match, "cve", match.upper())
-    for match in _HASH_RE.findall(masked):
-        add(match, "hash", match.lower())
-    for match in _EMAIL_RE.findall(masked):
-        add(match, "email", match.lower())
-        domain = match.split("@", 1)[1]
-        if is_plausible_domain(domain):
-            add(domain, "domain")
-    for match in _IPV4_RE.findall(masked):
-        if is_public_ip(match):
-            add(match, "ip")
-    for match in _IPV6_RE.findall(masked):
-        if is_public_ip(match):
-            add(match, "ip", match.lower())
-    for match in _DOMAIN_RE.findall(masked):
-        if is_plausible_domain(match):
-            add(match, "domain")
+    for match in _CVE_RE.finditer(masked):
+        add(match.group(0), "cve", match.group(0).upper(), at=match.start())
+    for match in _HASH_RE.finditer(masked):
+        add(match.group(0), "hash", match.group(0).lower(), at=match.start())
+    for match in _EMAIL_RE.finditer(masked):
+        email, at = match.group(0), match.start()
+        add(email, "email", email.lower(), at=at)
+        domain = email.split("@", 1)[1]
+        if is_plausible_domain(domain, declared=True):
+            add(domain, "domain", at=at)
+    for match in _IPV4_RE.finditer(masked):
+        if is_public_ip(match.group(0)):
+            add(match.group(0), "ip", at=match.start())
+    for match in _IPV6_RE.finditer(masked):
+        if is_public_ip(match.group(0)):
+            add(match.group(0), "ip", match.group(0).lower(), at=match.start())
+    for match in _DOMAIN_RE.finditer(masked):
+        if is_plausible_domain(match.group(0)):
+            add(match.group(0), "domain", at=match.start())
 
     indicators = list(found.values())
     order = {"ip": 0, "domain": 1, "url": 2, "hash": 3, "email": 4, "cve": 5}

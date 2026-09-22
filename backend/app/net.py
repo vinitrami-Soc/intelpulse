@@ -46,6 +46,8 @@ ALLOWED_HOSTS: frozenset[str] = frozenset({
     "raw.githubusercontent.com",
     "www.cisa.gov",
     "services.nvd.nist.gov",
+    # the authoritative TLD list, for `python -m app.cli refresh-tlds`
+    "data.iana.org",
 })
 
 

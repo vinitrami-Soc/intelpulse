@@ -3,6 +3,7 @@
     python -m app.cli feeds --all
     python -m app.cli triage 185.220.101.34 --report
     python -m app.cli seed          # demo rows so the UI is not empty
+    python -m app.cli refresh-tlds  # update the hostname allowlist from IANA
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from .ioc import extract
 from .reporting import to_markdown
 from .services import feeds
 from .services.triage import persist_case, triage
+from .tlds import CACHE_PATH, IANA_URL, SNAPSHOT, parse_iana
 
 
 async def _feeds(args: argparse.Namespace) -> None:
@@ -78,6 +80,28 @@ async def _seed(_: argparse.Namespace) -> None:
     print(f"seeded {rows} offline feed rows from {sample.name}")
 
 
+async def _refresh_tlds(_: argparse.Namespace) -> None:
+    """Replace data/tlds.txt with the authoritative IANA list.
+
+    The file is only written once it has parsed, so a captive portal or a 500
+    from IANA leaves the previous allowlist in place rather than emptying it.
+    """
+    from .net import build_client
+
+    async with build_client(timeout=30.0) as client:
+        response = await client.get(IANA_URL)
+        response.raise_for_status()
+        text = response.text
+
+    labels = parse_iana(text)
+    CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_PATH.write_text("\n".join(sorted(labels)) + "\n", encoding="utf-8")
+    added = labels - SNAPSHOT
+    print(f"{len(labels)} TLDs written to {CACHE_PATH}")
+    print(f"  {len(added)} not in the compiled snapshot"
+          + (f" (e.g. {', '.join(sorted(added)[:6])})" if added else ""))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="intelpulse")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -101,6 +125,11 @@ def main() -> None:
 
     seed_parser = sub.add_parser("seed", help="load bundled sample feed rows")
     seed_parser.set_defaults(func=_seed)
+
+    tlds_parser = sub.add_parser(
+        "refresh-tlds", help="update the hostname allowlist from the IANA list"
+    )
+    tlds_parser.set_defaults(func=_refresh_tlds)
 
     args = parser.parse_args()
     asyncio.run(args.func(args))

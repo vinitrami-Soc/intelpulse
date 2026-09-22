@@ -251,8 +251,9 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 63 backend tests: extraction, scoring, API contract, reports, security controls
-make test-web    # 21 node tests: engine parity + design-system guards
+make test        # 166 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+                 # API contract, reports, security controls
+make test-web    # 51 node tests: engine parity, console model, design-system guards
 make test-ui     # Chromium: the workbench suite (XSS, hostile URLs, degradation, palette,
                  # theming, a11y) plus the site suite (every control, the side rail, routing)
                  # and the phone/tablet/assistant suite
