@@ -392,14 +392,14 @@ check("the nav call-to-action offers the way back",
 check("the console renders its metrics", (await page.$$("#console-body .kpi")).length === 4);
 check("the console renders the findings table", (await page.$$("#console-body .table tbody tr")).length >= 4);
 check("the console links on to the live workbench",
-  (await page.$eval("#console-body .head-right a", (el) => el.getAttribute("href"))) === "workbench.html");
+  (await page.$eval("#console-body .head-right a", (el) => el.getAttribute("href"))) === "#/console/workbench");
 
 await page.evaluate(() => {
   [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "campaigns")?.click();
 });
 await page.waitForTimeout(500);
 check("a sidebar entry changes the pane",
-  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns"));
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaign graph"));
 /* The sidebar used to list Projects, pentests and password audits — features
    this product does not have. Every entry now has to render something. */
 const panes = await page.$$eval("#side-nav-full .nav-item", (els) => els.map((e) => e.dataset.pane));
@@ -478,7 +478,7 @@ check("picking a view puts it in the address bar",
 await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForTimeout(1100);
 check("and it survives a reload",
-  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns"));
+  (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaign graph"));
 
 /* Measure what is actually painted under the browser chrome rather than
    trusting the tag: read the topmost non-fixed surface at the top of the

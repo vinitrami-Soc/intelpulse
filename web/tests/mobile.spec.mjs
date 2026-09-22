@@ -131,7 +131,7 @@ for (const [name, width, height] of [
   check("the menu carries every section the desktop nav has", links.length >= 7, links.length + " entries");
   check("the menu reaches the workbench and the graph",
     (await page.$$eval("#menu a", (els) => els.map((e) => e.getAttribute("href"))))
-      .filter((h) => /workbench|explorer/.test(h)).length === 2);
+      .filter((h) => /^#\/console\/(workbench|campaigns)$/.test(h)).length === 2);
   await page.touchscreen.tap(195, 800);
   await page.waitForTimeout(450);
   check("tapping away closes the menu", !(await page.$eval("#menu", (el) => el.classList.contains("on"))));
@@ -177,7 +177,7 @@ for (const [name, width, height] of [
   await page.tap('#side-nav-full .nav-item[data-pane="campaigns"]');
   await page.waitForTimeout(700);
   check("choosing a pane changes the view and puts the rail away",
-    (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaigns") &&
+    (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Campaign graph") &&
     !(await page.$eval("#console-full", (el) => el.classList.contains("drawer"))));
   check("only the dashboard gets the wave",
     !(await page.$eval("#console-body h3", (h) => h.textContent)).includes("\u{1F44B}"));

@@ -21,7 +21,7 @@ query every applicable source concurrently, score them into a single auditable v
 relate, and write the ticket.
 
 **Live:** https://vinitrami-soc.github.io/intelpulse/ — `intelpulse/index.html` redirects to
-`web/`, which is where the four surfaces are served from.
+`web/`, which serves the site and the console.
 
 ---
 
@@ -105,7 +105,8 @@ concurrent, because collapsing duplicates must not turn a fan-out into a queue.
 
 ## 3. The website and what each part does
 
-Four surfaces, one palette, no framework and no build step. Everything serves identically from
+One page, one palette, no framework and no build step: the landing site, and a console that holds
+the posture views, the analyst workbench and the campaign graph. Everything serves identically from
 GitHub Pages, nginx or `python -m http.server`.
 
 ### 3.1 Landing site — `web/index.html`
@@ -121,40 +122,49 @@ It also carries a scaled, inert preview of the console, a newsletter field, and 
 
 ### 3.2 Operator console — `web/index.html#/console/…`
 
-A posture view over the same synthetic dataset. Nine panes, each deep-linkable:
+The console over the same synthetic dataset. Ten views, each deep-linkable:
 
-`Overview` · `Attack surface` · `Triage history` · `Triage queue` · `All indicators` ·
-`Campaigns` · `Attack narratives` · `Intelligence sources` · `SOC tickets`
+`Workbench` · `Overview` · `Attack surface` · `Triage history` · `Triage queue` · `All indicators` ·
+`Campaign graph` · `Attack narratives` · `Intelligence sources` · `SOC tickets`
 
 Every view has a real URL — `#/console/sources` — so it can be shared, bookmarked and reloaded.
 Findings are summarised as four KPI cards, a five-band severity bar (Critical, High, Medium, Low,
 Informational) and a state row (Awaiting triage, In progress, Closed) that reconciles with it under
 every filter.
 
-### 3.3 Analyst workbench — `web/workbench.html`
+### 3.3 Analyst workbench — `#/console/workbench`
 
-The tool itself. Paste an alert, run it, read the evidence behind every verdict, take the ticket.
+The tool itself, as a console view. Paste an alert, run it, read the evidence behind every verdict,
+take the ticket.
 
 - Dual runtime: **demo mode** on bundled synthetic data, **live mode** against a running FastAPI
   backend. The toggle is explicit and the current mode is always on screen.
-- Command palette (`⌘K` / `Ctrl-K`) with fuzzy search over 18 analyst actions.
-- Case verdict, indicator breakdown, source coverage and enrichment timing as a KPI row.
-- Per-indicator evidence: which source said what, with what weight, and how that produced the score.
-- Relationship graph, generated ticket, case history, allow/block lists.
+- Sample alerts to start from, file upload, an indicator preview before anything is looked up, and
+  <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>↵</kbd> to run.
+- Case verdict, indicator breakdown, source coverage and enrichment timing as the console's KPI row.
+- Per-indicator evidence: which source said what, with what weight, and how that produced the score,
+  with the arithmetic itself one button away in a real dialog.
+- What changed since the last triage of the same indicator, a relationship graph whose nodes open
+  their evidence, the generated ticket, case history and allow/block lists.
+- It keeps its draft while you look at another view and come back.
 
-### 3.4 Campaign graph — `web/explorer.html`
+### 3.4 Campaign graph — `#/console/campaigns`
 
-A Cytoscape relationship graph over a synthetic campaign: the hub, malware families, infrastructure
-and indicators as four computed colour categories. Radial and cluster layouts, zoom, severity filter,
-cluster sort and fit-to-view. Edge labels appear on hover and selection rather than permanently, so
-the graph reads at rest.
+An SVG relationship graph over a synthetic campaign: the hub, malware families, infrastructure and
+indicators as four computed colour categories. Radial and by-share layouts, zoom and fit, a
+first-seen timeline you can play, and a severity filter. Every figure around it is counted from the
+clusters on screen, every node is reachable by keyboard, and the whole graph is also a table.
+
+The workbench and the graph were separate pages until the move described in 4.8; `workbench.html`
+and `explorer.html` now redirect to these views.
 
 ### 3.5 The assistant
 
 A panel on the landing site and console that answers from the project's own documentation and the
 dataset already loaded on the page. It runs entirely in the browser — **no model is called and
 nothing leaves the tab**. It covers the scoring model, the sources, what you can paste, the graph,
-the ticket, the security controls, the loaded findings, and navigation between the four surfaces.
+the ticket, the security controls, the loaded findings, and navigation between the site and the
+console's views.
 When it does not know, it says so and lists what it does cover rather than inventing an answer.
 
 ---
@@ -252,8 +262,9 @@ three browser jobs plus backend and static guards, paths-filtered and concurrenc
 Three testing problems were worth more than the tests they fixed:
 
 - **The graph tests never exercised Cytoscape.** The sandbox that wrote them cannot reach the CDN, so
-  only the SVG fallback ever ran. The CDN is stubbed with a local copy now, and eight checks run
-  against the real library.
+  only the SVG fallback ever ran. The CDN was stubbed with a local copy so the real library got
+  tested. Since 4.8 neither graph uses Cytoscape, so there is one rendering path and it is the one
+  the tests drive.
 - **Contrast was recomputed by hand every time a colour moved.** It is a standing guard now: every
   ink tier against every surface, both themes, both stylesheets — 42 pairs, with dark mode never
   inferred from light-mode values.
@@ -321,6 +332,36 @@ memory are measured in separate passes now.
 
 ---
 
+### 4.8 The workbench and the graph move into the console
+
+The workbench and the campaign graph were separate pages with their own layout, rail, type scale and
+chrome, so leaving the console for them felt like leaving the product. They are console views now:
+same sidebar, header, KPI cards, tables, empty states and theme, reached from the sidebar and from a
+link like any other view. The scoring engine, charts and demo data are the same files, so every
+number is unchanged. What the move changed:
+
+- **A view lifecycle.** The console repainted views as strings. A view that owns listeners, timers
+  and an open dialog needs to be told when it leaves, so views can now mount and unmount; the
+  workbench keeps its draft across a trip to another view, and the graph stops its timeline.
+- **Two collisions with the console, found by tests.** The console wired every segmented control to
+  its findings filter and every `data-sev` element to its severity bar, which threw on the
+  workbench's mode switch and drew a severity bar into the graph's filter button. Both now match only
+  their own elements.
+- **A markup sink closed.** The console's toast took HTML. The workbench toasts indicator values,
+  which come out of pasted logs, so it takes text now; a test feeds it markup.
+- **The graph's controls do what they say.** "Filter by severity" only re-sorted the clusters; it
+  filters now. Its figures (98%, 57%, "32% unenriched") were invented and are gone; every number
+  beside the graph is counted from what is on screen. An ask box that was not wired to anything is
+  gone too.
+- **The rail follows a long view.** The workbench runs to several screens and the sidebar scrolled
+  away, leaving an empty column; it stays in view on desktop widths now.
+- **Nothing hides off the side of a phone.** The graph's year control scrolled sideways and showed
+  2016 to 2020, hiding the year that was selected; it wraps into three rows below 720px now.
+- **Retired with the old pages:** the ⌘K palette, the `g`-key sequences and shortcut sheet, the
+  three-way theme key and the easter eggs. The sidebar, the assistant and the console's theme button
+  cover what they did. The browser tests that drove them were retired with them, each with its reason
+  written into the suite; everything else was ported, and the suite grew from 69 to 79 checks.
+
 ## 5. Future updates
 
 Nothing below is implemented. Ordered by what would earn its place soonest.
@@ -328,8 +369,9 @@ Nothing below is implemented. Ordered by what would earn its place soonest.
 ### Near term
 
 - **Split `suite.js`.** At ~1,100 lines it does routing, charts, console rendering and the assistant
-  in one IIFE. The workbench is already split across five files; the site should follow the same
-  pattern. Extracting the findings model was the first step.
+  in one IIFE. The workbench and graph views already live in their own file (`console-panes.js`)
+  on top of the shared engine and charts; the rest of the console should follow. Extracting the
+  findings model was the first step.
 - **Bulk actions in the console.** Select several findings and act on them together.
 - **More ticket sinks.** Jira and ServiceNow are in; PagerDuty and Slack are the obvious next two.
 - **A distributed single-flight.** The current one is process-local, which is correct for the
@@ -369,10 +411,10 @@ ordinal gate on both surfaces: monotone OKLab lightness, step gaps ≥ 0.06, lig
 its surface, single hue (≤ 12° spread). Categorical colours hold an OKLab ΔE floor of 0.12 — the
 campaign graph's four categories sit at a closest pair of 0.129.
 
-One light-first palette spans all four surfaces. `--flame` (`#fe5729`) is for fills only; anything
+One light-first palette spans the site and the console. `--flame` (`#fe5729`) is for fills only; anything
 carrying text uses `--flame-ink` (`#d93d15`, white on it = 4.54:1) or `--flame-ink-2` (`#b3300e`,
 5.69:1 on `--flame-wash`). Every colour decision lives in tokens, and a test fails the build if a raw
-hex appears in a component stylesheet or in component JavaScript.
+hex appears in the workbench or graph styles or in component JavaScript.
 
 ### Accessibility as a gate, not a review
 

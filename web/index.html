@@ -77,7 +77,7 @@
       <a href="#scoring">Scoring</a>
       <a href="#evidence">Evidence</a>
       <a href="#sources">Sources</a>
-      <a href="workbench.html">Workbench</a>
+      <a href="#/console/workbench">Workbench</a>
     </div>
     <button class="icon-ghost" id="theme-btn" aria-label="Switch theme">
       <svg id="theme-icon"><use href="#i-moon"/></svg>
@@ -95,8 +95,8 @@
   <a href="#evidence" data-scroll="#evidence"><svg><use href="#i-doc"/></svg> Evidence</a>
   <a href="#sources" data-scroll="#sources"><svg><use href="#i-globe"/></svg> Sources</a>
   <hr>
-  <a href="workbench.html"><svg><use href="#i-pulse"/></svg> Analyst workbench</a>
-  <a href="explorer.html"><svg><use href="#i-grid"/></svg> Campaign graph</a>
+  <a href="#/console/workbench"><svg><use href="#i-pulse"/></svg> Analyst workbench</a>
+  <a href="#/console/campaigns"><svg><use href="#i-grid"/></svg> Campaign graph</a>
   <button class="menu-cta" id="menu-cta" data-route="console">Open console <svg><use href="#i-arrow"/></svg></button>
 </nav>
 
@@ -323,9 +323,9 @@
       </div>
       <nav aria-label="Open IntelPulse">
         <h3>Open</h3>
-        <a href="workbench.html">Analyst workbench</a>
+        <a href="#/console/workbench">Analyst workbench</a>
         <a href="#/console" data-route="console">Console</a>
-        <a href="explorer.html">Campaign graph</a>
+        <a href="#/console/campaigns">Campaign graph</a>
       </nav>
       <nav aria-label="About the project">
         <h3>Project</h3>
@@ -384,7 +384,13 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<!-- the findings model first: suite.js derives the severity bar and the
+<!-- the workbench and campaign graph views: the scoring engine, its charts
+     and the synthetic dataset, then the two panes built on them -->
+<script src="assets/engine.js" defer></script>
+<script src="assets/charts.js" defer></script>
+<script src="assets/demo-data.js" defer></script>
+<script src="assets/console-panes.js" defer></script>
+<!-- the findings model before suite.js: it derives the severity bar and the
      state row from it, and its arithmetic is unit-tested in Node -->
 <script src="assets/console-model.js" defer></script>
 <script src="assets/suite.js" defer></script>

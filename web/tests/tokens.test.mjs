@@ -17,9 +17,13 @@ const here = dirname(fileURLToPath(import.meta.url));
 const assets = join(here, "..", "assets");
 const read = (name) => readFileSync(join(assets, name), "utf8");
 
-const APP_CSS = read("app.css");
+/* tokens.css is the reference palette: every value in it was validated there
+   (contrast, the ordinal ramp, the severity washes) and SKILL.md documents it.
+   suite.css is the stylesheet the pages load; the guards below hold the values
+   it copies to the reference, so a recolour happens in one place. */
+const SUITE_CSS = read("suite.css");
 const TOKENS_CSS = read("tokens.css");
-const SOURCES = ["app.js", "charts.js", "cmdk.js"].map((name) => [name, read(name)]);
+const SOURCES = ["charts.js", "console-panes.js"].map((name) => [name, read(name)]);
 
 /** Strip comments so a hex quoted in prose does not fail the build. */
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -47,12 +51,25 @@ function extractBlocks(css, atRule) {
   return blocks;
 }
 
-test("colour lives in tokens.css and nowhere else", () => {
-  const offenders = stripComments(APP_CSS)
-    .split("\n")
-    .map((line, index) => [index + 1, line])
-    .filter(([, line]) => /#[0-9a-fA-F]{3,8}\b/.test(line));
-  assert.deepEqual(offenders, [], "raw hex in app.css: " + JSON.stringify(offenders));
+/* The token blocks of a sheet: the light :root and the dark override. */
+function tokenBlocks(css) {
+  const body = (selector) => {
+    const at = css.indexOf(selector + " {");
+    return at < 0 ? "" : css.slice(at, css.indexOf("}", at));
+  };
+  return { light: body(":root"), dark: body(':root[data-theme="dark"]') };
+}
+
+test("the workbench and graph styles take their colour from tokens", () => {
+  /* suite.css predates this rule and still carries raw colour in the site's
+     own rules; the workbench and graph rules (.wb, .cg) were written to it and
+     are held to it. */
+  const offenders = [];
+  for (const [, selector, body] of stripComments(SUITE_CSS).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!/(^|[\s,>+~])\.(wb|cg)[-\s.:,[>]|(^|[\s,>+~])\.(wb|cg)$/m.test(selector.trim())) continue;
+    if (/#[0-9a-fA-F]{3,8}\b/.test(body)) offenders.push(selector.trim().replace(/\s+/g, " ").slice(0, 60));
+  }
+  assert.deepEqual(offenders, [], "raw hex in workbench or graph rules: " + JSON.stringify(offenders));
 });
 
 test("component JavaScript never hard-codes a colour", () => {
@@ -68,11 +85,14 @@ test("component JavaScript never hard-codes a colour", () => {
   }
 });
 
-test("the evidence ramp is complete and ordered in both themes", () => {
+test("the evidence ramp is complete in both themes", () => {
+  /* This used to slice from ":root {" to the first '[data-theme="light"]',
+     which is inside the prefers-color-scheme block at the end of the file: the
+     "dark" slice held both themes and the "light" one held only that fallback. */
+  const blocks = tokenBlocks(TOKENS_CSS);
   for (const scope of ["dark", "light"]) {
-    const block = scope === "dark"
-      ? TOKENS_CSS.slice(TOKENS_CSS.indexOf(":root {"), TOKENS_CSS.indexOf('[data-theme="light"]'))
-      : TOKENS_CSS.slice(TOKENS_CSS.indexOf('[data-theme="light"]'));
+    const block = blocks[scope];
+    assert.ok(block, "tokens.css has no " + scope + " token block");
     for (let step = 1; step <= 5; step++) {
       assert.match(block, new RegExp("--ramp-" + step + ":\\s*#[0-9a-f]{6}", "i"),
         scope + " theme is missing --ramp-" + step);
@@ -88,12 +108,15 @@ test("every severity has a token in both themes", () => {
 });
 
 test("only transform and opacity are animated", () => {
-  assert.doesNotMatch(APP_CSS, /transition:\s*all/, "transition: all is forbidden");
-  const keyframeBodies = extractBlocks(stripComments(APP_CSS), "@keyframes");
+  assert.doesNotMatch(SUITE_CSS, /transition:\s*all/, "transition: all is forbidden");
+  const keyframeBodies = extractBlocks(stripComments(SUITE_CSS), "@keyframes");
+  assert.ok(keyframeBodies.length >= 4, "found only " + keyframeBodies.length + " @keyframes");
   const animatable = /^(transform|opacity|translate|scale|rotate|box-shadow|background|content|)$/;
   for (const body of keyframeBodies) {
-    const properties = (body.match(/^\s*([a-z-]+):/gm) || [])
-      .map((p) => p.trim().replace(":", ""));
+    /* After a brace or a semicolon, not only at the start of a line: every
+       keyframe in suite.css is written on one line, and a line-anchored match
+       read none of them. */
+    const properties = [...body.matchAll(/(?:^|[{;])\s*([a-z-]+)\s*:/gm)].map((m) => m[1]);
     for (const property of properties) {
       assert.match(property, animatable, "animating " + property + " is not allowed");
     }
@@ -101,30 +124,43 @@ test("only transform and opacity are animated", () => {
 });
 
 test("reduced motion, forced colours and coarse pointers are all handled", () => {
-  assert.match(APP_CSS, /@media \(prefers-reduced-motion: reduce\)/);
-  assert.match(APP_CSS, /@media \(forced-colors: active\)/);
-  assert.match(APP_CSS, /@media \(pointer: coarse\)/);
+  assert.match(SUITE_CSS, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(SUITE_CSS, /@media \(forced-colors: active\)/);
+  assert.match(SUITE_CSS, /@media \(pointer: coarse\)/);
 });
 
-test("focus is never removed without a replacement", () => {
-  const outlineNone = stripComments(APP_CSS).match(/outline:\s*none/g) || [];
-  // Each one must sit in a rule that also sets a box-shadow ring.
-  const rules = stripComments(APP_CSS).split("}");
-  for (const rule of rules) {
-    if (/outline:\s*none/.test(rule)) {
-      assert.match(rule, /box-shadow/, "outline removed without a visible replacement: " + rule.trim().slice(0, 80));
+test("every custom property suite.css reads is one it defines", () => {
+  /* --r-md was read in two rules and defined nowhere, so both fell back to a
+     radius of zero without a word. A var() with its own fallback is exempt. */
+  const css = stripComments(SUITE_CSS);
+  const defined = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]));
+  const missing = [...new Set([...css.matchAll(/var\((--[\w-]+)\s*\)/g)].map((m) => m[1]))]
+    .filter((name) => !defined.has(name));
+  assert.deepEqual(missing, [], "read but never defined: " + missing.join(", "));
+});
+
+test("suite.css carries the severity and ramp values exactly as validated", () => {
+  const values = (block) => Object.fromEntries([...block.matchAll(/(--(?:sev|ramp)-[\w-]+):\s*([^;]+);/g)]
+    .map((m) => [m[1], m[2].trim().toLowerCase().replace(/\s+/g, " ")]));
+  const suite = tokenBlocks(SUITE_CSS), reference = tokenBlocks(TOKENS_CSS);
+  for (const theme of ["light", "dark"]) {
+    const want = values(reference[theme]), have = values(suite[theme]);
+    assert.ok(Object.keys(want).length >= 17, "tokens.css " + theme + " lost its severity tokens");
+    for (const [name, value] of Object.entries(want)) {
+      assert.equal(have[name], value, "suite.css " + theme + " " + name + " is " + have[name] + ", tokens.css says " + value);
     }
   }
-  assert.ok(outlineNone.length <= 2, "too many outline:none rules to audit by hand");
 });
 
 /* ─────────────────── Web Interface Guidelines, the checkable subset
  * Fetched rules, not remembered ones: github.com/vercel-labs/web-interface-guidelines
  */
+/* workbench.html and explorer.html are redirects into the console now. They
+   stay in the list: a page is still a page, and the stubs are held to the same
+   rules as the one they point at. */
 const PAGES = ["index.html", "workbench.html", "explorer.html"]
   .map((name) => [name, readFileSync(join(here, "..", name), "utf8")]);
-const SHEETS = [["app.css", APP_CSS], ["suite.css", read("suite.css")],
-  ["explorer.html", PAGES.find(([n]) => n === "explorer.html")[1]]];
+const SHEETS = [["suite.css", SUITE_CSS]];
 
 test("no focus outline is removed without a visible replacement", () => {
   for (const [name, css] of SHEETS) {
@@ -229,11 +265,11 @@ test("text clears WCAG on every surface, in both themes", () => {
   assert.ok(checked >= 30, "only " + checked + " pairs were checked — the token names have moved");
 });
 
-test("the three surfaces agree on the shared ink tokens", () => {
-  /* suite.css, tokens.css and explorer.html each declare the text ramp. That is
-     three copies of the same decision, and raising --ink-3 to clear 3:1 meant
-     editing all three — the fourth copy, a fallback in app.js, was missed on the
-     first pass. Drift between them is a contrast bug nobody would look for. */
+test("the stylesheets agree on the shared ink tokens", () => {
+  /* suite.css and tokens.css each declare the text ramp. Raising --ink-3 to
+     clear 3:1 once meant editing every copy, and one was missed on the first
+     pass (there were four then: explorer.html and a fallback in app.js too).
+     Drift between them is a contrast bug nobody would look for. */
   const declared = (css) => {
     const root = css.slice(css.indexOf(":root {"), css.indexOf("}", css.indexOf(":root {")));
     return Object.fromEntries([...root.matchAll(/(--ink(?:-[23])?):\s*(#[0-9a-fA-F]{6})/g)]
@@ -241,8 +277,7 @@ test("the three surfaces agree on the shared ink tokens", () => {
   };
   const copies = [
     ["suite.css", declared(read("suite.css"))],
-    ["tokens.css", declared(TOKENS_CSS)],
-    ["explorer.html", declared(PAGES.find(([n]) => n === "explorer.html")[1])]
+    ["tokens.css", declared(TOKENS_CSS)]
   ];
   const [, reference] = copies[0];
   for (const token of ["--ink", "--ink-2", "--ink-3"]) {
@@ -251,33 +286,24 @@ test("the three surfaces agree on the shared ink tokens", () => {
         name + " declares " + token + " as " + values[token] +
         " while suite.css says " + reference[token]);
     }
-    /* app.js carries the documented fallback for when the property is missing. */
-    const fallback = read("app.js").match(
-      new RegExp('themeColor\\("' + token + '"\\)\\s*\\|\\|\\s*"(#[0-9a-fA-F]{6})"'));
-    if (fallback) {
-      assert.equal(fallback[1].toLowerCase(), reference[token],
-        "app.js falls back to " + fallback[1] + " for " + token +
-        " while the stylesheets say " + reference[token]);
-    }
   }
 });
 
 test("a modal scrim is dark enough to isolate what it sits under", () => {
-  /* Below about 40% the page behind a drawer or a command palette still
-     competes for attention on a light surface; the site's own drawer scrim is
-     at 42% and the workbench should not be weaker than it. Dark themes can go
-     heavier, so only the light value is held to the band. */
-  const light = TOKENS_CSS.match(/--overlay:\s*rgba\(([^)]+)\)/);
-  assert.ok(light, "tokens.css declares no --overlay scrim");
-  const alpha = Number(light[1].split(",")[3]);
-  assert.ok(alpha >= 0.4 && alpha <= 0.6,
-    "the light scrim is " + Math.round(alpha * 100) + "% — outside the 40-60% band");
-
-  const site = read("suite.css").match(/\.drawer-scrim\s*\{[^}]*rgba\(([^)]+)\)/);
-  assert.ok(site, "suite.css declares no drawer scrim");
-  const siteAlpha = Number(site[1].split(",")[3]);
-  assert.ok(Math.abs(siteAlpha - alpha) <= 0.06,
-    "the two surfaces scrim differently: site " + siteAlpha + " vs workbench " + alpha);
+  /* Below about 40% the page behind a drawer or a dialog still competes for
+     attention on a light surface. The console's drawer and the workbench's
+     scoring dialog sit on the same page and should isolate it the same way. */
+  const alphaOf = (match) => Number(match[1].split(",")[3]);
+  const drawer = SUITE_CSS.match(/\.drawer-scrim\s*\{[^}]*rgba\(([^)]+)\)/);
+  const dialog = SUITE_CSS.match(/\.wb-dialog::backdrop\s*\{[^}]*rgba\(([^)]+)\)/);
+  assert.ok(drawer, "suite.css declares no drawer scrim");
+  assert.ok(dialog, "suite.css declares no backdrop for the workbench dialog");
+  for (const [name, alpha] of [["drawer", alphaOf(drawer)], ["dialog", alphaOf(dialog)]]) {
+    assert.ok(alpha >= 0.4 && alpha <= 0.6,
+      "the " + name + " scrim is " + Math.round(alpha * 100) + "% — outside the 40-60% band");
+  }
+  assert.ok(Math.abs(alphaOf(drawer) - alphaOf(dialog)) <= 0.06,
+    "the drawer and the dialog scrim differently: " + alphaOf(drawer) + " vs " + alphaOf(dialog));
 });
 
 test("an icon's stroke is set by its size, not by whoever added it", () => {
@@ -291,7 +317,7 @@ test("an icon's stroke is set by its size, not by whoever added it", () => {
   const strokeFor = (px) => (TIERS.find(([limit]) => px <= limit) || [0, 1.3])[1];
 
   const wrong = [];
-  for (const [name, css] of [["suite.css", read("suite.css")], ["app.css", APP_CSS]]) {
+  for (const [name, css] of [["suite.css", SUITE_CSS]]) {
     for (const rule of stripComments(css).split("}")) {
       const size = rule.match(/width:\s*(\d+)px/);
       const stroke = rule.match(/stroke-width:\s*([\d.]+)/);
@@ -335,7 +361,7 @@ test("the brand wordmark is not offered to auto-translation", () => {
 });
 
 test("scrollable overlays contain their scroll", () => {
-  const suite = read("suite.css");
+  const suite = SUITE_CSS;
   const drawer = suite.slice(suite.indexOf("#console-side {"), suite.indexOf("#console-side {") + 400);
   assert.match(drawer, /overscroll-behavior/,
     "the console drawer scrolls the page behind it once it hits its end");
@@ -395,7 +421,7 @@ test("the footer carries what a visitor actually looks for there", () => {
   const hrefs = footerLinks(index).map((l) => l.href);
   assert.ok(hrefs.some((h) => h.includes("github.com")), "no link to the source code");
   assert.ok(hrefs.some((h) => h.startsWith("https://vinitrami-soc.github.io")), "no link back to the author");
-  assert.ok(hrefs.includes("workbench.html"), "no link to the workbench, the thing the page is selling");
+  assert.ok(hrefs.includes("#/console/workbench"), "no link to the workbench, the thing the page is selling");
 });
 
 test("no form claims to subscribe anyone", () => {

@@ -51,7 +51,7 @@ evidence contribution bar — uses the validated single-hue ramp.
 | Why that number | **Horizontal bars**, one hue, sorted by weighted contribution, direct-labelled | A radar chart |
 | How much to trust it | **Meter** — fill carries state, track is a lighter step of the same ramp | A second number pretending to be a score |
 | Which sources answered | **One cell per provider**, labelled on hover | A donut of "coverage %" |
-| The relationships | **Node graph** (Cytoscape, with a built-in SVG fallback) | A table of pairs |
+| The relationships | **Node graph**, SVG drawn in the page, with the pairs listed underneath | A table of pairs on its own |
 
 Every chart ships a table view (`Show table`) — the WCAG-clean equivalent, not
 an afterthought.
@@ -67,8 +67,8 @@ the evidence without reading it: if it is monospaced, a machine said it.
 
 A dense scale (4 / 8 / 12 / 16 / 24 / 32). Depth comes from a hairline border
 plus a 1px inset highlight — not a drop shadow. The only real shadow in the
-system belongs to things that genuinely float: the command palette, the sheet,
-the graph toolbar, the toast.
+system belongs to things that genuinely float: the scoring dialog, the graph
+readout, the toast, the assistant.
 
 ## Motion
 
@@ -85,24 +85,21 @@ eye follows a rise and lands on the number — and it does not, at all, under
 
 ## Interaction model
 
-The command palette (<kbd>⌘K</kbd>) is the primary surface once you know the
-tool: fuzzy subsequence matching over labels, groups and keywords, with recent
-commands weighted up.
+The workbench and the campaign graph are views in the console, so they move
+the way the rest of it does: the sidebar picks a view, and every view has an
+address (`#/console/workbench`, `#/console/campaigns`) that can be pasted into
+a ticket, bookmarked or reloaded.
 
 | Key | Action |
 | --- | --- |
-| `⌘K` | Command palette |
-| `⌘↵` | Run triage |
-| `/` | Focus the ingest box |
-| `g i` / `g g` / `g t` / `g h` | Indicators · Graph · Ticket · History |
-| `t` | Cycle theme (dark → light → system) |
-| `[` | Collapse the rail |
-| `?` | Shortcut sheet |
-| `Esc` | Close any overlay |
+| `Ctrl ↵` / `⌘ ↵` | Run triage, from anywhere in the workbench |
+| `Tab`, then `Enter` | Reach a graph node and open it — an indicator's evidence, or a cluster's readout |
+| `Esc` | Close the scoring dialog or the graph readout; focus goes back where it was |
 
-A pending `g` owns the next key, so `g t` reaches the ticket instead of
-toggling the theme. Tabs are deep-linkable (`#graph`, `#report`), so a URL
-pasted into a ticket opens the view it describes.
+The workbench's own page used to carry a command palette, `g`-key sequences
+and a shortcut sheet. They switched between that page's tabs and did not come
+into the console, which has one scrolling view per address and a sidebar that
+is always on screen.
 
 ## Accessibility
 
@@ -115,23 +112,8 @@ scrollable overlays; safe-area insets on the shell. Verified at 390 / 768 /
 1024 / 1440px with zero horizontal overflow.
 
 Destructive actions are reversible rather than confirmed: **Clear** offers an
-undo in the toast instead of a dialog an analyst has to dismiss mid-shift.
-
-## Easter eggs
-
-Small, deliberate, and never in the way of the data:
-
-1. **Konami code** (`↑↑↓↓←→←→ B A`) — "night watch": a CRT scanline wash and
-   green accents for the 03:00 shift. Also in the palette as *Toggle
-   night-watch mode*. Cosmetic only; it never touches a verdict.
-2. **`sudo` at the start of a paste** — the tool answers politely and triages
-   anyway.
-3. **Console banner** — an ASCII wordmark and a pointer to
-   `window.IntelPulseEngine`, because the scoring is meant to be audited.
-4. **Double-click the hero figure** — opens the scoring arithmetic for the
-   worst indicator: weighted mean, authority floor, modifiers, final verdict.
-   Hidden, but genuinely useful; also reachable from every indicator's
-   **Scoring math** button.
+undo right under the box instead of a dialog an analyst has to dismiss
+mid-shift.
 
 ## The rules are machine-readable, and enforced
 
@@ -154,11 +136,13 @@ A rule nothing can fail is decoration, so the checkable ones have guards in
 
 | Rule | Guard |
 | --- | --- |
-| Colour lives in `tokens.css` | no raw hex in `app.css`, or in component JS beyond one documented fallback |
-| Both themes are complete | every `--ramp-1..5` and every `--sev-*` defined twice |
+| Colour lives in tokens | no raw hex in the workbench and graph rules of `suite.css`, or in component JS |
+| One set of values | every `--sev-*` and `--ramp-*` in `suite.css` equals the validated value in `tokens.css`, both themes |
+| Nothing reads a token that is not there | every `var(--x)` in `suite.css` without a fallback names a defined property |
+| Both themes are complete | every `--ramp-1..5` and every `--sev-*` defined in each theme |
 | Only `transform`/`opacity` animate | keyframe bodies parsed by brace matching; `transition: all` banned |
 | Motion, contrast and touch are handled | `prefers-reduced-motion`, `forced-colors`, `pointer: coarse` blocks must exist |
-| Focus is never removed silently | any `outline: none` must sit with a `box-shadow` ring |
+| Focus is never removed silently | any `outline: none` must sit with a visible replacement in the same rule |
 | The skill and the code agree | token names in `SKILL.md` must exist in `tokens.css` |
 
 The browser suite covers what only a browser can answer: 44px touch targets on
@@ -394,12 +378,13 @@ of the *1180px scaler*, not the middle of the frame, so on a phone the whole
 mock lands outside the frame and the hero shows an empty white box. It did,
 until a responsive screenshot caught it.
 
-## Campaign graph explorer
+## Campaign graph
 
-`web/explorer.html` is a second view of the same investigation, built to a
-reference composition a reviewer sent over: a radial campaign graph on a dark
-teal ground, a first-seen timeline down the left edge, a glass legend, an
-orbital inset, and a stats-plus-ask dock in the corner.
+The campaign graph is a second view of the same investigation, built to a
+reference composition a reviewer sent over: a radial campaign graph, a
+first-seen timeline, a legend and a stats dock. It began as its own page,
+`web/explorer.html`, on a dark teal ground; it is a console view now, on the
+console's own surfaces, and the old address redirects.
 
 What was taken from the reference is the *composition and treatment* — panel
 language, node materiality, the way labels radiate outward from the hub, the
@@ -422,6 +407,14 @@ Notes from building it:
   infrastructure, which is the reason to look at a graph at all.
 * **The year filter is cumulative**, and the page opens on the full graph
   rather than an empty slice — a view that starts empty shows nothing.
+* **Every figure beside it is counted.** The standalone page showed "98%",
+  "57%" and "32% unenriched" that no data produced, a severity button that
+  only re-sorted, and an ask box wired to nothing. The console view counts its
+  KPIs from the clusters in view, its severity control filters, and the ask
+  box is gone — the site's assistant is one button away.
+* **Labels are drawn last, on their own layer**, with a halo in the page's
+  ground colour and `pointer-events: none`, so a later node never paints over
+  an earlier label and a label never steals a click from a node.
 
 ## Why no framework
 

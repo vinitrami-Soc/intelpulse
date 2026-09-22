@@ -8,12 +8,14 @@
  *
  * Usage: node scripts/build-artifact.mjs  ->  dist/artifact/
  */
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const out = join(root, "dist", "artifact");
+// Start clean, so a file removed from web/ does not live on in the build.
+rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, "assets"), { recursive: true });
 
 let html = readFileSync(join(root, "web", "index.html"), "utf8");
@@ -46,12 +48,9 @@ for (const file of readdirSync(join(root, "web", "assets"))) {
   copyFileSync(join(root, "web", "assets", file), join(out, "assets", file));
 }
 
-// The landing page links on to the analyst workbench and the campaign graph.
-// Ship them beside it so those links resolve in the published build too.
-for (const page of ["workbench.html", "explorer.html"]) {
-  copyFileSync(join(root, "web", page), join(out, page));
-}
+// The workbench and the campaign graph are console views on this same page
+// (#/console/workbench, #/console/campaigns), so there is nothing else to ship.
 
 const size = readFileSync(join(out, "index.html")).length;
 console.log("built dist/artifact/index.html (" + size + " bytes) + " +
-  readdirSync(join(out, "assets")).length + " assets + workbench.html + explorer.html");
+  readdirSync(join(out, "assets")).length + " assets");

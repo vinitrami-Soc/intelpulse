@@ -6,7 +6,7 @@ SOC's API quota, the box it runs on, the analyst's browser, and the internal
 network the backend can see. Every control below exists for one of those four.
 
 Each control names the test that proves it works — `backend/tests/test_security.py`
-for the service, `web/tests/ui.spec.mjs` and `web/tests/suite.spec.mjs` for the browser.
+for the service, `web/tests/ui.spec.mjs`, `web/tests/suite.spec.mjs` and `web/tests/mobile.spec.mjs` for the browser.
 
 ---
 
@@ -129,17 +129,24 @@ never from the image.
 
 ## Frontend controls
 
-* **Output encoding.** Everything rendered from a log line, a provider response
-  or a stored case goes through `escapeHtml`. The browser test pastes
-  `<script>`, `<img onerror>`, `"><svg onload>` and a `javascript:` URL into the
-  ingest field and asserts nothing executes and no element is injected.
+* **Output encoding.** Everything the workbench renders from a log line, a
+  provider response or a stored case goes through `esc()`
+  (`web/assets/console-panes.js`); the generated report is set with
+  `textContent`. The browser test pastes `<script>`, `<img onerror>`,
+  `"><svg onload>` and a `javascript:` URL into the ingest field and asserts
+  nothing executes and no element is injected.
+* **Toasts are text.** The console's toast took markup until the workbench
+  moved into the console, where it announces indicator values — which come out
+  of pasted logs. It sets `textContent` now, and a test hands it an `<img>`.
 * **URL scheme validation.** Escaping makes a URL safe to sit in an attribute;
   it does not make it safe to follow. `safeUrl()` rejects everything that is not
   `http:`/`https:`, so a hostile provider `reference` or ATT&CK link renders as
   text instead of a link. Tested with a hostile result payload and a scheme
   matrix.
 * **CSP.** A `<meta>` policy blocks inline script, `eval`, objects and form
-  submission, and limits script to this origin plus the graph CDN.
+  submission, and limits script to this origin — no CDN, now that neither graph
+  loads a library. The two redirect stubs (`workbench.html`, `explorer.html`)
+  run no script at all: `default-src 'none'`.
   `frame-ancestors` cannot be set from a meta tag, so the nginx service sends
   it as a real header (`web/nginx.conf`) — GitHub Pages cannot send headers,
   which is why the app never depends on them for correctness.
@@ -157,7 +164,7 @@ never from the image.
 cd backend && pytest -q                 # 166 tests incl. the security suite
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
-node web/tests/ui.spec.mjs              # workbench browser checks (needs Playwright)
+node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)
 node web/tests/suite.spec.mjs           # site + console browser checks
 node web/tests/mobile.spec.mjs          # phones, tablets, and the assistant panel
 ```

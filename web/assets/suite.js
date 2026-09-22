@@ -42,6 +42,9 @@
      nothing behind it implements is the fastest way to lose a reviewer, so
      every entry below is a view this console actually renders. */
   const NAV = [
+    /* The workbench and the campaign graph used to be separate pages with their
+       own look; they are panes of this console now (console-panes.js). */
+    { item: { id: "workbench", label: "Workbench", icon: "i-bot" } },
     { group: "Posture", icon: "i-grid", open: true, items: [
       { id: "dashboard", label: "Overview" },
       { id: "surface", label: "Attack surface" },
@@ -51,7 +54,7 @@
       { id: "triage", label: "Triage queue" },
       { id: "all-findings", label: "All indicators" }
     ] },
-    { item: { id: "campaigns", label: "Campaigns", icon: "i-target", badge: "12" } },
+    { item: { id: "campaigns", label: "Campaign graph", icon: "i-target" } },
     { item: { id: "narratives", label: "Attack narratives", icon: "i-doc" } },
     { item: { id: "sources", label: "Intelligence sources", icon: "i-globe" } },
     { item: { id: "tickets", label: "SOC tickets", icon: "i-flag" } }
@@ -100,9 +103,12 @@
 
   /* ──────────────────────────────────────────────────────── toast */
   let toastTimer;
+  /* Text, never markup: the workbench toasts indicator values, and those come
+     out of pasted logs. */
   function toast(message) {
     const el = $("#toast");
-    el.innerHTML = icon("i-check-circle") + "<span>" + message + "</span>";
+    el.innerHTML = icon("i-check-circle") + "<span></span>";
+    el.lastChild.textContent = message;
     el.classList.add("on");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.classList.remove("on"), 2400);
@@ -297,7 +303,12 @@
     if (g) gauge(g, DATA.surface.score);
     const b = $("[data-bars]", scope);
     if (b) barChart(b);
-    $$(".seg button", scope).forEach((btn) => btn.addEventListener("click", () => {
+    /* [data-filter] only. This bound to every .seg under the console, which was
+       fine while the findings filter was the only segmented control there. The
+       workbench's Demo/Live switch and the graph's layout and year controls are
+       .seg too, and clicking them threw ("unknown filter: undefined") and
+       toasted "Live API findings". */
+    $$(".seg button[data-filter]", scope).forEach((btn) => btn.addEventListener("click", () => {
       const group = btn.parentElement;
       $$("button", group).forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
       const key = btn.dataset.filter;
@@ -335,13 +346,28 @@
 
   /* Every pane below is a view this console renders from the loaded dataset.
      Nothing here is a label over an empty room. */
+  /* A pane from console-panes.js carries mount(), which wires it and returns an
+     unmount. If that script failed to load, say so in the pane rather than
+     rendering a blank one. */
+  function interactivePane(name) {
+    const pane = window.IntelPulsePanes && window.IntelPulsePanes[name];
+    if (!pane || !window.IntelPulseEngine) {
+      return { title: name === "graph" ? "Campaign graph" : "Analyst workbench",
+        sub: "This view did not load.",
+        body: emptyState("The workbench scripts did not load",
+          "Reload the page. If it keeps happening, the browser is blocking a script this view needs.") };
+    }
+    return { title: pane.title, sub: pane.sub, body: pane.body(), mount: pane.mount };
+  }
+
   const PANES = {
     dashboard: () => ({ title: "Welcome back, analyst", sub: "Remediation efficacy and the attack surface, as of this morning.", body: kpiCards() + panelsMarkup(false) }),
     surface:   () => ({ title: "Attack surface", sub: "What is reachable, and how much of it is scored.", body: panelsMarkup(false) }),
     activity:  () => ({ title: "Triage history", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) }),
     triage:    () => ({ title: "Triage queue", sub: "What needs an analyst next, sorted by composite score.", body: kpiCards() + panelsMarkup(true) }),
     "all-findings": () => ({ title: "All indicators", sub: "Every indicator across every open case.", body: panelsMarkup(false) }),
-    campaigns: () => ({ title: "Campaigns", sub: "12 campaigns correlated from the current indicator set.", body: panelsMarkup(true) }),
+    campaigns: () => interactivePane("graph"),
+    workbench: () => interactivePane("workbench"),
     narratives:() => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() }),
     sources:   () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() }),
     tickets:   () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })
@@ -358,7 +384,18 @@
       '<span class="sk sk-panel"></span><span class="sk sk-panel sk-short"></span></div>';
   }
 
+  /* Interactive panes hold listeners, timers and in-flight requests. Whatever
+     is open is unmounted before anything else is painted over it. */
+  let unmountPane = null;
+  function leavePane() {
+    if (!unmountPane) return;
+    const done = unmountPane;
+    unmountPane = null;
+    try { done(); } catch (error) { console.error(error); }
+  }
+
   function renderConsole(pane) {
+    leavePane();
     const spec = (PANES[pane] || PANES.dashboard)();
     const host = $("#console-body");
     host.innerHTML =
@@ -371,7 +408,8 @@
            fact about the data. */
         '<div class="head-right">' +
           '<button class="round-btn" id="c-search" aria-label="Ask the assistant">' + icon("i-search") + "</button>" +
-          '<a class="btn btn-dark btn-sm" href="workbench.html">Live triage' + icon("i-arrow") + "</a>" +
+          (pane === "workbench" ? "" :
+            '<a class="btn btn-dark btn-sm" href="#/console/workbench">Live triage' + icon("i-arrow") + "</a>") +
           '<span class="status-pill">Sample data <span class="on">synthetic</span></span>' +
           '<button class="round-btn" id="c-collapse" aria-label="Collapse sidebar">' + icon("i-sidebar") + "</button>" +
         "</div>" +
@@ -387,6 +425,10 @@
       panels.dataset.pane = pane;
       panels.innerHTML = spec.body;
       wirePanels(host);
+      if (spec.mount) {
+        leavePane();
+        unmountPane = spec.mount(panels, { toast, go, icon }) || null;
+      }
     };
     if (reduce) fill();
     else requestAnimationFrame(fill);
@@ -498,6 +540,7 @@
     const arrived = toConsole !== (shownRoute || "").startsWith("console");
     shownRoute = name;
 
+    if (!toConsole) leavePane();
     $("#page-home").hidden = toConsole;
     $("#page-console").hidden = !toConsole;
     const label = toConsole ? "Back to site" : "Open console";
@@ -697,8 +740,8 @@
        has to carry a function or an inline handler past the CSP. */
     const ACT = {
       console: ["Open the console", () => { go("#/console/dashboard"); }],
-      workbench: ["Open the workbench", () => { location.href = "workbench.html"; }],
-      graph: ["Open the campaign graph", () => { location.href = "explorer.html"; }],
+      workbench: ["Open the workbench", () => { go("#/console/workbench"); }],
+      graph: ["Open the campaign graph", () => { go("#/console/campaigns"); }],
       scoring: ["Show the scoring section", () => jump("#scoring")],
       how: ["Show how it correlates", () => jump("#how")],
       evidence: ["Show the evidence view", () => jump("#evidence")],

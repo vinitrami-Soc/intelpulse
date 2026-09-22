@@ -46,6 +46,24 @@
   --t-fast: 140ms; --t: 240ms; --t-slow: 620ms;
   --ease: cubic-bezier(.22, 1, .36, 1);
 
+  /* Severity and the evidence ramp, for the workbench and the graph. Copied
+     value-for-value from tokens.css, which is where they were validated (the
+     ramp against the ordinal gate, every severity at 4.5:1 on its card, its
+     page and its own wash). A guard in tokens.test.mjs holds the two files to
+     the same values: recompute there, never recolour here. */
+  --ramp-1: #74b1e2; --ramp-2: #4a98d1; --ramp-3: #1a7fbe; --ramp-4: #00669e; --ramp-5: #004e7c;
+  --ramp-track: rgba(26, 127, 190, .12);
+  --sev-critical: #b3122f; --sev-high: #b3400a; --sev-medium: #7a6500;
+  --sev-low: #0b6ea8; --sev-info: #566072; --sev-ok: #07704b;
+  --sev-critical-bg: rgba(179, 18, 47, .10); --sev-high-bg: rgba(179, 64, 10, .10);
+  --sev-medium-bg: rgba(122, 101, 0, .10); --sev-low-bg: rgba(11, 110, 168, .10);
+  --sev-info-bg: rgba(86, 96, 114, .09); --sev-ok-bg: rgba(7, 112, 75, .10);
+  /* The campaign graph's four node kinds: the validated categorical set from the
+     standalone graph (closest pair 0.129 in OKLab, against a 0.12 floor). One
+     set for both themes: they are fills under a white glint, never text. */
+  --cg-hub: #d93d15; --cg-malware: #b3124f; --cg-infra: #5a44c4; --cg-ioc: #0b6ea8;
+  --cg-glint: #ffffff;
+
   color-scheme: light;
 }
 
@@ -71,6 +89,14 @@
   --shade-sm:   0 1px 2px rgba(0, 0, 0, .5);
   --shade:      0 10px 26px -14px rgba(0, 0, 0, .8);
   --shade-lg:   0 34px 70px -34px rgba(0, 0, 0, .9);
+  --ramp-1: #006095; --ramp-2: #127ab9; --ramp-3: #4595d0; --ramp-4: #6fb0e3; --ramp-5: #9acbf3;
+  --ramp-track: rgba(111, 176, 227, .16);
+  --sev-critical: #ff8095; --sev-high: #ff9e5e; --sev-medium: #e3ce63;
+  --sev-low: #6fb0e3; --sev-info: #9aa6b8; --sev-ok: #5fe0a8;
+  --sev-critical-bg: rgba(255, 128, 149, .14); --sev-high-bg: rgba(255, 158, 94, .14);
+  --sev-medium-bg: rgba(227, 206, 99, .14); --sev-low-bg: rgba(111, 176, 227, .14);
+  --sev-info-bg: rgba(154, 166, 184, .12); --sev-ok-bg: rgba(95, 224, 168, .14);
+
   color-scheme: dark;
 }
 
@@ -194,7 +220,7 @@ button { font-family: inherit; cursor: pointer; }
 .menu.on { opacity: 1; transform: none; pointer-events: auto; }
 .menu a, .menu button {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px;
-  border: 0; background: none; border-radius: var(--r-md); text-align: left;
+  border: 0; background: none; border-radius: var(--r-sm); text-align: left;
   color: rgba(255, 255, 255, .78); font-size: 15px; font-weight: 500;
 }
 .menu a:hover, .menu button:hover, .menu a:focus-visible, .menu button:focus-visible { background: rgba(255, 255, 255, .09); color: #fff; }
@@ -560,7 +586,7 @@ button { font-family: inherit; cursor: pointer; }
   .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .table tbody, .table tr, .table td { display: block; width: auto; }
   .table tr {
-    border: 1px solid var(--line); border-radius: var(--r-md);
+    border: 1px solid var(--line); border-radius: var(--r);
     padding: 12px 14px; margin-bottom: 10px; background: var(--paper);
   }
   .table tr:last-child { margin-bottom: 0; }
@@ -747,6 +773,20 @@ button { font-family: inherit; cursor: pointer; }
 /* full console page */
 .page-console { padding-top: 92px; padding-bottom: 30px; }
 .page-console .console { border-radius: var(--r-xl); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shade); min-height: 640px; }
+/* The rail stays with you on a long view. The workbench runs to several
+   screens, and a rail that scrolled away left an empty column beside it.
+   overflow: clip rather than hidden: hidden makes the shell a scroll container,
+   which a sticky child sticks inside and so never visibly moves. The divider
+   moves to the body so it still runs the full height once the rail stops
+   stretching. Below 900px the rail is a drawer and none of this applies. */
+@media (min-width: 901px) {
+  .page-console .console { overflow: clip; }
+  .page-console #console-side {
+    position: sticky; top: 84px; align-self: start; border-right: 0;
+    max-height: calc(100vh - 100px); overflow-y: auto; overscroll-behavior: contain;
+  }
+  .page-console #console-body { border-left: 1px solid var(--line); }
+}
 
 /* ═════════════════════════════════════════════ touch: 44px, everywhere
    A finger is not a cursor. Every control the page offers has to clear the
@@ -922,3 +962,279 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 @media (max-width: 760px) { .sk-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ═══════════════════════════════════════ the workbench, inside the console
+   Everything here is scoped under .wb or .cg. Two names collide with the
+   console's own: charts.js emits .bars (which the console uses for its
+   150px-tall monthly columns) and the console's .chip is a KPI capsule. The
+   evidence chart needs neither, so .bars is reset inside .wb and the
+   workbench's own tags are .wb-chip. */
+.wb, .cg { display: grid; gap: 12px; min-width: 0; }
+.wb .panel, .cg .panel { min-width: 0; }
+.wb-top { align-items: start; }
+
+.wb-input, .wb-field {
+  width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--ground);
+  border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: 10px 12px;
+}
+.wb-input { display: block; margin-top: 6px; resize: vertical; min-height: 136px;
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+.wb-input:focus-visible, .wb-field:focus-visible {
+  outline: none; border-color: var(--flame); box-shadow: 0 0 0 3px var(--flame-wash);
+}
+.wb-input[aria-invalid="true"] { border-color: var(--sev-critical); }
+.wb-field { flex: 1 1 200px; }
+.wb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.wb-actions { margin-top: 12px; }
+.wb .btn kbd { font: 600 10px var(--mono); opacity: .7; margin-left: 6px; }
+.wb-file { position: relative; cursor: pointer; }
+.wb-file:focus-within { outline: 2px solid var(--flame); outline-offset: 2px; }
+
+.wb-hint { margin-top: 8px; font-size: 12px; color: var(--ink-3); line-height: 1.5; }
+.wb-hint code, .wb-summary code { font-family: var(--mono); font-size: 11.5px; }
+.wb-error { margin-top: 8px; font-size: 12.5px; color: var(--sev-critical); font-weight: 500; }
+.wb-warn { color: var(--sev-high); }
+.wb-muted { color: var(--ink-3); }
+.wb-mono { font-family: var(--mono); font-size: 11.5px; word-break: break-word; }
+.wb-preview:empty { display: none; }
+.wb-live { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wb-link {
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--flame-ink); background: none;
+  border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.wb-link:hover { color: var(--flame-ink-2); }
+
+.wb-starters { display: grid; gap: 8px; }
+.wb-starter {
+  display: grid; gap: 3px; text-align: left; font: inherit; color: var(--ink);
+  background: var(--ground); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 11px 12px; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast);
+}
+.wb-starter:hover { border-color: var(--flame); transform: translateY(-1px); }
+.wb-starter b { font-size: 13px; font-weight: 600; }
+.wb-starter span { font-size: 12px; color: var(--ink-3); line-height: 1.45; }
+
+.wb-conn { margin-left: 6px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+.wb-conn.demo { color: var(--ink-3); }
+.wb-conn.live { color: var(--sev-ok); }
+.wb-conn.err { color: var(--sev-high); }
+
+.wb-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.wb-chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  font: 500 11.5px var(--sans); color: var(--ink-2); background: var(--ground-2);
+  border: 1px solid var(--line); border-radius: var(--r-full); padding: 3px 9px;
+  overflow-wrap: anywhere;
+}
+.wb-chip b { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.wb-chip.on { color: var(--sev-ok); border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent); background: var(--sev-ok-bg); }
+.wb-chip.malware { color: var(--sev-high); border-color: color-mix(in srgb, var(--sev-high) 34%, transparent); background: var(--sev-high-bg); }
+.wb-chip.attack { color: var(--azure-ink); border-color: color-mix(in srgb, var(--azure) 36%, transparent); background: var(--azure-wash); }
+
+.wb-kv { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 5px 12px; font-size: 12.5px; margin: 0; }
+.wb-kv dt { color: var(--ink-3); font-size: 11.5px; }
+.wb-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+/* ─── verdict badges: hue, glyph and the word ─── */
+.wb-badge {
+  display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; white-space: nowrap;
+  font: 650 10.5px var(--sans); text-transform: uppercase; letter-spacing: .05em;
+  padding: 3px 8px; border-radius: var(--r-full); border: 1px solid transparent;
+}
+.wb-badge svg { width: 9px; height: 9px; fill: currentColor; }
+.wb-badge.critical { color: var(--sev-critical); border-color: color-mix(in srgb, var(--sev-critical) 36%, transparent); background: var(--sev-critical-bg); }
+.wb-badge.high { color: var(--sev-high); border-color: color-mix(in srgb, var(--sev-high) 36%, transparent); background: var(--sev-high-bg); }
+.wb-badge.medium { color: var(--sev-medium); border-color: color-mix(in srgb, var(--sev-medium) 38%, transparent); background: var(--sev-medium-bg); }
+.wb-badge.low { color: var(--sev-low); border-color: color-mix(in srgb, var(--sev-low) 36%, transparent); background: var(--sev-low-bg); }
+.wb-badge.informational { color: var(--sev-info); border-color: var(--line-2); background: var(--sev-info-bg); }
+.wb-badge.allowlisted { color: var(--sev-ok); border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent); background: var(--sev-ok-bg); }
+
+/* ─── results ─── */
+.wb-results { display: grid; gap: 12px; min-width: 0; }
+.wb-results[hidden] { display: none; }
+.wb-hero { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 8px; }
+.wb-of { font-size: 13px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.wb-kpi .kpi-foot { flex-wrap: wrap; }
+.wb-summary { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+.wb-mode-note { margin-left: auto; }
+
+.wb-ioc-list { display: grid; gap: 8px; }
+.wb-ioc { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); min-width: 0; }
+.wb-ioc.open { border-color: color-mix(in srgb, var(--flame) 40%, var(--line)); }
+.wb-ioc-top {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; width: 100%;
+  padding: 10px 12px; font: inherit; color: inherit; text-align: left;
+  background: none; border: 0; border-radius: var(--r-sm); cursor: pointer;
+}
+.wb-ioc-top:hover { background: var(--ground-2); }
+.wb-chev { width: 14px; height: 14px; flex: 0 0 14px; stroke: var(--ink-3); fill: none; stroke-width: 2.1;
+  transition: transform var(--t-fast) var(--ease); }
+.wb-ioc.open .wb-chev { transform: rotate(90deg); }
+.wb-type { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3);
+  border: 1px solid var(--line); padding: 2px 6px; border-radius: 5px; background: var(--ground-2); }
+.wb-value { flex: 1 1 160px; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.wb-score { font: 650 16px var(--mono); min-width: 36px; text-align: right; }
+.wb-ioc-detail { border-top: 1px solid var(--line); padding: 12px; display: grid; gap: 4px; min-width: 0; }
+.wb-ioc-detail[hidden] { display: none; }
+.wb-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 3px; }
+
+.wb-diff-tag { font: 650 10px var(--sans); text-transform: uppercase; letter-spacing: .06em;
+  padding: 2px 8px; border-radius: var(--r-full); border: 1px solid var(--line-2); color: var(--ink-2); }
+.wb-diff-tag.worse { color: var(--sev-critical); background: var(--sev-critical-bg); border-color: transparent; }
+.wb-diff-tag.better { color: var(--sev-ok); background: var(--sev-ok-bg); border-color: transparent; }
+
+.wb-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
+.wb-source { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; background: var(--ground); min-width: 0; }
+.wb-source-name { font-size: 12.5px; font-weight: 600; }
+.wb-state { font: 500 11px var(--mono); color: var(--ink-3); margin-top: 2px; }
+.wb-state.ok { color: var(--sev-ok); }
+.wb-state.error, .wb-state.rate_limited { color: var(--sev-high); }
+.wb-facts { margin-top: 6px; display: grid; gap: 2px; }
+.wb-fact { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: 6px; font-size: 11.5px; }
+.wb-fk { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-fv { font-family: var(--mono); overflow-wrap: anywhere; }
+
+.wb-report {
+  margin-top: 10px; max-height: 340px; overflow: auto; font: 11.5px/1.55 var(--mono); color: var(--ink-2);
+  background: var(--ground); border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.wb-report:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+
+.wb-graph { min-height: 240px; }
+.wb-svg { display: block; width: 100%; height: auto; }
+.wb-edge { stroke: var(--line-2); stroke-width: 1.2; }
+.wb-node text { font: 500 10.5px var(--sans); fill: var(--ink-2); }
+.wb-node.ioc { cursor: pointer; }
+/* A ring for the keyboard, distinct from the hover stroke, so focus never reads as a pointer resting there. */
+.wb-node.ioc:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
+.wb-node.ioc:focus-visible circle, .wb-node.ioc:hover circle { stroke: var(--flame); stroke-width: 2.5; }
+.wb-graph-table { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
+.wb-graph-table summary { cursor: pointer; font-weight: 600; }
+.wb-graph-table ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; overflow-wrap: anywhere; }
+
+.wb-spinner { display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; animation: wb-spin .7s linear infinite; vertical-align: -2px; }
+@keyframes wb-spin { to { transform: rotate(360deg); } }
+
+.wb-dialog {
+  width: min(680px, calc(100vw - 32px)); max-height: calc(100dvh - 48px); padding: 18px;
+  color: var(--ink); background: var(--paper); border: 1px solid var(--line-2);
+  border-radius: var(--r-lg); box-shadow: var(--shade-lg);
+}
+.wb-dialog::backdrop { background: rgba(12, 18, 28, .46); }
+.wb-dialog-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.wb-dialog-head h4 { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+
+/* ─── charts.js, scoped so the console's own .bars cannot reach it ─── */
+.wb .chart { margin-top: 10px; min-width: 0; }
+.wb .chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.wb .chart-title { font: 650 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); }
+.wb .chart-note { font: 600 11px var(--sans); color: var(--flame-ink); background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.wb .chart-note:hover { background: var(--flame-wash); }
+.wb .bars { display: flex; flex-direction: column; align-items: stretch; gap: 3px; height: auto; padding-top: 0; }
+.wb .bar-row { display: grid; grid-template-columns: minmax(70px, 30%) minmax(0, 1fr) 40px; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 6px; }
+.wb .bar-row:hover { background: var(--ground-2); }
+.wb .bar-label { font: 500 11.5px var(--sans); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb .bar-track { height: 10px; border-radius: 3px; background: var(--ramp-track); overflow: hidden; min-width: 0; }
+.wb .bar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; transform-origin: left center; animation: wb-grow var(--t) var(--ease) both; }
+.wb .bar-value { font: 600 11.5px var(--mono); color: var(--ink-2); text-align: right; }
+.wb .bar-row.muted .bar-label, .wb .bar-row.muted .bar-value { color: var(--ink-3); }
+@keyframes wb-grow { from { transform: scaleX(0); } }
+.wb .meter { display: inline-block; vertical-align: middle; width: 72px; height: 6px; border-radius: 3px; background: var(--ramp-track); overflow: hidden; }
+.wb .meter i { display: block; height: 100%; border-radius: 3px; background: var(--ramp-3); }
+.wb .meter.sev-critical i { background: var(--sev-critical); }
+.wb .meter.sev-high i { background: var(--sev-high); }
+.wb .meter.sev-medium i { background: var(--sev-medium); }
+.wb .meter.sev-low i { background: var(--sev-low); }
+.wb .coverage { display: flex; flex-wrap: wrap; gap: 2px; }
+.wb .coverage i { width: 8px; height: 14px; border-radius: 2px; background: var(--line-2); }
+.wb .coverage i[data-state="ok"] { background: var(--ramp-3); }
+.wb .coverage i[data-state="clean"] { background: var(--ramp-1); }
+.wb .coverage i[data-state="error"], .wb .coverage i[data-state="rate_limited"] { background: var(--sev-high); }
+.wb .table-view { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+.wb .table-view th, .wb .table-view td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.wb .table-view th { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.wb .table-view td.num { font-family: var(--mono); }
+
+/* ═════════════════════════════════════════ the campaign graph ════════ */
+.cg-tools { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.cg-tools .seg { margin-left: 0; }
+.cg-tools .round-btn span { font-size: 17px; line-height: 1; }
+.cg-panel .panel-head { flex-wrap: wrap; }
+.cg-stage { position: relative; width: 100%; min-height: 360px; border-radius: var(--r-sm);
+  background: radial-gradient(ellipse at 50% 45%, var(--ground-2), var(--ground) 72%); overflow: hidden; }
+.cg-svg { display: block; width: 100%; height: 100%; }
+.cg-node:not(.child) { cursor: pointer; }
+.cg-node:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
+.cg-node:focus-visible > circle:first-child { stroke: var(--flame); stroke-width: 2.5; stroke-opacity: 1; }
+.cg-mono { font-family: var(--mono); }
+.cg-svg text { font-family: var(--sans); }
+.cg-readout {
+  position: absolute; width: 214px; padding: 12px; pointer-events: none; opacity: 0; transform: translateY(4px);
+  background: var(--paper); border: 1px solid var(--line-2); border-radius: var(--r-sm); box-shadow: var(--shade);
+  transition: opacity var(--t-fast), transform var(--t-fast);
+}
+.cg-readout.on { opacity: 1; transform: none; }
+.cg-rt { font-size: 13px; font-weight: 600; }
+.cg-rs { font-size: 11px; color: var(--ink-3); margin: 2px 0 8px; }
+.cg-rbar { height: 5px; border-radius: 3px; background: var(--ground-2); overflow: hidden; margin-bottom: 8px; }
+.cg-rbar i { display: block; height: 100%; }
+.cg-readout .wb-kv { grid-template-columns: 70px minmax(0, 1fr); font-size: 11.5px; }
+.cg-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 12px; }
+.cg-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); }
+.cg-key { display: inline-flex; align-items: center; gap: 6px; }
+.cg-key i { width: 10px; height: 10px; border-radius: 50%; }
+.cg-key b { font-weight: 600; color: var(--ink); }
+.cg-years { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.cg-year-seg { margin-left: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.cg-year-seg button { font-family: var(--mono); font-size: 11px; }
+/* Narrow screens: the years wrap into rows instead of scrolling sideways. As a
+   scroller, a phone showed 2016 to 2020 and hid the year actually selected
+   (2024), with nothing on screen to say there was more. */
+@media (max-width: 720px) {
+  .cg-year-seg {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));   /* nine years, three even rows */
+    width: 100%; overflow: visible; border-radius: var(--r);
+  }
+}
+
+@media (max-width: 720px) {
+  .wb-kv { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .wb-kv dd { margin-bottom: 6px; }
+  .wb-mode-note { margin-left: 0; }
+  .wb-results .panel-head, .wb .panel-head { flex-wrap: wrap; }
+  .cg-tools { margin-left: 0; justify-content: flex-start; }
+  .cg-readout { width: min(214px, calc(100% - 16px)); }
+}
+@media (pointer: coarse) {
+  .wb-starter, .wb-ioc-top, .wb .chart-note, .wb-file, .cg-year-seg button { min-height: 44px; }
+  .wb-link { min-height: 44px; display: inline-flex; align-items: center; }
+  .wb-field { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb .bar-fill, .wb-spinner { animation: none; }
+  .wb-starter, .cg-readout, .wb-chev { transition: none; }
+}
+@media (forced-colors: active) {
+  .wb-badge, .wb-chip, .wb-diff-tag { border: 1px solid CanvasText; }
+  .wb .bar-fill, .wb .meter i, .wb .coverage i, .cg-key i { forced-color-adjust: none; }
+}
+/* The console's .table sizes five columns by percentage (27/15/17/23/18).
+   The scoring-math table has six, so the sixth — the authority floor, the
+   number the whole explanation turns on — was pushed out of view. It sizes
+   to its content instead. */
+.table.wb-math { table-layout: auto; min-width: 0; }
+.table.wb-math th:nth-child(n) { width: auto; }      /* outranks .table th:nth-child(k) */
+.table.wb-math td, .table.wb-math th { white-space: nowrap; }
+/* A halo in the stage's own colour keeps a label legible where it crosses an
+   edge or a member dot, in both themes, without a box behind it. */
+.cg-labels text { paint-order: stroke fill; stroke: var(--ground); stroke-width: 3.5px; stroke-linejoin: round; }
+.wb-skeleton { width: 100%; }
+/* Node labels in the result graph get the same halo as the campaign graph's. */
+.wb-node text { paint-order: stroke fill; stroke: var(--paper); stroke-width: 3px; stroke-linejoin: round; }
+@media (forced-colors: active) {
+  /* forced-color-adjust keeps the ramp's fill; the outline keeps the bar's
+     edge when a theme flattens it anyway. */
+  .wb .bar-fill, .wb .meter i { outline: 1px solid CanvasText; }
+}

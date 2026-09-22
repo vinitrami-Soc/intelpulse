@@ -12,11 +12,11 @@ raw syslog, JSON alert export), queries every applicable source **concurrently**
 single auditable verdict, maps the relationships between them, and writes the ticket — executive
 summary, evidence, MITRE ATT&CK mapping and containment actions included.
 
-![Indicator triage view](docs/screenshots/triage.png)
+![The analyst workbench, inside the console](docs/screenshots/triage.png)
 
 <p align="center">
-  <img src="docs/screenshots/command-palette.png" width="49%" alt="Command palette">
-  <img src="docs/screenshots/light-mode.png" width="49%" alt="Light theme">
+  <img src="docs/screenshots/campaign-graph.png" width="49%" alt="The campaign graph">
+  <img src="docs/screenshots/workbench-dark.png" width="49%" alt="The workbench in the dark theme">
 </p>
 
 ---
@@ -30,7 +30,7 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 | **Composite scoring** | A weighted mean of the sources that actually answered, floored by the most authoritative single hit, then modified by GreyNoise noise-filtering and analyst allow/block lists. Confidence is reported separately from score. [Full model →](docs/SCORING.md) |
 | **Quota-aware caching** | Every provider response — including failures, at a shorter TTL — is cached by `(provider, ioc)` in Redis (24 h default). The same IP triaged three times in a shift costs one quota unit, not three. |
 | **Offline datasets** | Feodo Tracker, FireHOL level 1, ThreatFox daily dump, CISA KEV and an NVD CVE slice are imported into Postgres/SQLite; MaxMind GeoLite2 resolves geo/ASN locally. The platform keeps working when the free API quotas run out or the box has no internet. |
-| **Investigation graph** | Indicators, malware families, ASNs, countries, campaigns and payload hashes as a Cytoscape.js graph, so "is this one thing or five things?" is answerable at a glance. |
+| **Investigation graph** | Indicators, malware families, ASNs, countries, campaigns and payload hashes as an SVG graph drawn in the page, so "is this one thing or five things?" is answerable at a glance. |
 | **SOC ticket output** | One click produces Markdown or JSON: severity + priority SLA, executive summary, per-indicator evidence with the rationale each source gave, ATT&CK techniques, and a containment checklist written as defender actions. |
 | **Case history & audit** | Every triage is persisted with its full provider payload, so a report can be regenerated later and an auditor can see who ran what and when. |
 | **Hardened by default** | Outbound host allowlist with resolution checks, per-endpoint rate limits, bounded payloads, security headers, JSON logs with credential masking, and a UI that treats every log line as hostile. [Full posture →](docs/SECURITY.md) |
@@ -41,7 +41,7 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 
 ```
                  ┌──────────────────────────────────────────────┐
-  paste / upload │  Dashboard (static HTML/CSS/JS + Cytoscape)  │
+  paste / upload │  Dashboard (static HTML/CSS/JS, no framework) │
   ──────────────▶│  demo mode: scores a bundled dataset in-page │
                  └───────────────┬──────────────────────────────┘
                                  │ REST (JSON)
@@ -67,11 +67,12 @@ summary, evidence, MITRE ATT&CK mapping and containment actions included.
 ```
 
 **Stack:** Python 3.12 · FastAPI · httpx (async) · SQLAlchemy 2.0 (async) · PostgreSQL/SQLite ·
-Redis · Celery + beat · vanilla JS dashboard · Cytoscape.js · Docker Compose.
+Redis · Celery + beat · vanilla JS dashboard · Docker Compose.
 
-**Dashboard:** keyboard-first and dense, in the shape analysts already know — a command palette on
-<kbd>⌘K</kbd>, `g i` / `g g` / `g t` / `g h` to move between views, deep-linkable tabs, a collapsible
-rail, and dark/light themes that were each designed against their own surface. The data-viz colours
+**Dashboard:** one console, dense, in the shape analysts already know — the workbench, the campaign
+graph and the posture views share one sidebar, every view has its own address (`#/console/workbench`),
+the rail collapses and stays with you down a long page, and dark/light themes were each designed
+against their own surface. The data-viz colours
 are computed, not chosen: the evidence ramp passes the full ordinal gate on both surfaces, and
 severity is encoded three times over (hue + glyph + text) because SOC semantics force red, orange and
 amber to sit next to each other. No framework, no build step — three static files serve identically
@@ -180,11 +181,12 @@ type and verdict. Indicators are defanged in the report so a ticket comment can 
 | Page | What it is |
 | --- | --- |
 | `web/index.html` | The site and the operator console — what a visitor lands on. A light, sky-gradient landing page that explains the correlation model, and a console route (`#/console`) with the posture metrics, severity split and attack-surface gauge. |
-| `web/workbench.html` | The analyst tool. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket. This is the one with the command palette and the live-API toggle. |
-| `web/explorer.html` | The campaign graph — one investigation drawn as a radial map with a first-seen timeline. |
-
-They share the demo dataset and the scoring engine, so a number shown on the landing page is the same
-number the workbench computes.
+| `#/console/workbench` | The analyst tool, as a console view. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket, switch between demo data and the live API. |
+| `#/console/campaigns` | The campaign graph — one synthetic investigation drawn as a radial map, with a first-seen timeline and a severity filter. |
+The workbench and the graph used to be separate pages, `web/workbench.html` and `web/explorer.html`,
+with a look of their own. They are console views now, so they share the console's sidebar, header,
+theme and type; the old addresses redirect. Everything shares the demo dataset and the scoring engine,
+so a number shown on the landing page is the same number the workbench computes.
 
 The landing page is deliberately a *page*, not an app shell: it has one accent colour, one typeface
 pair, glass panels over a sky gradient, reveal-on-scroll for every section, a sources rail that scrolls
@@ -217,23 +219,15 @@ which for a tool that explains how a security verdict was reached is the only ac
 
 ## Using it
 
-| Key | Action |
-| --- | --- |
-| `⌘K` / `Ctrl-K` | Command palette — every action, fuzzy-searched |
-| `⌘↵` | Run triage |
-| `/` | Focus the ingest box |
-| `g i` · `g g` · `g t` · `g h` | Indicators · Graph · SOC ticket · History |
-| `t` | Cycle theme (dark → light → system) |
-| `[` | Collapse the rail |
-| `?` | Shortcut sheet |
+Open **Workbench** in the console sidebar, paste an alert (or pick one of the sample alerts) and run
+it — <kbd>Ctrl</kbd>+<kbd>↵</kbd> or <kbd>⌘</kbd>+<kbd>↵</kbd> from the box does the same. In the
+graphs, <kbd>Tab</kbd> reaches every node and <kbd>Enter</kbd> opens it; <kbd>Escape</kbd> closes the
+scoring dialog and the graph readout.
 
 Every indicator opens to show **why** it scored what it did: a contribution bar per source (with a
 table view), the rationale each vendor gave in its own words, the modifiers that were applied, and a
 **Scoring math** button that prints the actual arithmetic — weighted mean, authority floor, final
 verdict. Nothing about a score is hidden behind the number.
-
-There are a few easter eggs. They are listed in [docs/DESIGN.md](docs/DESIGN.md), which rather
-defeats the point, so: the Konami code does something, and so does starting a paste with `sudo`.
 
 ## Demo mode vs live mode
 
@@ -253,10 +247,10 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ```bash
 make test        # 166 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls
-make test-web    # 51 node tests: engine parity, console model, design-system guards
-make test-ui     # Chromium: the workbench suite (XSS, hostile URLs, degradation, palette,
-                 # theming, a11y) plus the site suite (every control, the side rail, routing)
-                 # and the phone/tablet/assistant suite
+make test-web    # 56 node tests: engine parity, console model, design-system guards
+make test-ui     # Chromium: the workbench and graph suite (XSS, hostile URLs, degradation,
+                 # evidence, both graphs, diffs, a11y) plus the site suite (every control, the
+                 # side rail, routing) and the phone/tablet/assistant suite
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```
@@ -279,8 +273,10 @@ authority floor and verdict bands as the Python one, so demo mode cannot quietly
 real pipeline. The UI suite drives a real Chromium: it pastes `<script>`, `<img onerror>` and
 `javascript:` payloads into the ingest field and asserts nothing executes, feeds the renderer a
 hostile provider response and asserts the link is dropped, and kills the backend mid-request to check
-the page degrades instead of freezing. It also drives the command palette, the key sequences, the
-theme cycle and the charts, and asserts zero horizontal overflow at 390 / 768 / 1024 / 1440px.
+the page degrades instead of freezing. It also drives the evidence charts, the scoring dialog (focus
+in, `Escape`, focus back), both graphs by keyboard, the triage diff and the view's own lifecycle —
+leave it and come back, and the draft is still there — and asserts zero horizontal overflow at
+390 / 768 / 1024 / 1440px.
 
 `web/tests/suite.spec.mjs` covers the site and console in front of it, and the rule it exists to
 enforce is that **every control a visitor can see does something**: it enumerates every visible
