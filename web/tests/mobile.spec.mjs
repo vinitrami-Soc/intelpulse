@@ -220,16 +220,28 @@ for (const [name, width, height] of [
     els.map((el) => ({ text: el.textContent.trim(), clipped: el.scrollWidth > el.clientWidth + 1 })));
   check("severity labels are not cut short", bands.length === 5 && bands.every((b) => !b.clipped),
     bands.map((b) => b.text).join(", "));
+  /* This used to assert the table *scrolls* sideways on a phone. That was the
+     mechanism, not the requirement: below 560px the table now stacks into one
+     block per row, so nothing is squeezed and nothing needs scrolling either.
+     What actually has to hold is what the original bug was about — the table
+     stays inside its card, and no cell is cut off or parked off-screen. */
   const table = await page.evaluate(() => {
     const wrap = document.querySelector("#console-body .table-wrap");
     const card = wrap.closest(".card");
+    const cells = [...wrap.querySelectorAll("td")];
     return {
       spill: Math.round(wrap.getBoundingClientRect().right - card.getBoundingClientRect().right),
-      scrolls: wrap.scrollWidth > wrap.clientWidth
+      reachable: wrap.scrollWidth <= wrap.clientWidth + 1
+        || /auto|scroll/.test(getComputedStyle(wrap).overflowX),
+      clipped: cells.filter((td) => td.scrollWidth > td.clientWidth + 1).length,
+      offscreen: cells.filter((td) => td.getBoundingClientRect().right > innerWidth + 1).length,
+      cells: cells.length
     };
   });
-  check("the findings table stays in its card and scrolls instead of squeezing",
-    table.spill <= 0 && table.scrolls, "spill " + table.spill + "px");
+  check("the findings table stays in its card with nothing cut off",
+    table.spill <= 0 && table.reachable && table.clipped === 0 && table.offscreen === 0,
+    "spill " + table.spill + "px, " + table.cells + " cells, " + table.clipped
+      + " clipped, " + table.offscreen + " off-screen");
   await context.close();
 }
 
@@ -356,6 +368,50 @@ for (const [name, width, height] of [
   check("it answers what it claims to know", wrong.length === 0,
     wrong.length ? wrong.slice(0, 3).join("; ") : QA.length + " questions, all correct");
 
+  /* ── The questions a person actually opens an assistant to ask ──────────
+     Reported from a phone: "Who is the owner of this tool" and "What is the
+     name of this tool" both got "I do not have an answer for that one". An
+     assistant that cannot name the thing it is embedded in reads as broken,
+     whatever it knows about scoring weights. These are the plain ones. */
+  const BASICS = [
+    // identity — it must know what it is and whose it is
+    ["what is the name of this tool", "IntelPulse"],
+    ["who is the owner of this tool", "Vinit Rami"],
+    ["who made this", "Vinit Rami"],
+    ["who built this tool", "Vinit Rami"],
+    ["what does intelpulse mean", "pulse"],
+    // overview — the "explain it to me" request
+    ["give me an overview", "IntelPulse"],
+    ["explain this in simple words", "indicator"],
+    ["what problem does this solve", "analyst"],
+    ["why was this built", "analyst"],
+    ["what is this website", "IntelPulse"],
+    // conversation — a greeting is not an error
+    ["hi", "IntelPulse"],
+    ["hello there", "IntelPulse"],
+    ["thanks", "welcome"],
+    ["who are you", "assistant"],
+    ["are you chatgpt", "browser"],
+    // practical — the questions before someone uses it
+    ["is it free", "MIT"],
+    ["is this open source", "MIT"],
+    ["where is the code", "GitHub"],
+    ["can i self host this", "docker"],
+    ["do you store my data", "nothing"]
+  ];
+  let missing = [];
+  for (const [question, want] of BASICS) {
+    const answer = await ask(question);
+    if (!answer.toLowerCase().includes(want.toLowerCase())) {
+      missing.push(question + " (wanted \u201c" + want + "\u201d, got \u201c"
+        + answer.replace(/\s+/g, " ").slice(0, 40) + "\u2026\u201d)");
+    }
+  }
+  check("it answers the plain questions a person opens it to ask",
+    missing.length === 0,
+    missing.length ? missing.length + "/" + BASICS.length + " unanswered: " + missing.join(" | ")
+      : BASICS.length + " questions, all answered");
+
   const dunno = await ask("what is the best pizza in Naples");
   check("it says it does not know rather than inventing an answer",
     dunno.includes("do not have an answer"), dunno.replace(/\s+/g, " ").slice(0, 60));
@@ -415,6 +471,58 @@ for (const [name, width, height] of [["desktop", 1440, 900], ["tablet", 768, 102
   });
   check("the assistant fits its panel on " + name, fit.spill <= 0 && fit.onScreen && fit.pageOverflow === 0,
     "spill " + fit.spill + "px, on screen " + fit.onScreen + ", page over " + fit.pageOverflow + "px");
+  await context.close();
+}
+
+/* ── Nothing may be clipped out of reach ────────────────────────────────
+ *
+ * The file header already says a page can report zero horizontal overflow and
+ * still be unusable on a phone. This is that bug again, one layer down, and it
+ * shipped: `.console-main` is a grid whose single implicit track is sized
+ * `auto`, so it resolved to the 520px min-width of the widest table instead of
+ * to the 359px column it sits in. `.table-wrap` was therefore never narrower
+ * than its own table, its `overflow-x: auto` never engaged, and
+ * `.console { overflow-x: hidden }` quietly cut the Weight and Authority
+ * columns off the screen with no way to scroll to them.
+ *
+ * "No page overflow" passed the whole time. So the assertion here is not about
+ * overflow — it is that every scroll container is either wide enough for its
+ * content or actually scrollable, and that nothing is clipped by an ancestor
+ * that cannot scroll either.
+ */
+for (const [name, width] of [["phone", 390], ["small phone", 360], ["tablet", 768]]) {
+  const { page, context } = await phone(width, 844);
+  for (const pane of ["sources", "dashboard", "triage", "activity"]) {
+    await page.goto(BASE + "index.html#/console/" + pane, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(500);
+    const stranded = await page.evaluate(() => {
+      const bad = [];
+      for (const el of document.querySelectorAll("table")) {
+        const right = el.getBoundingClientRect().right;
+        if (right <= window.innerWidth + 1) continue;   // fully on screen already
+        // Something sticks out past the right edge. Can the reader get to it?
+        let reachable = false;
+        for (let n = el.parentElement; n; n = n.parentElement) {
+          const cs = getComputedStyle(n);
+          if (/auto|scroll/.test(cs.overflowX) && n.scrollWidth > n.clientWidth + 1) {
+            reachable = true; break;
+          }
+        }
+        const doc = document.documentElement;
+        if (doc.scrollWidth > doc.clientWidth + 1) reachable = true;  // page scrolls
+        if (!reachable) {
+          bad.push(Math.round(right - window.innerWidth) + "px of a table unreachable");
+        }
+      }
+      return bad;
+    });
+    check("no table is clipped out of reach on " + name + " (" + pane + ")",
+      stranded.length === 0, stranded.length ? stranded.join(", ") : "all reachable");
+  }
+  // And the fix must not reintroduce page-level sideways scroll.
+  const over = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  check("still no sideways page scroll on " + name, over === 0, over + "px over");
   await context.close();
 }
 

@@ -273,9 +273,11 @@
             ? emptyState("No indicators yet",
                 "Run a triage in the workbench and the findings will land here.")
             : '<div class="table-wrap"><table class="table"><thead><tr><th>Indicator</th><th>Type</th><th>Severity</th><th>Sources</th><th>Seen</th></tr></thead><tbody>' +
-          DATA.findings.map((f) => '<tr><td class="mono" title="' + f.ioc + '">' + f.ioc + "</td><td>" + f.type +
-            '</td><td><span class="pill-sev ' + f.sev + '">' + f.sev + "</span></td><td>" + f.src +
-            '</td><td style="color:var(--ink-3)">' + f.seen + "</td></tr>").join("") + "</tbody></table></div>")) +
+          DATA.findings.map((f) => '<tr><td data-label="Indicator" class="mono" title="' + f.ioc + '">' + f.ioc +
+            '</td><td data-label="Type">' + f.type +
+            '</td><td data-label="Severity"><span class="pill-sev ' + f.sev + '">' + f.sev + "</span></td>" +
+            '<td data-label="Sources">' + f.src +
+            '</td><td data-label="Seen" style="color:var(--ink-3)">' + f.seen + "</td></tr>").join("") + "</tbody></table></div>")) +
       "</section>" +
       '<section class="card panel">' +
         '<div class="panel-head"><h4>Attack surface</h4>' +
@@ -310,11 +312,11 @@
   }
 
   function sourcesMarkup() {
-    const row = (src) => '<tr><td><strong>' + src.name + "</strong><br>" +
+    const row = (src) => '<tr><td data-label="Source"><strong>' + src.name + "</strong><br>" +
       '<span style="color:var(--ink-3);font-size:11.5px">' + src.note + "</span></td>" +
-      '<td><span class="tag ' + src.kind + '">' + src.kind + "</span></td>" +
-      '<td class="mono">' + (src.weight ? src.weight.toFixed(2) : "\u2014") + "</td>" +
-      '<td class="mono">' + (src.authority ? src.authority.toFixed(2) : "\u2014") + "</td></tr>";
+      '<td data-label="Kind"><span class="tag ' + src.kind + '">' + src.kind + "</span></td>" +
+      '<td data-label="Weight" class="mono">' + (src.weight ? src.weight.toFixed(2) : "\u2014") + "</td>" +
+      '<td data-label="Authority" class="mono">' + (src.authority ? src.authority.toFixed(2) : "\u2014") + "</td></tr>";
     return '<section class="card panel">' +
       '<div class="panel-head"><h4>Every source, and what its word is worth</h4></div>' +
       '<p style="color:var(--ink-2);font-size:12.5px;margin-bottom:12px">Weight decides how much a source ' +
@@ -756,8 +758,11 @@
         acts: ["console", "workbench"] },
 
       { id: "help",
+        /* "who are you" and "what are you" moved to the whoami entry: asked that
+           directly, people want to know whether they are talking to a language
+           model, and a capability menu does not answer it. */
         keys: ["help", "what can you do", "what can i ask", "what do you know", "options",
-          "commands", "how do you work", "what are you", "who are you", "capabilities"],
+          "commands", "capabilities", "what else can you tell me"],
         html: "<p>I answer from this project's documentation and the dataset already on this page. " +
               "No model is called and nothing leaves the tab, so I would rather say I do not know " +
               "than invent something.</p>" +
@@ -769,9 +774,13 @@
         acts: ["scoring", "sources", "workbench", "home"] },
 
       { id: "what",
-        keys: ["what is intelpulse", "what does it do", "what is this", "tell me about intelpulse",
-          "intelpulse", "overview", "purpose", "about this project", "about intelpulse",
-          "who built this", "who made this", "why does this exist", "what am i looking at"],
+        /* "who built this", "why does this exist", "overview" and "purpose" used to
+           live here as a rough catch-all. They have their own entries now
+           (owner, why, overview) and leaving the keys in both meant this entry
+           won the tie on KB order, so "who made this" answered with the product
+           pitch instead of naming the person. One question, one owner. */
+        keys: ["what is intelpulse", "what does it do", "tell me about intelpulse",
+          "intelpulse", "about this project", "about intelpulse", "what am i looking at"],
         html: "<p><strong>IntelPulse correlates one alert across every intelligence source in a single pass.</strong></p>" +
               "<p>Paste an indicator list, a raw syslog line or a JSON alert export. It pulls the indicators out, " +
               "queries every applicable source concurrently, scores them into one auditable verdict, maps how they " +
@@ -935,14 +944,104 @@
         acts: ["theme"] },
 
       { id: "tests",
-        keys: ["tests", "tested", "quality", "how is it tested", "coverage"],
-        html: "<p>63 backend tests (extraction, scoring, API contract, reports, security controls), 21 node tests " +
-              "(the JavaScript engine pinned to the Python rules, plus design-system guards), and browser suites " +
-              "that drive a real Chromium.</p>" +
-              "<p>One of them clicks every visible button on this page and fails if any of them does nothing.</p>" },
+        keys: ["tests", "tested", "quality", "how is it tested", "coverage", "how many tests",
+          "is it tested", "test suite", "ci"],
+        html: "<p><strong>166 backend tests</strong> (extraction, scoring, API contract, reports, " +
+              "security controls, and a 3,400-line extraction corpus), <strong>51 node tests</strong> " +
+              "(the JavaScript engine pinned to the Python rules, the console arithmetic, " +
+              "design-system guards) and <strong>233 Chromium checks</strong> across the workbench, " +
+              "the site and phone/tablet.</p>" +
+              "<p>One of them clicks every visible button on this page and fails if any of them " +
+              "does nothing. Another one caught this answer being out of date.</p>" },
+
+      { id: "accuracy",
+        keys: ["how accurate", "accuracy", "precision", "recall", "how good is it",
+          "does it make mistakes", "false positives rate", "how reliable", "benchmark",
+          "is it any good", "can i trust it"],
+        html: "<p>Extraction is measured, not asserted: <strong>100% precision and 100% recall</strong> " +
+              "over 9,325 expected indicators across 3,400 generated log lines in 15 formats.</p>" +
+              "<p>Read that sceptically, and I would rather say so than sell it. That is a score " +
+              "against a corpus this project generates, not against the world — it means the " +
+              "extractor satisfies its own documented contract on the shapes it was shown. It was " +
+              "already 100% before two of the five bugs it later found had traps written for them.</p>" +
+              "<p>The scoring step has no accuracy figure at all, because it has no learned " +
+              "parameters: it is a fixed formula you can check by hand.</p>",
+        acts: ["scoring"] },
+
+      { id: "different",
+        keys: ["what makes this different", "why not just use virustotal", "how is this different",
+          "why not use", "compared to", "versus", "vs", "alternative", "what is special"],
+        html: "<p>Three things, and none of them is more data.</p>" +
+              "<p><strong>The arithmetic is visible.</strong> The score comes from a fixed formula " +
+              "with zero learned parameters, so the same input always gives the same verdict and " +
+              "you can recompute it yourself from the evidence shown.</p>" +
+              "<p><strong>Disagreement is kept, not averaged away.</strong> One confirmed ThreatFox " +
+              "listing still reads critical when four quiet sources disagree.</p>" +
+              "<p><strong>Silence is not innocence.</strong> A source with no key configured reports " +
+              "<code>skipped</code> and never <code>clean</code> — the difference matters when " +
+              "somebody reads the ticket six months later.</p>",
+        acts: ["scoring", "evidence"] },
+
+      { id: "limits",
+        keys: ["how big a file", "can it handle a big file", "large file", "file size limit",
+          "how fast", "speed", "performance", "how many lines", "throughput", "limits",
+          "max size", "how long does it take"],
+        html: "<p>Uploads are capped at <strong>5 MB</strong>; one paste at 200,000 characters.</p>" +
+              "<p>Measured: about <strong>11,300 lines a second</strong> one line at a time, and " +
+              "<strong>15,000 a second</strong> for a single paste, flat in input size. A full " +
+              "5 MB upload — around 33,000 lines — extracts in 1.4 seconds.</p>" +
+              "<p>It used to take 14.1 seconds and block every other request on the worker. Two " +
+              "loops were rescanning the whole input once per match; a benchmark found it, and a " +
+              "test now fails if the quadratic comes back.</p>" },
+
+      { id: "sourcedown",
+        keys: ["what if a source is down", "source is down", "api down", "vendor down",
+          "rate limited", "what if it fails", "no api key", "if a source fails",
+          "what happens if", "error handling", "timeout"],
+        html: "<p>The verdict still lands, and it says what it did not hear from.</p>" +
+              "<p>Every source is asked concurrently with its own timeout. One that errors, times " +
+              "out or has no key configured reports <code>skipped</code> — never <code>clean</code>. " +
+              "The score is then computed from the sources that did answer, and the ticket names " +
+              "the ones that did not.</p>" +
+              "<p>That distinction is the whole point: an absent answer is not a good answer.</p>",
+        acts: ["sources"] },
+
+      { id: "example",
+        keys: ["show me an example", "give me an example", "example", "demo", "try it",
+          "sample", "what should i paste", "what can i paste", "show me how"],
+        html: "<p>Paste this into the workbench — it is a firewall line with deliberate traps in it:</p>" +
+              "<p><code>SRC=100.64.9.14 DST=10.0.0.5 DPT=445</code><br>" +
+              "<code>SRC=185.220.101.34 DST=10.0.0.5 DPT=22</code><br>" +
+              "<code>Image=C:\\Users\\Public\\svchost.exe User=j.doe</code><br>" +
+              "<code>GET https://invoice-2026.zip/setup.exe 200</code></p>" +
+              "<p>You should get two indicators and one URL. The rest is dropped on purpose: " +
+              "<code>100.64.9.14</code> is carrier-grade NAT, <code>10.0.0.5</code> is RFC 1918, " +
+              "<code>svchost.exe</code> is a filename and <code>j.doe</code> is a username — none " +
+              "of which should ever be sent to a threat-intel vendor.</p>",
+        acts: ["workbench"] },
+
+      { id: "status",
+        keys: ["is this a real product", "real product", "is this real", "is it production ready",
+          "production", "is this a demo", "is it a toy", "is this serious", "commercial",
+          "is it finished", "is this live", "do people use this", "is it maintained"],
+        html: "<p>It is a real, working tool and it is not a commercial product — both of those " +
+              "are true and it would be dishonest to lead with only one.</p>" +
+              "<p>What is real: the backend runs, queries live vendor APIs, scores, graphs and " +
+              "raises tickets into Jira and ServiceNow. 166 backend tests, 233 browser checks, CI " +
+              "on every push, and the extraction step is measured against a 3,400-line corpus.</p>" +
+              "<p>What it is not: hosted for you, load-tested by anyone, or supported. This page " +
+              "is a demo on bundled synthetic data with no backend behind it. Run it yourself with " +
+              "docker compose and it is the whole thing.</p>",
+        acts: ["workbench", "how"] },
+
+      { id: "bye",
+        keys: ["bye", "goodbye", "see you", "later", "thats all", "that is all", "done",
+          "nothing else", "close", "exit"],
+        html: "<p>Right you are. Press Escape to close this, or <kbd>?</kbd> to bring it back.</p>" },
 
       { id: "stack",
-        keys: ["stack", "built with", "technology", "tech", "framework", "language"],
+        keys: ["stack", "built with", "technology", "tech", "framework", "language",
+          "languages", "what languages", "written in", "programming language"],
         html: "<p>Backend: FastAPI, async httpx with concurrent fan-out, SQLAlchemy 2.0, Celery + Redis, PostgreSQL " +
               "(SQLite for local runs).</p>" +
               "<p>Front end: no framework and no build step. Plain HTML, a CSS custom-property token system and " +
@@ -995,7 +1094,152 @@
             ".</p><p><strong>" + esc(peak.m) + "</strong> is the peak at " + peak.v +
             " — the month worth asking a question about.</p>";
         },
-        acts: ["console"], src: "the sample dataset on this page" }
+        acts: ["console"], src: "the sample dataset on this page" },
+
+      /* ── Identity, overview and ordinary conversation ────────────────────
+         Reported from a phone: "what is the name of this tool" and "who is the
+         owner" both fell through to "I do not have an answer". Sixteen of the
+         twenty plainest questions did. An assistant that cannot name the thing
+         it is embedded in reads as broken however much it knows about weights,
+         and "I don't know" is the one answer a visitor will not forgive for a
+         question the page itself answers in its heading. */
+
+      { id: "name",
+        keys: ["name of this tool", "name of the tool", "what is this called", "what is it called",
+          "tool name", "project name", "whats this called", "what is the name", "called",
+          "name of this project", "name of this website", "name of this app"],
+        html: "<p>This is <strong>IntelPulse</strong> — a threat-intelligence correlation and " +
+              "triage workbench.</p><p>You paste an alert, raw syslog or a JSON export; it pulls " +
+              "out the indicators, asks five intelligence sources about them at once, scores what " +
+              "comes back into one verdict you can audit, and writes the ticket.</p>",
+        acts: ["workbench", "how"] },
+
+      { id: "owner",
+        keys: ["who is the owner", "owner of this tool", "who made this", "who made it",
+          "who built this", "who built it", "who created this", "who created it", "author",
+          "developer", "who wrote this", "whose project", "who owns this", "creator",
+          "who is behind this", "made by", "built by", "portfolio of"],
+        html: "<p>Built by <strong>Vinit Rami</strong>, a cybersecurity analyst — CEH v13, VAPT " +
+              "across finance, healthcare and government, currently on an MSc in Cyber Security " +
+              "at the University of Portsmouth.</p>" +
+              "<p>IntelPulse is part of his portfolio: the code is MIT-licensed and public, the " +
+              "photographs and CV are not.</p>",
+        acts: ["home", "workbench"] },
+
+      { id: "meaning",
+        keys: ["what does intelpulse mean", "why intelpulse", "meaning of the name",
+          "why is it called intelpulse", "where does the name come from"],
+        html: "<p><em>Intel</em> for the intelligence sources it correlates, <em>pulse</em> for " +
+              "the thing it is actually measuring — whether an indicator is alive and being used " +
+              "right now, not whether it appeared on a list once in 2019.</p>" +
+              "<p>That is also why a GreyNoise \u201cbenign scanner\u201d result pulls a score " +
+              "down rather than leaving it alone.</p>",
+        acts: ["scoring", "sources"] },
+
+      { id: "overview",
+        keys: ["overview", "give me an overview", "explain this", "explain it", "simple words",
+          "in simple terms", "explain in simple", "summary", "summarise", "summarize",
+          "what is this website", "what is this site", "what is this page", "what is this thing",
+          "tell me everything", "walk me through", "give me a tour", "the whole thing",
+          "explain like i am five", "eli5", "what does this do", "what does it do"],
+        html: "<p><strong>IntelPulse</strong> turns one pasted alert into one auditable verdict. " +
+              "The short version, in order:</p>" +
+              "<p><strong>1. Paste.</strong> An alert, a firewall line, a Windows event as JSON — " +
+              "whatever your SIEM gave you. It reads 15 log formats and pulls the indicators out: " +
+              "IPs, domains, URLs, hashes, emails and CVEs.</p>" +
+              "<p><strong>2. Ask.</strong> Five sources are queried at once — AbuseIPDB, OTX, " +
+              "GreyNoise, ThreatFox, URLhaus — plus offline blocklists and GeoIP.</p>" +
+              "<p><strong>3. Score.</strong> One number out of 100, from a fixed formula with no " +
+              "learned parameters, so the same input always gives the same answer and you can " +
+              "check the arithmetic yourself.</p>" +
+              "<p><strong>4. Hand over.</strong> A relationship graph, and a ticket you can raise " +
+              "straight into Jira or ServiceNow.</p>" +
+              "<p>The point is the twenty minutes an analyst spends copying one IP into five tabs.</p>",
+        acts: ["workbench", "scoring"] },
+
+      { id: "why",
+        keys: ["what problem does this solve", "why was this built", "why was it made",
+          "why does this exist", "what is the point", "who is this for", "what is it for",
+          "use case", "why would i use this", "what is the purpose", "purpose"],
+        html: "<p>A SOC analyst gets an alert with an IP in it. The job is to decide, quickly, " +
+              "whether it matters. Doing that by hand means opening five vendor tabs, reading " +
+              "five different answers, and holding the disagreement in your head.</p>" +
+              "<p>That is twenty minutes an alert, it is inconsistent between analysts, and at " +
+              "3am it is where mistakes come from. IntelPulse does the five lookups in one pass " +
+              "and shows its working, so the verdict is reproducible and the evidence is still " +
+              "there when somebody reads the ticket six months later.</p>",
+        acts: ["how", "evidence"] },
+
+      { id: "greeting",
+        keys: ["hi there", "hello there", "hey there", "good morning", "good evening",
+          "good afternoon", "howdy", "yo", "namaste"],
+        html: "<p>Hello. I answer questions about IntelPulse — what it is, how it scores, which " +
+              "sources it asks, what the numbers on this page mean, and where everything lives.</p>" +
+              "<p>If you would rather just look: the workbench is where you paste an alert.</p>",
+        acts: ["workbench", "console"] },
+
+      { id: "thanks",
+        keys: ["thank you", "thanks a lot", "cheers", "appreciated", "nice one", "thankyou",
+          "that helps", "helpful", "got it thanks"],
+        html: "<p>You are welcome. Ask me anything else about the scoring, the sources or the " +
+              "data on this page.</p>",
+        acts: ["scoring", "sources"] },
+
+      { id: "whoami",
+        keys: ["who are you", "what are you", "are you an ai", "are you a bot", "are you chatgpt",
+          "are you claude", "are you gpt", "which model", "what model are you", "are you real",
+          "how do you work", "are you human"],
+        html: "<p>I am this page's assistant, and I am deliberately not a language model.</p>" +
+              "<p>I read this project's own documentation and the dataset already loaded in your " +
+              "browser, then match your question against it. No model is called, no API key " +
+              "exists, and nothing you type leaves this tab.</p>" +
+              "<p>The trade is honest: I will not improvise, so I answer what I have been given " +
+              "and say so plainly when a question is outside it.</p>",
+        acts: ["sources", "scoring"] },
+
+      { id: "licence",
+        keys: ["is it free", "is this free", "does it cost", "is it open source", "open source",
+          "licence", "license", "mit", "can i use this", "can i copy this", "can i fork",
+          "is it paid", "pricing", "how much does it cost"],
+        html: "<p>Free, and open source. The code is <strong>MIT</strong> — use it, fork it, " +
+              "build your own thing with it.</p>" +
+              "<p>Two things are not MIT: the photographs and CV on the portfolio side, which " +
+              "are all rights reserved, and the bundled fonts, which carry the SIL Open Font " +
+              "Licence. Reusing the code is welcome; reusing somebody's identity is not.</p>",
+        acts: ["home"] },
+
+      { id: "code",
+        keys: ["where is the code", "source code", "github", "repo", "repository", "git",
+          "can i see the code", "where can i find the code", "show me the source"],
+        html: "<p>On GitHub, in the same repository as this site: " +
+              "<code>vinitrami-Soc/vinitrami-Soc.github.io</code>, under <code>intelpulse/</code>.</p>" +
+              "<p>The backend is FastAPI with 166 tests, the dashboard is static files with no " +
+              "build step, and <code>docs/</code> carries the scoring model, the API reference, " +
+              "the security posture and the extraction benchmark.</p>",
+        acts: ["how", "scoring"] },
+
+      { id: "selfhost",
+        keys: ["self host", "selfhost", "host it myself", "run it locally", "run my own",
+          "can i deploy this", "deploy it", "docker", "docker compose", "on my machine",
+          "set it up", "how do i set this up"],
+        html: "<p><code>cd intelpulse &amp;&amp; cp .env.example .env &amp;&amp; docker compose " +
+              "up --build</code> — API on <code>:8000/docs</code>, dashboard on <code>:8080</code>.</p>" +
+              "<p>That brings up the API, a worker, Redis, Postgres and nginx. It runs without a " +
+              "single API key: every source that has no key reports <code>skipped</code> rather " +
+              "than pretending to be clean.</p>",
+        acts: ["workbench"] },
+
+      { id: "privacy",
+        keys: ["do you store my data", "is my data safe", "privacy", "do you track me",
+          "analytics", "cookies", "do you log", "what do you do with my data",
+          "is it private", "telemetry"],
+        html: "<p>This page stores nothing and sends nothing. No analytics, no telemetry, no " +
+              "cookies, no backend — the demo dataset is bundled and the assistant runs in your " +
+              "tab.</p>" +
+              "<p>Run the real backend and what leaves is only what you chose to look up, to the " +
+              "vendors you configured. Outbound requests are checked against an allowlist, so a " +
+              "hostile indicator cannot make the server call somewhere it should not.</p>",
+        acts: ["sources"] }
     ];
 
     const CHIPS = [
@@ -1018,7 +1262,20 @@
       "about the project": "what", "info": "what", "tell me more": "what",
       "help": "help", "menu": "help", "what else": "help",
       "top": "top", "up": "top",
-      "home": "home", "back": "home", "main": "home"
+      "home": "home", "back": "home", "main": "home",
+      /* A greeting is a whole question or it is nothing: "hi" must not score
+         against "this", and "hey" must not reach "they". */
+      "hi": "greeting", "hello": "greeting", "hey": "greeting", "yo": "greeting",
+      "hiya": "greeting", "hi there": "greeting", "hello there": "greeting",
+      "good morning": "greeting", "good evening": "greeting", "namaste": "greeting",
+      "thanks": "thanks", "thank you": "thanks", "ty": "thanks", "cheers": "thanks",
+      "thx": "thanks", "nice": "thanks", "great": "thanks", "perfect": "thanks",
+      /* Asked bare, these mean "the whole thing", not any one section. */
+      "overview": "overview", "summary": "overview", "explain": "overview",
+      "what is this": "overview", "whats this": "overview", "tour": "overview",
+      "name": "name", "owner": "owner", "author": "owner", "creator": "owner",
+      "licence": "licence", "license": "licence", "code": "code", "github": "code",
+      "privacy": "privacy", "docker": "selfhost"
     };
 
     function match(question) {

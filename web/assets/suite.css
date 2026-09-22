@@ -336,7 +336,15 @@ button { font-family: inherit; cursor: pointer; }
 .badge-n.blue { background: var(--azure-wash); color: var(--azure); }
 
 /* ────────────────────────────────────────────────────── console body */
-.console-main { padding: 16px; display: grid; gap: 14px; align-content: start; background: var(--ground); }
+/* `grid-template-columns` is not decoration here. Without it the single
+   implicit track is sized `auto`, which resolves to the widest child's
+   min-content width — 520px for the sources table — so on a 393px phone the
+   track grew past the column it sits in, `.table-wrap` was never narrower than
+   its own table, its `overflow-x: auto` never engaged, and
+   `.console { overflow-x: hidden }` cut the last two columns off with no way to
+   scroll to them. minmax(0, 1fr) caps the track at the container and lets the
+   wrap do its job. `.console` itself already does this on line 268. */
+.console-main { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; background: var(--ground); }
 .console-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
 @media (max-width: 720px) {
   .head-right { margin-left: 0; width: 100%; flex-wrap: wrap; }
@@ -507,7 +515,27 @@ button { font-family: inherit; cursor: pointer; }
 }
 .tag.live { color: var(--azure); border-color: color-mix(in srgb, var(--azure) 40%, transparent); background: var(--azure-wash); }
 
-.table-wrap { overflow-x: auto; }
+/* Scrolling sideways is the answer on a narrow screen, but two things have to
+   be true or it is not usable: the reader has to know they can, and the row
+   has to stay identifiable once they have. Android draws no resting scrollbar,
+   so the first is solved with a shadow at whichever edge still has content
+   beyond it — `local` gradients move with the content and cover the `scroll`
+   shadows when there is nothing more that way, so it costs no JavaScript and
+   is always in step with the real scroll position. */
+.table-wrap {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;          /* don't chain to the page */
+  background:
+    linear-gradient(to right, var(--paper) 40%, transparent) left center / 34px 100% no-repeat local,
+    linear-gradient(to left,  var(--paper) 40%, transparent) right center / 34px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) left center / 13px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--ink) 16%, transparent), transparent) right center / 13px 100% no-repeat scroll;
+}
+@media (forced-colors: active) {
+  /* The shadow carries the "there is more" meaning and forced colours drop it. */
+  .table-wrap { background: none; border-inline: 1px solid CanvasText; }
+}
+
 .table { width: 100%; min-width: 520px; table-layout: fixed; border-collapse: collapse; font-size: 12.5px; }
 .table th { text-align: left; padding: 8px 10px; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--line); }
 .table th:nth-child(1) { width: 27%; }
@@ -518,6 +546,38 @@ button { font-family: inherit; cursor: pointer; }
 .table td { padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table tbody tr { transition: background-color var(--t-fast); }
 .table tbody tr:hover { background: var(--ground-2); }
+
+/* Below 560px the table stops being a table.
+   A sticky first column was tried first and measured: to keep the name visible
+   AND clear the last column at full scroll on a 320px screen, the name column
+   has to fall to 86px, which is not a name any more. Four columns do not fit a
+   phone, so each row becomes its own block with the header travelling down the
+   left as a label. Nothing is off-screen, nothing needs scrolling sideways, and
+   the reading order is unchanged for a screen reader because the DOM is not. */
+@media (max-width: 560px) {
+  .table-wrap { overflow-x: visible; background: none; }
+  .table { min-width: 0; display: block; }
+  .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .table tbody, .table tr, .table td { display: block; width: auto; }
+  .table tr {
+    border: 1px solid var(--line); border-radius: var(--r-md);
+    padding: 12px 14px; margin-bottom: 10px; background: var(--paper);
+  }
+  .table tr:last-child { margin-bottom: 0; }
+  .table td {
+    padding: 4px 0; border-bottom: 0; white-space: normal;
+    display: grid; grid-template-columns: 8.5em minmax(0, 1fr); gap: 10px; align-items: baseline;
+  }
+  .table td::before {
+    content: attr(data-label);
+    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600;
+  }
+  /* The first cell is the row's title, so it leads rather than being labelled. */
+  .table td:first-child { display: block; padding-bottom: 8px; }
+  .table td:first-child::before { content: none; }
+  .table tbody tr:hover { background: var(--paper); }
+}
 .pill-sev { font-size: 10.5px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-full); }
 .pill-sev.critical { background: var(--ink); color: var(--paper); }
 :root[data-theme="dark"] .pill-sev.critical { background: #f3f5f8; color: #15181d; }
