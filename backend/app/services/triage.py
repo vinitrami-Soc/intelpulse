@@ -141,6 +141,16 @@ async def triage(
     results_by_ioc: dict[str, list[ProviderResult]] = {}
     verdicts: list[IndicatorVerdict] = []
 
+    # One address, one fan-out. Both routers de-duplicate their input, but this
+    # function is also the CLI's entry point, and duplicates arriving here used
+    # to race: N concurrent lookups of the same address, none of which had
+    # written the cache entry the others were about to read. On a free tier
+    # that is N quota units spent on one indicator, not a rounding error.
+    unique: dict[str, Indicator] = {}
+    for indicator in indicators:
+        unique.setdefault(indicator.value, indicator)
+    targets = list(unique.values())
+
     limits = httpx.Limits(max_connections=MAX_CONCURRENT_LOOKUPS, max_keepalive_connections=8)
     # build_client applies the egress policy — HTTPS only, host allowlist, no
     # resolution into private or metadata space — to every hop, redirects
@@ -153,12 +163,12 @@ async def triage(
         enrichments = await asyncio.gather(
             *[
                 enrich_indicator(client, indicator, semaphore=semaphore, use_cache=use_cache)
-                for indicator in indicators
+                for indicator in targets
             ],
             return_exceptions=False,
         )
 
-    for indicator, results in zip(indicators, enrichments, strict=True):
+    for indicator, results in zip(targets, enrichments, strict=True):
         results_by_ioc[indicator.value] = results
         entry = await list_entry_for(indicator.value)
         verdicts.append(score_indicator(indicator, results, list_entry=entry))

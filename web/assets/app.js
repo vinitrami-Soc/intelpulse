@@ -309,7 +309,7 @@
         $("#intro").hidden = false;
         return;
       }
-      state.result = result;
+      state.result = attachDiffs(result);
       pushHistory(result);
       renderResult(result);
     } catch (error) {
@@ -439,6 +439,7 @@
               indicator.providers_answered + "/" + indicator.providers_queried + " sources answered</span></dd>" +
             (indicator.context ? "<dt>log context</dt><dd class=\"mono\" style=\"font-size:11.5px\">" + escapeHtml(indicator.context) + "</dd>" : "") +
           "</dl>" +
+          diffPanel(diffFor(state.result, indicator.value)) +
           C.contributionChart(indicator.evidence, { title: "Why this score" }) +
           ((indicator.modifiers || []).length
             ? '<div class="chart"><div class="chart-head"><span class="chart-title">Modifiers applied</span></div>' +
@@ -508,6 +509,74 @@
       ((indicator.modifiers || []).length ? "modifiers       = " + indicator.modifiers.join("; ") + "\n" : "") +
       "final           = " + indicator.score + "/100 (" + indicator.verdict.toUpperCase() + ")" +
       "</pre>");
+  }
+
+  // ————————————————————————————————————— what changed since last time
+  /* Live mode gets its diffs from the API, which reads the case store. Demo
+     mode has no backend, so it keeps the last snapshot per indicator here and
+     runs the identical comparison from the engine. Both end up with the same
+     shape, so the renderer does not care which one it is looking at. */
+  function attachDiffs(result) {
+    const seen = store.get("snapshots", {});
+    if (!Array.isArray(result.diffs) || !result.diffs.length) {
+      result.diffs = (result.indicators || []).map((indicator) => {
+        const previous = seen[indicator.value];
+        return E.diffSnapshots(
+          E.snapshotOf(indicator),
+          previous ? previous.snapshot : null,
+          { value: indicator.value,
+            previous_case_id: previous ? previous.case_id : null,
+            previous_at: previous ? previous.at : null }
+        );
+      });
+    }
+    (result.indicators || []).forEach((indicator) => {
+      seen[indicator.value] = {
+        snapshot: E.snapshotOf(indicator),
+        case_id: result.case_id,
+        at: new Date().toISOString()
+      };
+    });
+    store.set("snapshots", seen);
+    return result;
+  }
+
+  function diffFor(result, value) {
+    return (result.diffs || []).find((d) => d.value === value) || null;
+  }
+
+  /* One line under the indicator's own verdict. Silent on a first sighting:
+     "nothing to compare" is not worth a row on every new indicator. */
+  function diffPanel(diff) {
+    if (!diff || diff.first_seen) return "";
+    const tone = diff.escalated ? "critical" : diff.de_escalated ? "low" : "informational";
+    const when = diff.previous_at
+      ? new Date(diff.previous_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      : null;
+    const delta = diff.score_delta > 0 ? "+" + diff.score_delta
+      : diff.score_delta < 0 ? String(diff.score_delta) : "0";
+    return '<div class="chart diff-panel"><div class="chart-head">' +
+        '<span class="chart-title">Since the last triage' + (when ? " &middot; " + escapeHtml(when) : "") + "</span>" +
+        /* Deliberately not .badge: that class means a severity band, and
+           "worse" is a direction of travel, not a verdict. */
+        '<span class="diff-tag ' + tone + '">' +
+          (!diff.changed ? "no change" : diff.escalated ? "worse" : diff.de_escalated ? "better" : "changed") +
+        "</span>" +
+      "</div>" +
+      '<dl class="kv"><dt>score</dt><dd class="tnum">' + diff.previous_score + " &rarr; " + diff.score +
+        ' <span style="color:var(--ink-3)">(' + delta + ")</span></dd>" +
+        (diff.verdict_changed
+          ? "<dt>verdict</dt><dd>" + escapeHtml(String(diff.previous_verdict)) + " &rarr; " + escapeHtml(String(diff.verdict)) + "</dd>"
+          : "") +
+        (diff.new_malware_families.length
+          ? "<dt>new malware</dt><dd>" + diff.new_malware_families.map(escapeHtml).join(", ") + "</dd>" : "") +
+        (diff.sources_added.length
+          ? "<dt>now answering</dt><dd>" + diff.sources_added.map(escapeHtml).join(", ") + "</dd>" : "") +
+        (diff.sources_removed.length
+          ? "<dt>stopped answering</dt><dd>" + diff.sources_removed.map(escapeHtml).join(", ") + "</dd>" : "") +
+        (diff.new_attack_ids.length
+          ? "<dt>new techniques</dt><dd>" + diff.new_attack_ids.map(escapeHtml).join(", ") + "</dd>" : "") +
+      "</dl></div>";
   }
 
   // ————————————————————————————————————————— history

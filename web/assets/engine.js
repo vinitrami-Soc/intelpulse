@@ -561,6 +561,87 @@
 
   /* Demo triage never invents vendor data: an indicator outside the bundled
      dataset comes back explicitly "no sample data", not a fabricated score. */
+  /* ─────────────────────────────── what changed since the last triage
+   * A faithful port of backend/app/services/history.py. Same band order, same
+   * rules about which sources count as answering, same summary wording — so a
+   * demo-mode diff reads exactly like a live one. Pinned by the parity tests
+   * in web/tests/engine.test.mjs.
+   */
+  const BANDS = ["informational", "low", "medium", "high", "critical"];
+  const ANSWERED = ["ok", "clean"];
+
+  /* The comparable shape of one indicator, out of a scored result. A provider
+     that was skipped or errored did not answer: counting it would report a
+     vendor outage as an intelligence change. */
+  function snapshotOf(scored) {
+    if (!scored) return { score: 0, verdict: "informational", answering: [], malware_families: [], attack_ids: [] };
+    const uniq = (list) => Array.from(new Set((list || []).map(String))).sort();
+    const attack = (scored.attack_techniques || []).map((t) => (t && t.id ? t.id : t));
+    return {
+      score: Math.round(scored.score || 0),
+      verdict: String(scored.verdict || "informational"),
+      answering: uniq((scored.sources || [])
+        .filter((s) => s && ANSWERED.indexOf(s.status) !== -1 && s.provider)
+        .map((s) => s.provider)),
+      malware_families: uniq(scored.malware_families),
+      attack_ids: uniq(attack)
+    };
+  }
+
+  function summariseDiff(d) {
+    if (d.first_seen) return "First time this indicator has been triaged.";
+    if (!d.changed) return "No change since the last triage.";
+    const parts = [];
+    if (d.verdict_changed && d.escalated) parts.push("Escalated from " + d.previous_verdict + " to " + d.verdict);
+    else if (d.verdict_changed && d.de_escalated) parts.push("Dropped from " + d.previous_verdict + " to " + d.verdict);
+    else if (d.verdict_changed) parts.push("Band changed from " + d.previous_verdict + " to " + d.verdict);
+    else if (d.score_delta) parts.push("Score " + (d.score_delta > 0 ? "up " : "down ") + Math.abs(d.score_delta) + " to " + d.score);
+    if (d.new_malware_families.length) parts.push("new malware: " + d.new_malware_families.join(", "));
+    if (d.sources_added.length) parts.push("now answering: " + d.sources_added.join(", "));
+    if (d.sources_removed.length) parts.push("stopped answering: " + d.sources_removed.join(", "));
+    if (d.new_attack_ids.length) parts.push("new techniques: " + d.new_attack_ids.join(", "));
+    return parts.join("; ") + ".";
+  }
+
+  function diffSnapshots(current, previous, meta) {
+    meta = meta || {};
+    const missing = (a, b) => a.filter((x) => b.indexOf(x) === -1);
+    const d = {
+      value: meta.value || "",
+      score: current.score, verdict: current.verdict,
+      first_seen: false, changed: false,
+      previous_case_id: meta.previous_case_id || null,
+      previous_at: meta.previous_at || null,
+      previous_score: null, previous_verdict: null,
+      score_delta: 0, verdict_changed: false, escalated: false, de_escalated: false,
+      sources_added: [], sources_removed: [],
+      new_malware_families: [], new_attack_ids: [], summary: ""
+    };
+    if (!previous) {
+      d.first_seen = true;
+      d.summary = summariseDiff(d);
+      return d;
+    }
+    d.previous_score = previous.score;
+    d.previous_verdict = previous.verdict;
+    d.score_delta = current.score - previous.score;
+    d.verdict_changed = current.verdict !== previous.verdict;
+    if (d.verdict_changed) {
+      const now = BANDS.indexOf(current.verdict), before = BANDS.indexOf(previous.verdict);
+      /* A band out of storage may predate this release: it compares as changed
+         without claiming a direction. */
+      if (now !== -1 && before !== -1) { d.escalated = now > before; d.de_escalated = now < before; }
+    }
+    d.sources_added = missing(current.answering, previous.answering);
+    d.sources_removed = missing(previous.answering, current.answering);
+    d.new_malware_families = missing(current.malware_families, previous.malware_families);
+    d.new_attack_ids = missing(current.attack_ids, previous.attack_ids);
+    d.changed = Boolean(d.score_delta || d.verdict_changed || d.sources_added.length ||
+      d.sources_removed.length || d.new_malware_families.length || d.new_attack_ids.length);
+    d.summary = summariseDiff(d);
+    return d;
+  }
+
   function demoTriage(text, dataset, options) {
     options = options || {};
     const started = Date.now();
@@ -614,6 +695,7 @@
     scoreIndicator: scoreIndicator, verdictFor: verdictFor, deriveAttackIds: deriveAttackIds,
     containmentActions: containmentActions, executiveSummary: executiveSummary,
     toMarkdown: toMarkdown, toTicketJson: toTicketJson, buildGraph: buildGraph,
-    demoTriage: demoTriage, scoreBar: scoreBar, SEVERITY_SLA: SEVERITY_SLA, uuid: uuid
+    demoTriage: demoTriage, scoreBar: scoreBar, SEVERITY_SLA: SEVERITY_SLA, uuid: uuid,
+    BANDS: BANDS, snapshotOf: snapshotOf, diffSnapshots: diffSnapshots
   };
 });

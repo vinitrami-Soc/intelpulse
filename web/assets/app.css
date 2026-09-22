@@ -469,6 +469,20 @@ a.chip:hover { text-decoration: none; border-color: var(--accent); }
 .fact .fk { color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fact .fv { overflow-wrap: anywhere; }
 
+/* What changed since this indicator was last triaged. Sits directly under the
+   verdict, because "it got worse" is the first thing an analyst needs. */
+.diff-panel { border-left: 3px solid var(--line-2); padding-left: var(--s-3); }
+/* Direction of travel, not a severity band — so it borrows the severity
+   colours without borrowing the .badge class, which means a verdict. */
+.diff-tag {
+  margin-left: auto; display: inline-flex; align-items: center;
+  font: 650 10.5px var(--sans); letter-spacing: .05em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: var(--r-full); border: 1px solid; white-space: nowrap;
+  color: var(--ink-2); border-color: var(--line-2); background: var(--surface-2);
+}
+.diff-tag.critical { color: var(--sev-critical); border-color: color-mix(in srgb, var(--sev-critical) 36%, transparent); background: var(--sev-critical-bg); }
+.diff-tag.low      { color: var(--sev-ok);       border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent);       background: var(--sev-ok-bg); }
+
 .actions { margin: var(--s-2) 0 0; padding-left: 16px; font-size: 12.5px; color: var(--ink-2); }
 .actions li { margin-bottom: 3px; }
 

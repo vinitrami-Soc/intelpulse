@@ -545,6 +545,42 @@ if (process.env.CYTOSCAPE_PATH) {
   console.log("SKIP  the real-Cytoscape checks (set CYTOSCAPE_PATH to run them)");
 }
 
+/* ───────────────────────────── what changed since the last triage
+ * Re-running the same indicator should say so. The first sighting stays
+ * silent on purpose: "nothing to compare" is not worth a row on every new
+ * indicator, and the panel appearing out of nowhere is the signal.
+ */
+{
+  const diffPage = await browser.newPage();
+  await diffPage.goto(BASE, { waitUntil: "domcontentloaded" });
+  await diffPage.waitForTimeout(1300);
+  const triage = async () => {
+    await diffPage.fill("#input", "185.220.101.34");
+    await diffPage.click("#run");
+    await diffPage.waitForTimeout(2100);
+  };
+
+  await triage();
+  check("a first sighting shows no diff panel",
+    (await diffPage.$$(".diff-panel")).length === 0,
+    (await diffPage.$$(".diff-panel")).length + " panels");
+
+  await triage();
+  const panels = await diffPage.$$eval(".diff-panel", (els) =>
+    els.map((el) => el.textContent.replace(/\s+/g, " ").trim()));
+  check("a repeat triage shows what changed", panels.length >= 1, panels.length + " panels");
+  check("identical input reports no change",
+    (panels[0] || "").includes("no change"), (panels[0] || "(none)").slice(0, 80));
+  check("the panel names the previous score",
+    /score\s*\d+\s*→\s*\d+/.test(panels[0] || ""), (panels[0] || "").slice(0, 80));
+
+  const diffErrors = [];
+  diffPage.on("pageerror", (e) => diffErrors.push(String(e)));
+  await triage();
+  check("the diff raises no script errors", diffErrors.length === 0, diffErrors[0]);
+  await diffPage.close();
+}
+
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

@@ -140,3 +140,97 @@ test("indicators outside the demo dataset are not invented", () => {
   assert.equal(result.indicators[0].score, 0);
   assert.ok(result.indicators[0].sources.every((s) => s.status === "skipped"));
 });
+
+/* ─────────────────────────── triage diff parity
+ * The browser engine re-implements backend/app/services/history.py so demo
+ * mode can show the same "what changed" panel with no backend. These pin the
+ * two to the same band order, the same idea of which sources answered, and
+ * the same summary wording — the strings are asserted because they are what
+ * an analyst reads.
+ */
+const snapOf = (over = {}) => E.snapshotOf({
+  score: 50, verdict: "medium", sources: [{ provider: "otx", status: "ok" }],
+  malware_families: [], attack_techniques: [], ...over
+});
+
+test("the diff band order matches the Python one", () => {
+  assert.deepEqual(E.BANDS, ["informational", "low", "medium", "high", "critical"]);
+});
+
+test("only sources that answered count as answering", () => {
+  const s = E.snapshotOf({
+    score: 90, verdict: "critical",
+    sources: [
+      { provider: "urlhaus", status: "ok" },
+      { provider: "otx", status: "clean" },
+      { provider: "threatfox", status: "skipped" },
+      { provider: "greynoise", status: "error" }
+    ],
+    malware_families: ["SamplePhishKit"],
+    attack_techniques: [{ id: "T1566.002" }, { id: "T1566" }]
+  });
+  assert.deepEqual(s.answering, ["otx", "urlhaus"]);
+  assert.deepEqual(s.attack_ids, ["T1566", "T1566.002"]);
+  assert.equal(s.score, 90);
+});
+
+test("a missing result snapshots to the empty shape", () => {
+  assert.deepEqual(E.snapshotOf(null),
+    { score: 0, verdict: "informational", answering: [], malware_families: [], attack_ids: [] });
+});
+
+test("a first sighting says so and claims no delta", () => {
+  const d = E.diffSnapshots(snapOf(), null);
+  assert.equal(d.first_seen, true);
+  assert.equal(d.score_delta, 0);
+  assert.equal(d.summary, "First time this indicator has been triaged.");
+});
+
+test("an unchanged indicator reports no change", () => {
+  const d = E.diffSnapshots(snapOf(), snapOf());
+  assert.equal(d.changed, false);
+  assert.equal(d.summary, "No change since the last triage.");
+});
+
+test("a worse verdict is an escalation, and leads the summary", () => {
+  const d = E.diffSnapshots(
+    snapOf({ score: 92, verdict: "critical", sources: [{ provider: "otx", status: "ok" }, { provider: "threatfox", status: "ok" }] }),
+    snapOf({ score: 40, verdict: "medium" })
+  );
+  assert.equal(d.escalated, true);
+  assert.equal(d.de_escalated, false);
+  assert.equal(d.score_delta, 52);
+  assert.deepEqual(d.sources_added, ["threatfox"]);
+  assert.ok(d.summary.startsWith("Escalated from medium to critical"), d.summary);
+});
+
+test("a better verdict is a de-escalation", () => {
+  const d = E.diffSnapshots(snapOf({ score: 20, verdict: "low" }), snapOf({ score: 80, verdict: "high" }));
+  assert.equal(d.escalated, false);
+  assert.equal(d.de_escalated, true);
+  assert.equal(d.score_delta, -60);
+  assert.ok(d.summary.startsWith("Dropped from high to low"), d.summary);
+});
+
+test("a source going quiet is named, and a lost family is not called new", () => {
+  const d = E.diffSnapshots(
+    snapOf({ sources: [], malware_families: [] }),
+    snapOf({ sources: [{ provider: "greynoise", status: "ok" }], malware_families: ["Gone"] })
+  );
+  assert.deepEqual(d.sources_removed, ["greynoise"]);
+  assert.deepEqual(d.new_malware_families, []);
+  assert.ok(d.summary.includes("stopped answering: greynoise"), d.summary);
+});
+
+test("a band from an older release compares as changed with no direction", () => {
+  const d = E.diffSnapshots(snapOf({ verdict: "medium" }), snapOf({ verdict: "weird-old-band" }));
+  assert.equal(d.verdict_changed, true);
+  assert.equal(d.escalated, false);
+  assert.equal(d.de_escalated, false);
+});
+
+test("a score move with no band change still reads as a delta", () => {
+  const d = E.diffSnapshots(snapOf({ score: 62 }), snapOf({ score: 50 }));
+  assert.equal(d.verdict_changed, false);
+  assert.ok(d.summary.startsWith("Score up 12 to 62"), d.summary);
+});

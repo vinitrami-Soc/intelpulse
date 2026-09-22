@@ -109,6 +109,13 @@ class ProviderResult:
         }
 
 
+# One in-flight fetch per (provider, indicator). Process-local on purpose: the
+# deployment this targets is a single container, and a distributed lock would
+# buy correctness across replicas at the cost of a Redis round trip on the hot
+# path. Entries are removed as soon as the last waiter leaves.
+_inflight: dict[tuple[str, str], asyncio.Lock] = {}
+
+
 class Provider:
     """Base class: subclasses implement `fetch()` only."""
 
@@ -164,6 +171,38 @@ class Provider:
                 if result is not None:
                     return result
 
+        # Single-flight. A cache miss is not the same as "nobody is fetching
+        # this": two analysts triaging the same address in the same second both
+        # miss, both fetch, and the second answer overwrites the first having
+        # spent a second quota unit for it. Callers that want the same pair
+        # queue behind the first and read its result from the cache.
+        if not self.cacheable:
+            return await self._fetch_and_store(client, indicator)
+
+        key = (self.name, indicator.value)
+        lock = _inflight.get(key)
+        if lock is None:
+            lock = _inflight[key] = asyncio.Lock()
+        async with lock:
+            # The holder of the lock has written the cache by the time we get
+            # here, so re-check before spending a call of our own.
+            if use_cache:
+                cached = await cache.get(self.name, indicator.value)
+                if cached is not None:
+                    result = _from_cache(cached, self, indicator)
+                    if result is not None:
+                        return result
+            try:
+                return await self._fetch_and_store(client, indicator)
+            finally:
+                # Only the last holder clears the entry, so the map cannot grow
+                # without bound across a long-running process.
+                if not lock.locked() or _inflight.get(key) is lock:
+                    _inflight.pop(key, None)
+
+    async def _fetch_and_store(
+        self, client: httpx.AsyncClient, indicator: Indicator
+    ) -> ProviderResult:
         started = time.perf_counter()
         try:
             result = await asyncio.wait_for(

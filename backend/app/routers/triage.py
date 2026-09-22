@@ -12,10 +12,25 @@ from ..db import get_session
 from ..ioc import Indicator, classify, extract, summarise
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import ExtractRequest, ExtractResponse, TriageRequest, TriageResponse
+from ..services.history import diff_for_indicator
 from ..services.triage import persist_case, triage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["triage"])
+
+
+async def _diffs_for(
+    session: AsyncSession, body: dict, *, exclude_case_id: str | None = None
+) -> list[dict]:
+    """One diff per indicator, in the same order the response lists them."""
+    return [
+        (
+            await diff_for_indicator(
+                session, item["value"], item, exclude_case_id=exclude_case_id
+            )
+        ).as_dict()
+        for item in body.get("indicators", [])
+    ]
 
 
 def _indicators_from_request(payload: TriageRequest) -> list[Indicator]:
@@ -68,6 +83,10 @@ async def triage_endpoint(
         analyst=payload.analyst,
     )
     persisted = False
+    body = outcome.as_dict()
+    # Read the history BEFORE this case joins it, or every indicator diffs
+    # against itself and reports no change.
+    diffs = await _diffs_for(session, body, exclude_case_id=outcome.case_id)
     if payload.persist:
         await persist_case(
             session,
@@ -78,7 +97,7 @@ async def triage_endpoint(
         )
         persisted = True
 
-    return TriageResponse(**outcome.as_dict(), persisted=persisted)
+    return TriageResponse(**body, persisted=persisted, diffs=diffs)
 
 
 @router.post("/triage/upload", response_model=TriageResponse)

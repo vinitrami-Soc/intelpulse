@@ -54,6 +54,10 @@ class TriageResponse(BaseModel):
     indicators: list[dict[str, Any]]
     graph: dict[str, Any]
     persisted: bool = False
+    # What changed since each indicator was last triaged. Empty when the caller
+    # did not ask for persistence: with nothing written, there is no history to
+    # compare against and an empty list is the honest answer.
+    diffs: list[dict[str, Any]] = []
 
 
 class CaseSummary(BaseModel):
