@@ -308,30 +308,36 @@
       </div>
     </section>
 
+    <!-- Essential only. This footer used to carry nineteen links to seven
+         places — nine of them to the same #sources anchor, four of those
+         named after vendors so they read as external links — plus a "Notify
+         me" form that told visitors they were subscribed with no backend to
+         subscribe them to. In-page sections belong to the header; the footer
+         now holds the three views, the code, and who made it. -->
     <footer class="foot rise">
       <div class="about">
         <div class="brand" style="padding:0"><span class="mk" style="background:var(--ink)"><svg style="stroke:var(--paper)"><use href="#i-pulse"/></svg></span>
           <b style="color:var(--ink)" translate="no">IntelPulse</b></div>
-        <p>A triage workbench that correlates one alert across every source in a single pass, and writes the
+        <p>Correlates one alert across every intelligence source in a single pass, and writes the
           ticket at the end of it.</p>
-        <form class="mail" id="mail-form" novalidate>
-          <input type="email" id="mail" name="email" placeholder="you@soc.example.com"
-                 aria-label="Email address" autocomplete="email" inputmode="email" spellcheck="false">
-          <button type="submit">Notify me</button>
-        </form>
-        <p class="mail-note" id="mail-note"></p>
-        <div class="socials">
-          <a href="#sources" data-scroll="#sources" aria-label="Intelligence feeds"><svg><use href="#i-globe"/></svg></a>
-          <a href="#evidence" data-scroll="#evidence" aria-label="How the evidence reads"><svg><use href="#i-doc"/></svg></a>
-          <a href="#/console" data-route="console" aria-label="Live source status"><svg><use href="#i-shield"/></svg></a>
-        </div>
       </div>
-      <div><h3>Product</h3><a href="#how">Correlation engine</a><a href="#/console" data-route="console">Console</a><a href="workbench.html">Analyst workbench</a><a href="explorer.html">Campaign graph</a></div>
-      <div><h3>Sources</h3><a href="#sources">AbuseIPDB</a><a href="#sources">AlienVault OTX</a><a href="#sources">GreyNoise</a><a href="#sources">abuse.ch</a></div>
-      <div><h3>Offline</h3><a href="#sources">Feodo Tracker</a><a href="#sources">FireHOL</a><a href="#sources">CISA KEV</a><a href="#sources">NVD slice</a></div>
-      <div><h3>Project</h3><a href="#evidence">Evidence view</a><a href="#scoring">Scoring model</a><a href="workbench.html">Run a live triage</a><a href="explorer.html">Attack narrative</a></div>
+      <nav aria-label="Open IntelPulse">
+        <h3>Open</h3>
+        <a href="workbench.html">Analyst workbench</a>
+        <a href="#/console" data-route="console">Console</a>
+        <a href="explorer.html">Campaign graph</a>
+      </nav>
+      <nav aria-label="About the project">
+        <h3>Project</h3>
+        <a href="https://github.com/vinitrami-Soc/vinitrami-Soc.github.io/tree/main/intelpulse"
+           target="_blank" rel="noopener noreferrer">Source code<span class="ext" aria-hidden="true">↗</span><span class="sr-only"> (opens GitHub in a new tab)</span></a>
+        <a href="https://github.com/vinitrami-Soc/vinitrami-Soc.github.io/blob/main/intelpulse/docs/SCORING.md"
+           target="_blank" rel="noopener noreferrer">Scoring model<span class="ext" aria-hidden="true">↗</span><span class="sr-only"> (opens GitHub in a new tab)</span></a>
+        <a href="https://vinitrami-soc.github.io/"
+           target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="ext" aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
+      </nav>
     </footer>
-    <p class="copyright">Synthetic sample data throughout — RFC 5737 addresses, RFC 2606 names. Built by Vinit Rami.</p>
+    <p class="copyright">MIT licence · Synthetic sample data throughout — RFC 5737 addresses, RFC 2606 names.</p>
   </div>
 </main>
 

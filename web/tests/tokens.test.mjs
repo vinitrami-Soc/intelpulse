@@ -341,11 +341,72 @@ test("scrollable overlays contain their scroll", () => {
     "the console drawer scrolls the page behind it once it hits its end");
 });
 
-test("the email field does not invite a spellchecker or the wrong keyboard", () => {
+/* This used to check the one email field on index.html by slicing from its
+   first occurrence. That field belonged to the footer's "Notify me" form,
+   which is gone (it told visitors they were subscribed with no backend to
+   subscribe them to). A slice from indexOf(-1) would then have checked the
+   last 260 characters of the page and failed for the wrong reason, so the
+   guard now walks every email field on every page: it still fires the day
+   someone adds one without the right attributes. */
+test("no email field invites a spellchecker or the wrong keyboard", () => {
+  for (const [name, html] of PAGES) {
+    for (const match of html.matchAll(/<input[^>]*type="email"[^>]*>/g)) {
+      assert.match(match[0], /spellcheck="false"/, name + ": email input still spellchecks");
+      assert.match(match[0], /inputmode="email"/, name + ": email input does not ask for the email keyboard");
+    }
+  }
+});
+
+/* Reported from a phone: "whenever I click on footer links it opens mostly the
+   same page". It did. Nineteen links led to seven places, nine of them to the
+   same #sources anchor -- including four named after vendors (AbuseIPDB,
+   GreyNoise...) that read as external links and were not. */
+function footerOf(html) {
+  const start = html.indexOf("<footer");
+  return start < 0 ? "" : html.slice(start, html.indexOf("</footer>", start));
+}
+const footerLinks = (html) =>
+  [...footerOf(html).matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
+    .map((m) => ({ href: m[1], text: m[2].replace(/<[^>]+>/g, "").trim() }));
+
+test("every footer link goes somewhere different", () => {
   const index = PAGES.find(([n]) => n === "index.html")[1];
-  const field = index.slice(index.indexOf('<input type="email"'), index.indexOf('<input type="email"') + 260);
-  assert.match(field, /spellcheck="false"/, "email input still spellchecks");
-  assert.match(field, /inputmode="email"/, "email input does not ask for the email keyboard");
+  const links = footerLinks(index);
+  assert.ok(links.length > 0, "the footer has no links at all");
+  const seen = new Map();
+  for (const { href, text } of links) {
+    assert.ok(!seen.has(href),
+      "footer links \u201c" + seen.get(href) + "\u201d and \u201c" + text + "\u201d both go to " + href);
+    seen.set(href, text);
+  }
+});
+
+test("the footer does not scroll the page it is already on", () => {
+  // In-page sections are what the header navigation is for. A footer link that
+  // only scrolls back up the same page is the complaint, verbatim.
+  const index = PAGES.find(([n]) => n === "index.html")[1];
+  const scrolls = footerLinks(index).filter(({ href }) => /^#[a-z]/i.test(href));
+  assert.equal(scrolls.length, 0,
+    "footer links that only scroll this page: " + scrolls.map((l) => l.text + " \u2192 " + l.href).join(", "));
+});
+
+test("the footer carries what a visitor actually looks for there", () => {
+  const index = PAGES.find(([n]) => n === "index.html")[1];
+  const hrefs = footerLinks(index).map((l) => l.href);
+  assert.ok(hrefs.some((h) => h.includes("github.com")), "no link to the source code");
+  assert.ok(hrefs.some((h) => h.startsWith("https://vinitrami-soc.github.io")), "no link back to the author");
+  assert.ok(hrefs.includes("workbench.html"), "no link to the workbench, the thing the page is selling");
+});
+
+test("no form claims to subscribe anyone", () => {
+  // There is no backend on the demo. "You are on the list" was not true.
+  // Comments are stripped first: the one explaining why the form went would
+  // otherwise trip the check, and a visitor never reads a comment.
+  for (const [name, html] of PAGES) {
+    const visible = html.replace(/<!--[\s\S]*?-->/g, "");
+    assert.ok(!/on the list|Notify me|subscribed/i.test(visible),
+      name + " still offers a subscription it cannot honour");
+  }
 });
 
 test("the skill file and the implementation agree on the token names", () => {

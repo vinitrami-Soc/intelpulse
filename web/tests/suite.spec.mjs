@@ -108,7 +108,18 @@ async function reset(where) {
     await installProbe();
     await page.waitForTimeout(700);
   }
-  await page.evaluate((w) => { location.hash = w === "console" ? "#/console" : "#/home"; scrollTo(0, 0); }, where);
+  /* Instant, not smooth. The page sets `html { scroll-behavior: smooth }`, so a
+     bare scrollTo(0, 0) from the bottom of the page is an animation that is still
+     running when the next probe calls scrollIntoView -- which jumps into place and
+     is then dragged back up by the tail of the old scroll. A footer control, at
+     the very end of the page, ended up below the viewport and read as "not
+     hit-testable" on some runs and not others. Measured: centre y 1049 in a
+     1000px viewport. Settling the reveal animation was tried first and did not
+     remove it. This made it rarer but not gone; the probe below re-measures. */
+  await page.evaluate((w) => {
+    location.hash = w === "console" ? "#/console" : "#/home";
+    scrollTo({ top: 0, behavior: "instant" });
+  }, where);
   await page.waitForTimeout(260);
   if (where === "console") {
     await page.evaluate(() => {
@@ -126,40 +137,81 @@ async function reset(where) {
 
 const inert = [];
 let probed = 0;
+/* A link with target="_blank" answers a click by opening a new tab and leaves
+   this page exactly as it was, so none of the signals below can see it. The
+   footer grew its first such links (the source code, the scoring doc, the
+   author) and the sweep called all three dead. Opening a tab is as much an
+   answer as following a link to the workbench — count the popup, then close it.
+   Playwright reports a popup only once its first navigation commits, and
+   github.com took longer than the sweep's 360ms in CI (measured locally: 200 to
+   320ms even with the request failing). So a navigation that leaves the site is
+   answered with a stub page -- the sweep no longer depends on github.com being
+   reachable or quick -- and a link that opens a tab gets up to 3s to do it.
+   Only navigations are stubbed: fonts and the like still load for real. */
+let popped = 0;
+page.context().on("page", (tab) => { popped++; tab.close().catch(() => {}); });
+await page.context().route((url) => url.hostname !== new URL(BASE).hostname, (route) =>
+  route.request().isNavigationRequest()
+    ? route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><title>stub</title>" })
+    : route.continue());
 async function sweep(where) {
   await reset(where);
   const total = await page.evaluate(() => window.__probe.list().length);
   for (let i = 0; i < total; i++) {
+    /* Read before the click: a stubbed popup can be reported before this
+       evaluate resolves, and a count taken after it would already include it. */
+    const poppedBefore = popped;
     const shot = await page.evaluate(async (index) => {
       const el = window.__probe.list()[index];
       if (!el) return null;
       const label = window.__probe.label(el);
-      el.scrollIntoView({ block: "center", behavior: "instant" });
-      /* A control pinned to the viewport (the brand, the theme button) does not
-         move the page when scrolled into view. Leave the page off the very top
-         so a "back to top" control has something to do and its answer shows —
-         but stay under the 220px mark, past which the nav tucks itself away. */
-      if (scrollY < 8) scrollTo(0, 180);
-      await new Promise((r) => setTimeout(r, 140));
-      const box = el.getBoundingClientRect();
+      /* Up to three tries. The page can still be settling (a web font swapping
+         in reflows every section above the footer), and a control measured
+         mid-reflow sat below a viewport it fits in. One that is still out of
+         reach after three tries is reported, with what is in the way. */
+      let box;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        el.scrollIntoView({ block: "center", behavior: "instant" });
+        /* A control pinned to the viewport (the brand, the theme button) does
+           not move the page when scrolled into view. Leave the page off the
+           very top so a "back to top" control has something to do and its
+           answer shows — but stay under the 220px mark, past which the nav
+           tucks itself away. */
+        if (scrollY < 8) scrollTo({ top: 180, behavior: "instant" });
+        await new Promise((r) => setTimeout(r, 140));
+        box = el.getBoundingClientRect();
+        const cy = box.top + box.height / 2;
+        if (cy >= 0 && cy <= innerHeight) break;
+      }
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
       const reachable = !!hit && (el.contains(hit) || hit.contains(el));
+      /* Name what is in the way, so a failure says what to fix instead of
+         only that something is wrong. */
+      const blocker = reachable ? "" : !hit
+        ? "nothing: centre " + Math.round(box.left + box.width / 2) + "," + Math.round(box.top + box.height / 2)
+          + " is outside the " + innerWidth + "x" + innerHeight + " viewport (box h=" + Math.round(box.height) + ", scrollY " + Math.round(scrollY) + ")"
+        : hit.tagName.toLowerCase()
+        + (hit.id ? "#" + hit.id : "") + (hit.classList.length ? "." + [...hit.classList].join(".") : "")
+        + " at " + Math.round(box.left + box.width / 2) + "," + Math.round(box.top + box.height / 2);
       window.__probe.mut = 0;
       window.__probe.before = { hash: location.hash, y: Math.round(scrollY) };
       el.click();
-      return { label, reachable };
+      return { label, reachable, blocker, opensTab: el.matches('a[target="_blank"]') };
     }, i);
     if (!shot) continue;
     probed++;
     await page.waitForTimeout(360);
-    let answered = page_of(page.url()) !== page_of(BASE);
+    for (let waited = 0; shot.opensTab && popped === poppedBefore && waited < 3000; waited += 100) {
+      await page.waitForTimeout(100);
+    }
+    let answered = page_of(page.url()) !== page_of(BASE) || popped > poppedBefore;
     if (!answered) {
       const now = await page.evaluate(() => ({
         mut: window.__probe.mut, hash: location.hash, y: Math.round(scrollY), before: window.__probe.before
       })).catch(() => null);
       answered = !now || now.mut > 0 || now.hash !== now.before.hash || Math.abs(now.y - now.before.y) > 4;
     }
-    if (!shot.reachable) inert.push(where + " › " + shot.label + " (not hit-testable)");
+    if (!shot.reachable) inert.push(where + " › " + shot.label + " (not hit-testable, under " + shot.blocker + ")");
     else if (!answered) inert.push(where + " › " + shot.label + " (no effect)");
     await reset(where);
   }
@@ -501,6 +553,17 @@ check("flipping the theme keeps the open view",
 await page.click("#theme-btn");
 await page.waitForTimeout(900);
 
+/* The theme toggle swaps inside document.startViewTransition() with a 560ms
+   reveal. While that runs, the live content sits behind the transition's
+   snapshot and elementsFromPoint() returns only <html> — so a fixed wait read
+   an empty paint whenever the transition started late, which under load it
+   does. Measured: 18 of 20 runs empty on main, arriving from deep in the page.
+   The product was right the whole time (the sky's first stop is exactly the
+   meta colour in both themes); the test was reading the page mid-animation.
+   Wait for the transition to finish instead of guessing how long it takes. */
+const themeSettled = () => page.waitForFunction(() => !document.getAnimations().some((a) =>
+  String((a.effect && a.effect.pseudoElement) || "").includes("view-transition")), null, { timeout: 4000 });
+
 const chrome = async () => page.evaluate(() => {
   const stack = document.elementsFromPoint(Math.round(innerWidth / 2), 2);
   const el = stack.find((n) => getComputedStyle(n).position !== "fixed" &&
@@ -521,13 +584,16 @@ const chrome = async () => page.evaluate(() => {
 });
 
 for (const [where, hash] of [["the site", "#/home"], ["the console", "#/console/dashboard"]]) {
-  await page.evaluate((h) => { location.hash = h; scrollTo(0, 0); }, hash);
+  // Instant: a smooth scroll to the top is an animation too.
+  await page.evaluate((h) => { location.hash = h; scrollTo({ top: 0, behavior: "instant" }); }, hash);
   await page.waitForTimeout(700);
+  await themeSettled();
   const light = await chrome();
   check("the browser chrome matches " + where, light.meta === light.paint,
     light.meta + " vs " + light.paint + " (" + light.where + ")");
   await page.click("#theme-btn");
   await page.waitForTimeout(900);
+  await themeSettled();
   const dark = await chrome();
   check("and still matches it in the dark", dark.meta === dark.paint,
     dark.meta + " vs " + dark.paint);
@@ -537,19 +603,28 @@ for (const [where, hash] of [["the site", "#/home"], ["the console", "#/console/
   await page.waitForTimeout(900);
 }
 
-/* ─────────────────────────────────────────────────── forms and anchors */
+/* ──────────────────────────────────────────────── footer and anchors
+   The footer's "Notify me" form went: it told visitors they were subscribed
+   with no backend behind it. What replaced it is checked here in a real
+   browser rather than only statically. */
 await page.evaluate(() => { location.hash = "#/home"; });
 await page.waitForTimeout(500);
-await page.fill("#mail", "not-an-address");
-await page.click("#mail-form button");
-await page.waitForTimeout(300);
-check("the sign-up form rejects a bad address",
-  await page.$eval("#mail", (el) => el.getAttribute("aria-invalid")) === "true");
-await page.fill("#mail", "analyst@soc.example.com");
-await page.click("#mail-form button");
-await page.waitForTimeout(300);
-check("the sign-up form accepts a good one",
-  await page.$eval("#mail", (el) => el.getAttribute("aria-invalid")) === "false");
+const foot = await page.$$eval("footer.foot a", (links) => links.map((a) => ({
+  href: a.getAttribute("href"), target: a.target, rel: a.rel, text: a.textContent.trim()
+})));
+const external = foot.filter((l) => /^https?:/.test(l.href));
+check("every footer link that leaves the site opens safely in a new tab",
+  external.length > 0 && external.every((l) => l.target === "_blank" && /noopener/.test(l.rel)),
+  external.length + " external, " + external.filter((l) => !/noopener/.test(l.rel)).length + " without noopener");
+check("the footer has no two links to the same place",
+  new Set(foot.map((l) => l.href)).size === foot.length,
+  foot.length + " links, " + new Set(foot.map((l) => l.href)).size + " destinations");
+await page.click('footer.foot a[data-route="console"]');
+await page.waitForTimeout(700);
+check("the footer's console link opens the console, not a scroll position",
+  (await page.evaluate(() => location.hash)).startsWith("#/console"));
+await page.evaluate(() => { location.hash = "#/home"; });
+await page.waitForTimeout(500);
 
 await page.evaluate(() => { scrollTo(0, 0); location.hash = "#how"; });
 await page.waitForTimeout(1100);

@@ -571,16 +571,6 @@
     toast($("h3", card).textContent + " — highlighted");
   }));
 
-  $("#mail-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const input = $("#mail"), note = $("#mail-note");
-    const ok = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(input.value.trim());
-    input.setAttribute("aria-invalid", String(!ok));
-    note.textContent = ok ? "Thanks — you are on the list." : "That does not look like an email address.";
-    note.style.color = ok ? "var(--ink-3)" : "var(--flame)";
-    if (ok) { toast("Subscribed with " + input.value.trim()); input.value = ""; }
-  });
-
   /* ───────────────────────────────────── scroll: progress, reveal, parallax */
   const observer = new IntersectionObserver((entries) => {
     entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("in"); observer.unobserve(entry.target); } });

@@ -705,21 +705,12 @@ button { font-family: inherit; cursor: pointer; }
 .foot a { display: block; padding: 4px 0; font-size: 12.5px; color: var(--ink-2); transition: color var(--t-fast); }
 .foot a:hover { color: var(--flame); }
 .foot .about p { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; max-width: 280px; }
-.mail { display: flex; gap: 8px; margin-top: 16px; max-width: 300px; }
-.mail input {
-  flex: 1; min-width: 0; padding: 10px 13px; border-radius: var(--r-full);
-  border: 1px solid var(--line-2); background: var(--paper); color: var(--ink);
-  font-family: inherit; font-size: 12.5px;
-}
-.mail input:focus { outline: none; border-color: var(--flame); box-shadow: 0 0 0 3px var(--flame-wash); }
-.mail input[aria-invalid="true"] { border-color: var(--flame); }
-.mail button { padding: 10px 16px; border-radius: var(--r-full); border: 0; background: var(--ink); color: var(--paper); font-size: 12.5px; font-weight: 600; }
-:root[data-theme="dark"] .mail button { background: #fff; color: #111; }
-.mail-note { font-size: 11px; margin-top: 7px; color: var(--ink-3); min-height: 14px; }
-.socials { display: flex; gap: 8px; margin-top: 16px; }
-.socials a { width: 30px; height: 30px; border-radius: var(--r-full); display: grid; place-items: center; background: var(--ground-2); color: var(--ink-2); padding: 0; }
-.socials a:hover { background: var(--flame); color: #fff; }
-.socials svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.1; }
+/* Text for a screen reader only. The ↗ says "leaves this site" to a sighted
+   reader; this says it to everyone else. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.foot nav { display: grid; align-content: start; }
+.foot .ext { margin-left: 4px; font-size: 11px; color: var(--ink-3); }
+.foot a:hover .ext { color: inherit; }
 .copyright { text-align: center; color: var(--ink-3); font-size: 11.5px; padding-bottom: 24px; }
 
 /* toast + route transition */
@@ -762,10 +753,10 @@ button { font-family: inherit; cursor: pointer; }
    44px target on a coarse pointer, including the ones that look like text. */
 @media (pointer: coarse) {
   .btn, .nav-cta, .burger, .icon-ghost, .round-btn, .kpi-more, .to-top, .ai-fab,
-  .nav-item, .nav-group, .seg button, .socials a, .mail button, .mail input,
+  .nav-item, .nav-group, .seg button, .foot a,
   .menu a, .menu button, .ai-chips button, .ai-form button, .ai-form input,
   .nav-links a, .ai-acts button, .tick-list button { min-height: 44px; }
-  .burger, .icon-ghost, .round-btn, .socials a, .kpi-more, .to-top, .side-close { min-width: 44px; }
+  .burger, .icon-ghost, .round-btn, .kpi-more, .to-top, .side-close { min-width: 44px; }
   .brand, .side-logo { min-height: 44px; }
   .foot a { padding-block: 10px; }
   .nav-item, .nav-group { padding-block: 11px; }
