@@ -67,7 +67,7 @@ class LocalFeedProvider(Provider):
                     "local_blocklist",
                     max(0.8, confidence),
                     f"present in offline feed(s): {', '.join(feeds)}"
-                    + (f" — {', '.join(families[:3])}" if families else ""),
+                    + (f" ({', '.join(families[:3])})" if families else ""),
                 )
             ],
         )
@@ -93,7 +93,7 @@ class CveProvider(Provider):
                 status=STATUS_CLEAN,
                 facts={"in_local_nvd": False},
                 signals=[
-                    Signal("otx", 0.25, "CVE not present in the local NVD slice — enrich manually")
+                    Signal("otx", 0.25, "CVE not present in the local NVD slice; enrich manually")
                 ],
             )
 
@@ -121,7 +121,7 @@ class CveProvider(Provider):
                     "otx",
                     value,
                     f"CVSS {score} ({record.severity or 'unrated'})"
-                    + (" — known exploited in the wild" if record.known_exploited else ""),
+                    + (", known exploited in the wild" if record.known_exploited else ""),
                 )
             ],
         )

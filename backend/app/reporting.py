@@ -19,12 +19,12 @@ def _code(value: str) -> str:
     return "`" + defang(value).replace("`", "%60") + "`"
 
 SEVERITY_SLA = {
-    "critical": "P1 — contain within 1 hour",
-    "high": "P2 — contain within 4 hours",
-    "medium": "P3 — investigate within 1 business day",
-    "low": "P4 — monitor",
-    "informational": "P5 — no action, record only",
-    "allowlisted": "closed — allowlisted by the SOC",
+    "critical": "P1: contain within 1 hour",
+    "high": "P2: contain within 4 hours",
+    "medium": "P3: investigate within 1 business day",
+    "low": "P4: monitor",
+    "informational": "P5: no action, record only",
+    "allowlisted": "closed: allowlisted by the SOC",
 }
 
 _CONTAINMENT: dict[str, list[str]] = {
@@ -61,7 +61,7 @@ _CONTAINMENT: dict[str, list[str]] = {
 }
 
 _NO_ACTION = [
-    "No containment action required — record the triage result against the ticket and close.",
+    "No containment action required. Record the triage result against the ticket and close.",
     "If this indicator recurs with a higher score, re-open and re-triage.",
 ]
 
@@ -130,7 +130,7 @@ def to_markdown(
 ) -> str:
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines: list[str] = [
-        f"# SOC Triage Report — {md_text(case_title, 200)}",
+        f"# SOC Triage Report: {md_text(case_title, 200)}",
         "",
         "| Field | Value |",
         "| --- | --- |",
@@ -161,7 +161,7 @@ def to_markdown(
 
     lines += ["", "## 3. Evidence and attribution", ""]
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
-        lines.append(f"### {_code(v.indicator.value)} — {v.verdict.upper()} ({v.score}/100)")
+        lines.append(f"### {_code(v.indicator.value)}: {v.verdict.upper()} ({v.score}/100)")
         lines.append("")
         if v.malware_families:
             lines.append(f"- **Malware / campaign:** {', '.join(md_text(f, 80) for f in v.malware_families)}")

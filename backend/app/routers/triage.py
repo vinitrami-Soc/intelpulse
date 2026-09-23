@@ -128,7 +128,7 @@ async def triage_upload(
         raise HTTPException(status_code=422, detail="no indicators found in the uploaded file")
 
     # The filename is chosen by whoever made the file: it is a label like any other.
-    label = clean_label(f"{clean_label(title, 120)} — {clean_label(file.filename or 'upload', 80)}", 200)
+    label = clean_label(f"{clean_label(title, 120)}: {clean_label(file.filename or 'upload', 80)}", 200)
     claimed = clean_label(analyst, 120) or None if analyst else None
     outcome = await triage(indicators, title=label, analyst=claimed)
     await persist_case(

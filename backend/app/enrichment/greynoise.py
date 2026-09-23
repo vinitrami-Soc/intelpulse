@@ -49,7 +49,7 @@ class GreyNoiseProvider(Provider):
                     Signal(
                         "greynoise",
                         0.35,
-                        "not seen scanning the internet — consistent with targeted activity",
+                        "not seen scanning the internet, consistent with targeted activity",
                     )
                 ],
             )
@@ -66,7 +66,7 @@ class GreyNoiseProvider(Provider):
         rationale = {
             "malicious": "GreyNoise observed this IP conducting malicious mass scanning",
             "suspicious": "GreyNoise observed suspicious mass scanning from this IP",
-            "benign": f"internet background noise — known scanner ({data.get('name') or 'unnamed'})",
+            "benign": f"internet background noise: known scanner ({data.get('name') or 'unnamed'})",
             "unknown": "seen scanning but not yet classified",
         }.get(classification, "no classification available")
         if riot:

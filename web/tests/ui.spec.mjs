@@ -237,7 +237,7 @@ const graph = await page.evaluate(() => {
       return ind && r.querySelector(".wb-score").textContent === String(ind.score);
     }),
     labelsShown: [...document.querySelectorAll("#wb-graph .wb-elabel")].filter((l) => getComputedStyle(l).opacity !== "0").length,
-    named: nodes.filter((n) => / — /.test(n.querySelector("title")?.textContent || "")).length,
+    named: nodes.filter((n) => /: /.test(n.querySelector("title")?.textContent || "")).length,
     closest: Math.round(closest),
     halo: text ? getComputedStyle(text).paintOrder : "",
     table: document.querySelectorAll("#wb-graph details li").length,

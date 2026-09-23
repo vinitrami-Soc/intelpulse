@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IntelPulse — Unified Threat Intelligence &amp; Alert Correlation</title>
+<title>IntelPulse · Unified Threat Intelligence &amp; Alert Correlation</title>
 <meta name="description" content="One pass across every intelligence source, one auditable verdict, one SOC ticket. IntelPulse correlates the indicators in an alert against AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus and the offline feeds, and shows its arithmetic.">
 <!-- the sky the site opens on; syncChrome() keeps it in step with theme and route -->
 <meta name="theme-color" content="#a9d3f2">
@@ -22,7 +22,7 @@
   base-uri 'none';
   object-src 'none'">
 <meta name="referrer" content="no-referrer">
-<meta property="og:title" content="IntelPulse — Unified Threat Intelligence &amp; Alert Correlation">
+<meta property="og:title" content="IntelPulse · Unified Threat Intelligence &amp; Alert Correlation">
 <meta property="og:description" content="One pass across every source, one auditable verdict, one ready-to-paste SOC ticket.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -110,7 +110,7 @@
 
     <div class="wrap hero">
       <h1 class="rise"><span>Reliable triage you</span><span>can trust in every alert</span></h1>
-      <p class="lede rise">Regain visibility over the indicators hitting your estate — one pass across
+      <p class="lede rise">Regain visibility over the indicators hitting your estate. One pass across
         every intelligence source, one auditable verdict, one ticket your team can act on.</p>
       <div class="hero-cta rise">
         <button class="btn btn-dark" data-route="console">Open the console <svg><use href="#i-arrow"/></svg></button>
@@ -134,7 +134,7 @@
   </section>
 
   <div class="wrap strip rise" id="sources">
-    <div class="inner" id="marquee" tabindex="0" role="group" aria-label="Intelligence sources — scrollable">
+    <div class="inner" id="marquee" tabindex="0" role="group" aria-label="Intelligence sources, scrollable">
       <div class="mq-track">
 <div class="mq-run">
         <span class="src"><i><svg><use href="#i-shield"/></svg></i> AbuseIPDB</span>
@@ -183,7 +183,7 @@
         <button class="btn btn-dark btn-sm" style="margin-top:18px" data-route="console">Get started <svg><use href="#i-arrow"/></svg></button>
       </div>
       <p class="rise">Each source is wrong in a different direction. IntelPulse weighs them against each
-        other, floors the verdict on the most authoritative hit, and shows the arithmetic — so a score is
+        other, floors the verdict on the most authoritative hit, and shows the arithmetic, so a score is
         an argument you can check, not a number you have to believe.</p>
     </div>
 
@@ -223,10 +223,10 @@
         <h3>Source agreement</h3>
         <p class="sub">What the vendors actually said about the same indicator, in the order the engine weighed them.</p>
         <div class="tick-list" id="agreement">
-          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> ThreatFox — confirmed botnet C2</span>
-          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> AbuseIPDB — 96% across 412 reports</span>
-          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> Local feeds — Feodo tracker hit</span>
-          <span><i><svg><use href="#i-check-circle"/></svg></i> URLhaus — no record</span>
+          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> ThreatFox: confirmed botnet C2</span>
+          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> AbuseIPDB: 96% across 412 reports</span>
+          <span class="on"><i><svg><use href="#i-check-circle"/></svg></i> Local feeds: Feodo tracker hit</span>
+          <span><i><svg><use href="#i-check-circle"/></svg></i> URLhaus: no record</span>
         </div>
         <div id="bento-line" style="margin-top:16px"></div>
       </div>
@@ -254,7 +254,7 @@
         <div class="eyebrow">Run it yourself</div>
         <h3>IntelPulse plays well with what you already run</h3>
         <p>Point it at your own API keys and it speaks to the vendors you already pay for. No keys at all and
-          it still works — the offline feeds, GeoLite2 and the local CVE slice carry the triage.</p>
+          it still works: the offline feeds, GeoLite2 and the local CVE slice carry the triage.</p>
         <div class="btns">
           <button class="btn btn-dark btn-sm" data-route="console">Open the console <svg><use href="#i-arrow"/></svg></button>
           <button class="btn btn-light btn-sm" data-scroll="#evidence">See the evidence</button>
@@ -285,7 +285,7 @@
         <div class="eyebrow">Open by design</div>
         <h3>The scoring model is documented, not asserted</h3>
         <p>Weights, authority values and thresholds are configuration, and the API returns them. Any verdict
-          can be reproduced from the evidence that produced it — which is the only kind of score worth
+          can be reproduced from the evidence that produced it, and that is the only kind of score worth
           putting in a change ticket.</p>
         <div class="btns">
           <button class="btn btn-dark btn-sm" data-scroll="#how">Read the model <svg><use href="#i-arrow"/></svg></button>
@@ -300,7 +300,7 @@
       <span class="cloud c1" style="top:-30px;left:10%;width:300px;height:110px" data-depth="0.1"></span>
       <span class="cloud c2" style="top:30px;right:6%;width:260px;height:100px" data-depth="0.16"></span>
       <h2>Run a triage on your own alert</h2>
-      <p>The console below is live and running on a bundled synthetic dataset — no keys, no backend, nothing
+      <p>The console below is live and running on a bundled synthetic dataset. No keys, no backend, nothing
         to install.</p>
       <div class="hero-cta">
         <button class="btn btn-dark" data-route="console">Open the console <svg><use href="#i-arrow"/></svg></button>
@@ -337,7 +337,7 @@
            target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="ext" aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
       </nav>
     </footer>
-    <p class="copyright">MIT licence · Synthetic sample data throughout — RFC 5737 addresses, RFC 2606 names.</p>
+    <p class="copyright">MIT licence · Synthetic sample data throughout: RFC 5737 addresses, RFC 2606 names.</p>
   </div>
 </main>
 
@@ -378,7 +378,7 @@
            aria-label="Ask a question" placeholder="Ask about scoring, sources, this data…">
     <button type="submit">Ask</button>
   </form>
-  <p class="ai-note">Runs entirely in your browser — it reads this project's documentation and the
+  <p class="ai-note">Runs entirely in your browser. It reads this project's documentation and the
     dataset already on the page. No model is called and nothing leaves this tab.</p>
 </section>
 

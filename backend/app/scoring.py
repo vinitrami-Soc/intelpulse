@@ -221,7 +221,7 @@ def score_indicator(
         score *= settings.greynoise_benign_multiplier
         modifiers.append(
             f"GreyNoise classifies this as benign internet background noise "
-            f"({greynoise.facts.get('actor') or 'known scanner'}) — score damped "
+            f"({greynoise.facts.get('actor') or 'known scanner'}), score damped "
             f"x{settings.greynoise_benign_multiplier}"
         )
     if greynoise and greynoise.facts.get("riot"):

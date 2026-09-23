@@ -56,7 +56,7 @@ def _summary(case: dict[str, Any]) -> str:
     verdict = str(case.get("verdict", "informational")).upper()
     title = str(case.get("title") or "Ad-hoc triage")
     count = len(case.get("indicators") or [])
-    return f"[{verdict}] {title} — {count} indicator(s), score {case.get('score', 0)}/100"[:250]
+    return f"[{verdict}] {title}: {count} indicator(s), score {case.get('score', 0)}/100"[:250]
 
 
 def configured_sinks() -> list[str]:

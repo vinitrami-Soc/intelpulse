@@ -281,7 +281,7 @@
     if (greynoise && (greynoise.facts || {}).classification === "benign") {
       score *= GREYNOISE_BENIGN_MULTIPLIER;
       modifiers.push("GreyNoise classifies this as benign internet background noise (" +
-        ((greynoise.facts || {}).actor || "known scanner") + ") — score damped x" +
+        ((greynoise.facts || {}).actor || "known scanner") + "), score damped x" +
         GREYNOISE_BENIGN_MULTIPLIER);
     }
     if (greynoise && (greynoise.facts || {}).riot) {
@@ -338,12 +338,12 @@
 
   // -------------------------------------------------------------- reporting
   const SEVERITY_SLA = {
-    critical: "P1 — contain within 1 hour",
-    high: "P2 — contain within 4 hours",
-    medium: "P3 — investigate within 1 business day",
-    low: "P4 — monitor",
-    informational: "P5 — no action, record only",
-    allowlisted: "closed — allowlisted by the SOC"
+    critical: "P1: contain within 1 hour",
+    high: "P2: contain within 4 hours",
+    medium: "P3: investigate within 1 business day",
+    low: "P4: monitor",
+    informational: "P5: no action, record only",
+    allowlisted: "closed: allowlisted by the SOC"
   };
 
   const CONTAINMENT = {
@@ -366,7 +366,7 @@
           "Apply the vendor patch or documented mitigation within the SLA for its CVSS band.",
           "Add detection for known exploitation attempts against the affected service."]
   };
-  const NO_ACTION = ["No containment action required — record the triage result against the ticket and close.",
+  const NO_ACTION = ["No containment action required. Record the triage result against the ticket and close.",
                      "If this indicator recurs with a higher score, re-open and re-triage."];
 
   function containmentActions(indicator) {
@@ -427,7 +427,7 @@
     const now = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
     const sorted = result.indicators.slice().sort((a, b) => b.score - a.score);
     const lines = [
-      "# SOC Triage Report — " + mdText(result.title, 200), "",
+      "# SOC Triage Report: " + mdText(result.title, 200), "",
       "| Field | Value |", "| --- | --- |",
       "| Case ID | " + code(result.case_id) + " |",
       "| Generated | " + now + " |",
@@ -452,7 +452,7 @@
 
     lines.push("", "## 3. Evidence and attribution", "");
     sorted.forEach((i) => {
-      lines.push("### " + code(i.value) + " — " + i.verdict.toUpperCase() + " (" + i.score + "/100)", "");
+      lines.push("### " + code(i.value) + ": " + i.verdict.toUpperCase() + " (" + i.score + "/100)", "");
       if ((i.malware_families || []).length) lines.push("- **Malware / campaign:** " + i.malware_families.map((f) => mdText(f, 80)).join(", "));
       if ((i.attack_techniques || []).length) {
         lines.push("- **MITRE ATT&CK:** " + i.attack_techniques.slice(0, 6)
@@ -683,7 +683,7 @@
       } else {
         sources = applicable.map((p) => ({
           provider: p.provider, label: p.label, status: "skipped",
-          error: "demo mode: no sample data for this indicator — connect a live backend",
+          error: "demo mode: no sample data for this indicator; connect a live backend",
           facts: {}, signals: [], relations: [], tags: [], malware_families: [], attack_ids: []
         }));
       }

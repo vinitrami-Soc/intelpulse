@@ -55,7 +55,7 @@
       const delay = reduceMotion() ? 0 : index * 45;
       return (
         '<div class="bar-row' + (row.signal < 0.05 ? " muted" : "") + '"' +
-        ' title="' + esc(row.provider + " — " + row.rationale) + '">' +
+        ' title="' + esc(row.provider + ": " + row.rationale) + '">' +
           '<span class="bar-label">' + esc(row.provider) + "</span>" +
           '<span class="bar-track">' +
             '<span class="bar-fill" style="width:' + (share * 100).toFixed(1) + "%;" +
@@ -99,7 +99,7 @@
   function coverageStrip(sources) {
     return '<span class="coverage">' + (sources || []).map((source) =>
       '<i data-state="' + esc(source.status) + '" title="' +
-      esc((source.label || source.provider) + " — " + source.status +
+      esc((source.label || source.provider) + ": " + source.status +
         (source.error ? ": " + source.error : "")) + '"></i>').join("") + "</span>";
   }
 

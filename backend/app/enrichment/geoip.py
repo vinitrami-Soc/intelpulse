@@ -130,7 +130,7 @@ class GeoIPProvider(Provider):
                 note = ELEVATED_ASNS.get(int(asn.autonomous_system_number or 0))
                 if note:
                     value = max(value, 0.4)
-                    reasons.append(f"AS{asn.autonomous_system_number} — {note}")
+                    reasons.append(f"AS{asn.autonomous_system_number}, {note}")
                     tags.append("elevated-asn")
             except geoip2.errors.AddressNotFoundError:
                 pass

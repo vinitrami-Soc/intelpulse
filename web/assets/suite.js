@@ -65,11 +65,11 @@
   const SOURCES = [
     { name: "AbuseIPDB",      kind: "live",    weight: 1.0,  authority: 0.80, note: "Address reputation, corroboration-weighted" },
     { name: "AlienVault OTX", kind: "live",    weight: 0.9,  authority: 0.70, note: "Community pulses, prone to syndication" },
-    { name: "ThreatFox",      kind: "live",    weight: 1.2,  authority: 0.95, note: "abuse.ch — confirmed command and control" },
-    { name: "URLhaus",        kind: "live",    weight: 1.1,  authority: 0.95, note: "abuse.ch — malware distribution URLs" },
+    { name: "ThreatFox",      kind: "live",    weight: 1.2,  authority: 0.95, note: "abuse.ch, confirmed command and control" },
+    { name: "URLhaus",        kind: "live",    weight: 1.1,  authority: 0.95, note: "abuse.ch, malware distribution URLs" },
     { name: "GreyNoise",      kind: "live",    weight: 0.6,  authority: 0.50, note: "Context: is this an internet-wide scanner" },
     { name: "Local blocklist",kind: "offline", weight: 1.0,  authority: 0.90, note: "Feodo Tracker and FireHOL, imported" },
-    { name: "GeoIP / ASN",    kind: "offline", weight: 0.25, authority: 0.30, note: "MaxMind GeoLite2 — hosting context only" },
+    { name: "GeoIP / ASN",    kind: "offline", weight: 0.25, authority: 0.30, note: "MaxMind GeoLite2, hosting context only" },
     { name: "CVE lookup",     kind: "offline", weight: 0,    authority: 0,    note: "Local NVD slice and the CISA KEV list" }
   ];
 
@@ -326,12 +326,12 @@
     const row = (src) => '<tr><td data-label="Source"><strong>' + src.name + "</strong><br>" +
       '<span style="color:var(--ink-3);font-size:11.5px">' + src.note + "</span></td>" +
       '<td data-label="Kind"><span class="tag ' + src.kind + '">' + src.kind + "</span></td>" +
-      '<td data-label="Weight" class="mono">' + (src.weight ? src.weight.toFixed(2) : "\u2014") + "</td>" +
-      '<td data-label="Authority" class="mono">' + (src.authority ? src.authority.toFixed(2) : "\u2014") + "</td></tr>";
+      '<td data-label="Weight" class="mono">' + (src.weight ? src.weight.toFixed(2) : "n/a") + "</td>" +
+      '<td data-label="Authority" class="mono">' + (src.authority ? src.authority.toFixed(2) : "n/a") + "</td></tr>";
     return '<section class="card panel">' +
       '<div class="panel-head"><h4>Every source, and what its word is worth</h4></div>' +
       '<p style="color:var(--ink-2);font-size:12.5px;margin-bottom:12px">Weight decides how much a source ' +
-      'moves the weighted mean. Authority decides how high it can hold the score on its own — one confirmed ' +
+      'moves the weighted mean. Authority decides how high it can hold the score on its own: one confirmed ' +
       'ThreatFox listing still reads critical when four quiet sources disagree.</p>' +
       (SOURCES.length === 0
         ? emptyState("No sources configured",
@@ -340,7 +340,7 @@
           "<th>Weight</th><th>Authority</th></tr></thead><tbody>" +
           SOURCES.map(row).join("") + "</tbody></table></div>") +
       '<p style="color:var(--ink-3);font-size:11.5px;margin-top:12px">A source with no API key configured ' +
-      "reports <code>skipped</code>. It never reports <em>clean</em> \u2014 the difference matters when " +
+      "reports <code>skipped</code>. It never reports <em>clean</em>, and the difference matters when " +
       "someone reads the ticket six months later.</p></section>";
   }
 
@@ -611,7 +611,7 @@
   /* ────────────────────────────────────── feature cards, mail, misc */
   $$("#features .feature").forEach((card) => card.addEventListener("click", () => {
     $$("#features .feature").forEach((c) => c.setAttribute("aria-pressed", String(c === card)));
-    toast($("h3", card).textContent + " — highlighted");
+    toast($("h3", card).textContent + " highlighted");
   }));
 
   /* ───────────────────────────────────── scroll: progress, reveal, parallax */
@@ -774,7 +774,7 @@
         keys: ["main page", "home page", "go home", "landing page", "landing", "front page",
           "take me back", "go back", "start page", "beginning", "back to the site",
           "leave the console", "exit the console", "take me to the main page"],
-        html: "<p>The main page is one press away — it is the site this console sits behind.</p>",
+        html: "<p>The main page is one press away. It is the site this console sits behind.</p>",
         acts: ["home", "how"] },
 
       { id: "top",
@@ -793,7 +793,7 @@
       { id: "console",
         keys: ["console", "dashboard", "operator console", "open the console", "overview page",
           "show me the dashboard", "the numbers"],
-        html: "<p>The console is the posture view — open findings, how they are split by severity " +
+        html: "<p>The console is the posture view: open findings, how they are split by severity " +
               "and state, the attack surface and the intelligence sources behind it.</p>",
         acts: ["console", "workbench"] },
 
@@ -830,7 +830,7 @@
 
       { id: "scoring",
         keys: ["scoring", "score", "scored", "formula", "math", "arithmetic", "calculate", "calculated", "computed", "weighted mean", "how does scoring work"],
-        html: "<p>A source never decides on its own. Every provider is normalised to a 0–1 signal, then:</p>" +
+        html: "<p>A source never decides on its own. Every provider is normalised to a signal from 0 to 1, then:</p>" +
               "<pre>score = 100 × max(\n    Σ(weight × signal) / Σ(weight),   ← weighted mean, over the\n                                     providers that ANSWERED\n    max(signal × authority)          ← authority floor\n)</pre>" +
               "<p>The weighted mean is the consensus. The authority floor is the safety net: one confirmed " +
               "ThreatFox C2 listing still reads critical even when four quiet sources drag the mean down.</p>",
@@ -838,13 +838,13 @@
 
       { id: "authority",
         keys: ["authority", "authority floor", "floor", "trust", "how much do you trust"],
-        html: "<p>Each source carries an authority value — how much one confirmed hit from it is worth on its own:</p>" +
-              "<ul><li>ThreatFox <code>0.95</code> · URLhaus <code>0.95</code> — confirmed C2 / distribution</li>" +
-              "<li>Local blocklist <code>0.90</code> — curated historical feeds</li>" +
-              "<li>AbuseIPDB <code>0.80</code> — crowd-sourced, corroboration-weighted</li>" +
-              "<li>AlienVault OTX <code>0.70</code> — community pulses, prone to syndication</li>" +
-              "<li>GreyNoise <code>0.50</code> — context more than verdict</li>" +
-              "<li>GeoIP <code>0.30</code> — hosting context only</li></ul>" +
+        html: "<p>Each source carries an authority value: how much one confirmed hit from it is worth on its own.</p>" +
+              "<ul><li>ThreatFox <code>0.95</code> · URLhaus <code>0.95</code>: confirmed C2 and distribution</li>" +
+              "<li>Local blocklist <code>0.90</code>: curated historical feeds</li>" +
+              "<li>AbuseIPDB <code>0.80</code>: crowd-sourced, corroboration-weighted</li>" +
+              "<li>AlienVault OTX <code>0.70</code>: community pulses, prone to syndication</li>" +
+              "<li>GreyNoise <code>0.50</code>: context more than verdict</li>" +
+              "<li>GeoIP <code>0.30</code>: hosting context only</li></ul>" +
               "<p>The floor is <code>max(signal × authority)</code>. It is why a single trustworthy hit cannot be averaged away.</p>",
         acts: ["scoring"], src: "backend/app/scoring.py" },
 
@@ -854,16 +854,16 @@
               "AbuseIPDB <code>1.0</code>, local blocklist <code>1.0</code>, OTX <code>0.9</code>, " +
               "GreyNoise <code>0.6</code>, GeoIP/ASN <code>0.25</code>.</p>" +
               "<p>They are configuration, not constants baked into the logic, and the API returns them with " +
-              "the verdict — so any score can be reproduced from the evidence that produced it.</p>",
+              "the verdict, so any score can be reproduced from the evidence that produced it.</p>",
         src: "backend/app/config.py" },
 
       { id: "verdict",
         keys: ["verdict", "bands", "thresholds", "how high is high", "what counts as critical", "what makes it critical"],
-        html: "<p>Bands on the 0–100 composite:</p>" +
-              "<ul><li><strong>critical</strong> — 85 and above</li><li><strong>high</strong> — 70 to 84</li>" +
-              "<li><strong>medium</strong> — 40 to 69</li><li><strong>low</strong> — 15 to 39</li>" +
-              "<li><strong>informational</strong> — below 15</li></ul>" +
-              "<p>Severity is never carried by colour alone anywhere in this interface — every band is labelled.</p>",
+        html: "<p>Bands on the composite, which runs from 0 to 100:</p>" +
+              "<ul><li><strong>critical</strong>: 85 and above</li><li><strong>high</strong>: 70 to 84</li>" +
+              "<li><strong>medium</strong>: 40 to 69</li><li><strong>low</strong>: 15 to 39</li>" +
+              "<li><strong>informational</strong>: below 15</li></ul>" +
+              "<p>Severity is never carried by colour alone anywhere in this interface. Every band is labelled.</p>",
         src: "backend/app/scoring.py" },
 
       { id: "confidence",
@@ -877,29 +877,29 @@
       { id: "modifiers",
         keys: ["modifiers", "greynoise benign", "benign", "allowlist", "blocklist", "allow list", "block list", "noise", "false positive"],
         html: "<p>After the composite, the adjustments an analyst would make by hand:</p>" +
-              "<ul><li><strong>GreyNoise says benign</strong> — score × 0.45. Mass scanners are noise, not a campaign.</li>" +
-              "<li><strong>On the allowlist</strong> — forced to 0.</li>" +
-              "<li><strong>On the blocklist</strong> — floored at 90.</li></ul>" +
+              "<ul><li><strong>GreyNoise says benign</strong>: score × 0.45. Mass scanners are noise, not a campaign.</li>" +
+              "<li><strong>On the allowlist</strong>: forced to 0.</li>" +
+              "<li><strong>On the blocklist</strong>: floored at 90.</li></ul>" +
               "<p>Each applied modifier is listed on the indicator, so nothing moves the number invisibly.</p>",
         acts: ["workbench"], src: "backend/app/scoring.py" },
 
       { id: "sources",
         keys: ["sources", "vendors", "providers", "apis", "which services", "who do you query", "third party"],
         html: "<p>Live sources, all queried concurrently:</p>" +
-              "<ul><li><strong>AbuseIPDB</strong> — address reputation</li><li><strong>AlienVault OTX</strong> — campaign pulses</li>" +
-              "<li><strong>GreyNoise</strong> — is this just an internet-wide scanner</li>" +
-              "<li><strong>ThreatFox</strong> (abuse.ch) — confirmed C2</li><li><strong>URLhaus</strong> (abuse.ch) — malware distribution URLs</li></ul>" +
-              "<p>A source with no key configured reports <code>skipped</code>. It never reports <em>clean</em> — " +
-              "the difference matters when someone reads the ticket later.</p>",
+              "<ul><li><strong>AbuseIPDB</strong>: address reputation</li><li><strong>AlienVault OTX</strong>: campaign pulses</li>" +
+              "<li><strong>GreyNoise</strong>: is this just an internet-wide scanner?</li>" +
+              "<li><strong>ThreatFox</strong> (abuse.ch): confirmed C2</li><li><strong>URLhaus</strong> (abuse.ch): malware distribution URLs</li></ul>" +
+              "<p>A source with no key configured reports <code>skipped</code>. It never reports <em>clean</em>, " +
+              "and the difference matters when someone reads the ticket later.</p>",
         acts: ["sources"], src: "docs/API.md" },
 
       { id: "offline",
         keys: ["offline", "feodo", "firehol", "kev", "cisa", "nvd", "cve", "geolite", "maxmind", "geoip", "no keys", "without api keys"],
         html: "<p>It still works with no API keys at all. The offline datasets carry the triage:</p>" +
-              "<ul><li><strong>Feodo Tracker</strong> and <strong>FireHOL</strong> — historical C2 and blocklists</li>" +
-              "<li><strong>CISA KEV</strong> — known exploited vulnerabilities</li>" +
-              "<li><strong>NVD slice</strong> — local CVE lookups</li>" +
-              "<li><strong>MaxMind GeoLite2</strong> — hosting and ASN context</li></ul>" +
+              "<ul><li><strong>Feodo Tracker</strong> and <strong>FireHOL</strong>: historical C2 and blocklists</li>" +
+              "<li><strong>CISA KEV</strong>: known exploited vulnerabilities</li>" +
+              "<li><strong>NVD slice</strong>: local CVE lookups</li>" +
+              "<li><strong>MaxMind GeoLite2</strong>: hosting and ASN context</li></ul>" +
               "<p>Import them with <code>make feeds</code>.</p>",
         acts: ["sources"] },
 
@@ -915,14 +915,14 @@
         keys: ["run a triage", "how do i run", "try it", "get started", "start", "use it", "paste an alert", "demo"],
         html: "<p>The workbench is the tool: paste into the ingest box, press <code>⌘↵</code>, and the " +
               "indicators, the evidence behind each score, the graph and the ticket all appear together.</p>" +
-              "<p>The console here is the posture view over the same dataset — metrics, severity split, attack surface.</p>",
+              "<p>The console here is the posture view over the same dataset: metrics, severity split, attack surface.</p>",
         acts: ["workbench", "console"] },
 
       { id: "graph",
         keys: ["graph", "relationship", "campaign", "network", "map", "visualise", "visualize", "explorer"],
         html: "<p>The relationship graph is where the point of a correlation tool shows up: shared infrastructure " +
               "between two malware families is a picture, not a table.</p>" +
-              "<p>Hub-to-cluster edges alone would only make a star — the cross-links between clusters are the part " +
+              "<p>Hub-to-cluster edges alone would only make a star. The cross-links between clusters are the part " +
               "worth looking at.</p>",
         acts: ["graph", "workbench"] },
 
@@ -944,7 +944,7 @@
 
       { id: "privacy",
         keys: ["privacy", "private", "leave", "send", "track", "tracking", "telemetry", "upload", "does anything leave"],
-        html: "<p>Nothing leaves this tab. The page has no analytics, no telemetry and no backend — the demo " +
+        html: "<p>Nothing leaves this tab. The page has no analytics, no telemetry and no backend. The demo " +
               "engine is a JavaScript port of the Python scoring module, running in your browser.</p>" +
               "<p>This assistant is the same: it matches your question against a list of topics compiled into the " +
               "page and reads the dataset already loaded. No model is called.</p>" },
@@ -952,12 +952,12 @@
       { id: "security",
         keys: ["security", "ssrf", "xss", "csp", "rate limit", "hardening", "safe", "injection", "secure"],
         html: "<p>A tool that renders attacker-controlled text has to assume the text is hostile:</p>" +
-              "<ul><li><strong>Egress is allowlisted</strong> — twelve known hosts, HTTPS only, every resolved " +
+              "<ul><li><strong>Egress is allowlisted</strong>: twelve known hosts, HTTPS only, every resolved " +
               "address checked against private, loopback, link-local and metadata space, on redirects too</li>" +
               "<li><strong>Output is encoded</strong>, with a CSP behind it that forbids inline script</li>" +
               "<li><strong>Sliding-window rate limits</strong> per bucket, and bounded request bodies</li>" +
               "<li><strong>Logs mask credentials</strong> before anything is written</li></ul>" +
-              "<p>Each control has a test that proves it — 63 on the backend alone.</p>",
+              "<p>Each control has a test that proves it: 72 on the backend alone.</p>",
         src: "docs/SECURITY.md" },
 
       { id: "live",
@@ -1001,7 +1001,7 @@
         html: "<p>Extraction is measured, not asserted: <strong>100% precision and 100% recall</strong> " +
               "over 9,325 expected indicators across 3,400 generated log lines in 15 formats.</p>" +
               "<p>Read that sceptically, and I would rather say so than sell it. That is a score " +
-              "against a corpus this project generates, not against the world — it means the " +
+              "against a corpus this project generates, not against the world. It means the " +
               "extractor satisfies its own documented contract on the shapes it was shown. It was " +
               "already 100% before two of the five bugs it later found had traps written for them.</p>" +
               "<p>The scoring step has no accuracy figure at all, because it has no learned " +
@@ -1018,7 +1018,7 @@
               "<p><strong>Disagreement is kept, not averaged away.</strong> One confirmed ThreatFox " +
               "listing still reads critical when four quiet sources disagree.</p>" +
               "<p><strong>Silence is not innocence.</strong> A source with no key configured reports " +
-              "<code>skipped</code> and never <code>clean</code> — the difference matters when " +
+              "<code>skipped</code> and never <code>clean</code>, and the difference matters when " +
               "somebody reads the ticket six months later.</p>",
         acts: ["scoring", "evidence"] },
 
@@ -1029,7 +1029,7 @@
         html: "<p>Uploads are capped at <strong>5 MB</strong>; one paste at 200,000 characters.</p>" +
               "<p>Measured: about <strong>11,300 lines a second</strong> one line at a time, and " +
               "<strong>15,000 a second</strong> for a single paste, flat in input size. A full " +
-              "5 MB upload — around 33,000 lines — extracts in 1.4 seconds.</p>" +
+              "5 MB upload (around 33,000 lines) extracts in 1.4 seconds.</p>" +
               "<p>It used to take 14.1 seconds and block every other request on the worker. Two " +
               "loops were rescanning the whole input once per match; a benchmark found it, and a " +
               "test now fails if the quadratic comes back.</p>" },
@@ -1040,7 +1040,7 @@
           "what happens if", "error handling", "timeout"],
         html: "<p>The verdict still lands, and it says what it did not hear from.</p>" +
               "<p>Every source is asked concurrently with its own timeout. One that errors, times " +
-              "out or has no key configured reports <code>skipped</code> — never <code>clean</code>. " +
+              "out or has no key configured reports <code>skipped</code>, never <code>clean</code>. " +
               "The score is then computed from the sources that did answer, and the ticket names " +
               "the ones that did not.</p>" +
               "<p>That distinction is the whole point: an absent answer is not a good answer.</p>",
@@ -1049,25 +1049,25 @@
       { id: "example",
         keys: ["show me an example", "give me an example", "example", "demo", "try it",
           "sample", "what should i paste", "what can i paste", "show me how"],
-        html: "<p>Paste this into the workbench — it is a firewall line with deliberate traps in it:</p>" +
+        html: "<p>Paste this into the workbench. It is a firewall line with deliberate traps in it:</p>" +
               "<p><code>SRC=100.64.9.14 DST=10.0.0.5 DPT=445</code><br>" +
               "<code>SRC=185.220.101.34 DST=10.0.0.5 DPT=22</code><br>" +
               "<code>Image=C:\\Users\\Public\\svchost.exe User=j.doe</code><br>" +
               "<code>GET https://invoice-2026.zip/setup.exe 200</code></p>" +
               "<p>You should get two indicators and one URL. The rest is dropped on purpose: " +
               "<code>100.64.9.14</code> is carrier-grade NAT, <code>10.0.0.5</code> is RFC 1918, " +
-              "<code>svchost.exe</code> is a filename and <code>j.doe</code> is a username — none " +
-              "of which should ever be sent to a threat-intel vendor.</p>",
+              "<code>svchost.exe</code> is a filename and <code>j.doe</code> is a username. None " +
+              "of them should ever be sent to a threat-intel vendor.</p>",
         acts: ["workbench"] },
 
       { id: "status",
         keys: ["is this a real product", "real product", "is this real", "is it production ready",
           "production", "is this a demo", "is it a toy", "is this serious", "commercial",
           "is it finished", "is this live", "do people use this", "is it maintained"],
-        html: "<p>It is a real, working tool and it is not a commercial product — both of those " +
+        html: "<p>It is a real, working tool and it is not a commercial product. Both of those " +
               "are true and it would be dishonest to lead with only one.</p>" +
               "<p>What is real: the backend runs, queries live vendor APIs, scores, graphs and " +
-              "raises tickets into Jira and ServiceNow. 166 backend tests, 233 browser checks, CI " +
+              "raises tickets into Jira and ServiceNow. 200 backend tests, 300 browser checks, CI " +
               "on every push, and the extraction step is measured against a 3,400-line corpus.</p>" +
               "<p>What it is not: hosted for you, load-tested by anyone, or supported. This page " +
               "is a demo on bundled synthetic data with no backend behind it. Run it yourself with " +
@@ -1085,7 +1085,7 @@
         html: "<p>Backend: FastAPI, async httpx with concurrent fan-out, SQLAlchemy 2.0, Celery + Redis, PostgreSQL " +
               "(SQLite for local runs).</p>" +
               "<p>Front end: no framework and no build step. Plain HTML, a CSS custom-property token system and " +
-              "vanilla JavaScript — a reviewer clones the repo and opens the file.</p>" },
+              "vanilla JavaScript. A reviewer clones the repo and opens the file.</p>" },
 
       { id: "author",
         keys: ["who built", "author", "vinit", "rami", "contact", "portfolio", "hire"],
@@ -1095,7 +1095,7 @@
       /* ── answers computed from the dataset on the page, not written by hand */
       { id: "now",
         keys: ["how many findings", "current findings", "right now", "summary", "how many", "status", "overview of findings", "severity split"],
-        live: () => "<p>On the dataset loaded here: <strong>" + total("all") + " findings</strong> — " + sev("all") + ".</p>" +
+        live: () => "<p>On the dataset loaded here: <strong>" + total("all") + " findings</strong>: " + sev("all") + ".</p>" +
               "<p>By state: " + MODEL.states("all").map((st) => st.text).join(", ").toLowerCase() + ". Open cases account for " +
               total("open") + " of them (" + sev("open") + ").</p>",
         acts: ["console"], src: "the sample dataset on this page" },
@@ -1105,7 +1105,7 @@
         live: () => {
           const rows = DATA.findings.filter((f) => f.sev === "critical" || f.sev === "high");
           return "<p>The " + rows.length + " indicators at high or critical in this sample:</p><ul>" +
-            rows.map((f) => "<li><code>" + esc(f.ioc) + "</code> — " + f.sev + ", " + esc(f.src) +
+            rows.map((f) => "<li><code>" + esc(f.ioc) + "</code>: " + f.sev + ", " + esc(f.src) +
               ", seen " + esc(f.seen) + "</li>").join("") + "</ul>" +
             "<p>All of them are RFC 5737 / RFC 2606 placeholders. None is a real host.</p>";
         },
@@ -1114,7 +1114,7 @@
       { id: "surface",
         keys: ["attack surface", "surface", "exposure", "exposed", "assets", "gauge"],
         live: () => "<p>The attack-surface score here is <strong>" + DATA.surface.score + "</strong>, over " +
-              (DATA.surface.ip + DATA.surface.svc) + " assets — " + DATA.surface.ip + " IP addresses and " +
+              (DATA.surface.ip + DATA.surface.svc) + " assets: " + DATA.surface.ip + " IP addresses and " +
               DATA.surface.svc + " services.</p>" +
               "<p>It is a posture number, not a verdict: it says how much is reachable, not how bad any one thing is.</p>",
         acts: ["console"], src: "the sample dataset on this page" },
@@ -1123,7 +1123,7 @@
         keys: ["kpis", "metrics", "mttr", "time to triage", "how fast", "closed findings"],
         live: () => "<p>" + DATA.kpis.map((k) => "<strong>" + esc(k.label) + "</strong> " + k.value +
               " (" + esc(k.delta) + ", " + esc(k.note) + ")").join("<br>") + "</p>" +
-              "<p>Median time to triage is the one worth watching — it is the number the whole tool exists to move.</p>",
+              "<p>Median time to triage is the one worth watching. It is the number the whole tool exists to move.</p>",
         acts: ["console"], src: "the sample dataset on this page" },
 
       { id: "trend",
@@ -1132,7 +1132,7 @@
           const peak = DATA.months.reduce((a, b) => (b.v > a.v ? b : a));
           return "<p>Assets over the last six months: " + DATA.months.map((m) => esc(m.m) + " " + m.v).join(", ") +
             ".</p><p><strong>" + esc(peak.m) + "</strong> is the peak at " + peak.v +
-            " — the month worth asking a question about.</p>";
+            ", the month worth asking a question about.</p>";
         },
         acts: ["console"], src: "the sample dataset on this page" },
 
@@ -1148,7 +1148,7 @@
         keys: ["name of this tool", "name of the tool", "what is this called", "what is it called",
           "tool name", "project name", "whats this called", "what is the name", "called",
           "name of this project", "name of this website", "name of this app"],
-        html: "<p>This is <strong>IntelPulse</strong> — a threat-intelligence correlation and " +
+        html: "<p>This is <strong>IntelPulse</strong>, a threat-intelligence correlation and " +
               "triage workbench.</p><p>You paste an alert, raw syslog or a JSON export; it pulls " +
               "out the indicators, asks five intelligence sources about them at once, scores what " +
               "comes back into one verdict you can audit, and writes the ticket.</p>",
@@ -1159,7 +1159,7 @@
           "who built this", "who built it", "who created this", "who created it", "author",
           "developer", "who wrote this", "whose project", "who owns this", "creator",
           "who is behind this", "made by", "built by", "portfolio of"],
-        html: "<p>Built by <strong>Vinit Rami</strong>, a cybersecurity analyst — CEH v13, VAPT " +
+        html: "<p>Built by <strong>Vinit Rami</strong>, a cybersecurity analyst: CEH v13, VAPT " +
               "across finance, healthcare and government, currently on an MSc in Cyber Security " +
               "at the University of Portsmouth.</p>" +
               "<p>IntelPulse is part of his portfolio: the code is MIT-licensed and public, the " +
@@ -1170,7 +1170,7 @@
         keys: ["what does intelpulse mean", "why intelpulse", "meaning of the name",
           "why is it called intelpulse", "where does the name come from"],
         html: "<p><em>Intel</em> for the intelligence sources it correlates, <em>pulse</em> for " +
-              "the thing it is actually measuring — whether an indicator is alive and being used " +
+              "the thing it is actually measuring: whether an indicator is alive and being used " +
               "right now, not whether it appeared on a list once in 2019.</p>" +
               "<p>That is also why a GreyNoise \u201cbenign scanner\u201d result pulls a score " +
               "down rather than leaving it alone.</p>",
@@ -1184,11 +1184,11 @@
           "explain like i am five", "eli5", "what does this do", "what does it do"],
         html: "<p><strong>IntelPulse</strong> turns one pasted alert into one auditable verdict. " +
               "The short version, in order:</p>" +
-              "<p><strong>1. Paste.</strong> An alert, a firewall line, a Windows event as JSON — " +
+              "<p><strong>1. Paste.</strong> An alert, a firewall line, a Windows event as JSON, " +
               "whatever your SIEM gave you. It reads 15 log formats and pulls the indicators out: " +
               "IPs, domains, URLs, hashes, emails and CVEs.</p>" +
-              "<p><strong>2. Ask.</strong> Five sources are queried at once — AbuseIPDB, OTX, " +
-              "GreyNoise, ThreatFox, URLhaus — plus offline blocklists and GeoIP.</p>" +
+              "<p><strong>2. Ask.</strong> Five sources are queried at once (AbuseIPDB, OTX, " +
+              "GreyNoise, ThreatFox, URLhaus) plus offline blocklists and GeoIP.</p>" +
               "<p><strong>3. Score.</strong> One number out of 100, from a fixed formula with no " +
               "learned parameters, so the same input always gives the same answer and you can " +
               "check the arithmetic yourself.</p>" +
@@ -1213,7 +1213,7 @@
       { id: "greeting",
         keys: ["hi there", "hello there", "hey there", "good morning", "good evening",
           "good afternoon", "howdy", "yo", "namaste"],
-        html: "<p>Hello. I answer questions about IntelPulse — what it is, how it scores, which " +
+        html: "<p>Hello. I answer questions about IntelPulse: what it is, how it scores, which " +
               "sources it asks, what the numbers on this page mean, and where everything lives.</p>" +
               "<p>If you would rather just look: the workbench is where you paste an alert.</p>",
         acts: ["workbench", "console"] },
@@ -1241,7 +1241,7 @@
         keys: ["is it free", "is this free", "does it cost", "is it open source", "open source",
           "licence", "license", "mit", "can i use this", "can i copy this", "can i fork",
           "is it paid", "pricing", "how much does it cost"],
-        html: "<p>Free, and open source. The code is <strong>MIT</strong> — use it, fork it, " +
+        html: "<p>Free, and open source. The code is <strong>MIT</strong>: use it, fork it, " +
               "build your own thing with it.</p>" +
               "<p>Two things are not MIT: the photographs and CV on the portfolio side, which " +
               "are all rights reserved, and the bundled fonts, which carry the SIL Open Font " +
@@ -1263,7 +1263,7 @@
           "can i deploy this", "deploy it", "docker", "docker compose", "on my machine",
           "set it up", "how do i set this up"],
         html: "<p><code>cd intelpulse &amp;&amp; cp .env.example .env &amp;&amp; docker compose " +
-              "up --build</code> — API on <code>:8000/docs</code>, dashboard on <code>:8080</code>.</p>" +
+              "up --build</code> brings the API up on <code>:8000/docs</code> and the dashboard on <code>:8080</code>.</p>" +
               "<p>That brings up the API, a worker, Redis, Postgres and nginx. It runs without a " +
               "single API key: every source that has no key reports <code>skipped</code> rather " +
               "than pretending to be clean.</p>",
@@ -1274,7 +1274,7 @@
           "analytics", "cookies", "do you log", "what do you do with my data",
           "is it private", "telemetry"],
         html: "<p>This page stores nothing and sends nothing. No analytics, no telemetry, no " +
-              "cookies, no backend — the demo dataset is bundled and the assistant runs in your " +
+              "cookies, no backend. The demo dataset is bundled and the assistant runs in your " +
               "tab.</p>" +
               "<p>Run the real backend and what leaves is only what you chose to look up, to the " +
               "vendors you configured. Outbound requests are checked against an allowlist, so a " +
@@ -1416,7 +1416,7 @@
         bubble("bot",
           "<p>Ask me about how IntelPulse scores an indicator, which sources it queries, what you can paste " +
           "into it, or anything about the dataset on this page.</p>" +
-          "<p>I answer from this project's documentation and the data already loaded here — so if I do not know " +
+          "<p>I answer from this project's documentation and the data already loaded here, so if I do not know " +
           "something, I will say that rather than make it up.</p>");
       }
       setTimeout(() => input.focus({ preventScroll: true }), 120);

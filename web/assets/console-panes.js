@@ -105,7 +105,7 @@
   })();
   const formatWhen = (value) => {
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
+    if (Number.isNaN(date.getTime())) return "unknown";
     try { return WHEN ? WHEN.format(date) : date.toISOString().replace("T", " ").slice(0, 16); }
     catch (_) { return date.toISOString().replace("T", " ").slice(0, 16); }
   };
@@ -181,7 +181,7 @@
   };
 
   const STARTER_BLURB = {
-    firewall: "Three source addresses from a perimeter block burst — one is a confirmed C2, one is noise.",
+    firewall: "Three source addresses from a perimeter block burst. One is a confirmed C2, one is noise.",
     phishing: "A reported mail: sender, link, relay and attachment hash in one paste.",
     edr: "A JSON alert straight off the endpoint agent, CVE included."
   };
@@ -320,7 +320,7 @@
       if (!wb.health) {
         conn.className = "wb-conn err"; conn.textContent = "unreachable";
         box.innerHTML = '<p class="wb-hint wb-warn">Cannot reach <code>' + esc(wb.apiBase) + "</code>" +
-          (errorMessage ? " — " + esc(errorMessage) : "") + ".</p>" +
+          (errorMessage ? " (" + esc(errorMessage) + ")" : "") + ".</p>" +
           '<p class="wb-hint">Start it with <code>docker compose up</code>, or switch back to demo data.</p>';
         return;
       }
@@ -384,7 +384,7 @@
         ? '<div class="wb-chips">' + indicators.map((i) =>
             '<span class="wb-chip"><b>' + esc(i.type) + "</b> " + esc(i.value) + "</span>").join("") +
           '</div><p class="wb-hint">' + Object.entries(counts).map(([k, v]) => v + " " + esc(k)).join(" · ") +
-          " — parsed locally, no API quota spent.</p>"
+          ". Parsed locally, no API quota spent.</p>"
         : '<p class="wb-hint">No routable indicators. Private and reserved address space, usernames and filenames are dropped on purpose.</p>';
     }
 
@@ -404,10 +404,10 @@
       reader.onload = () => {
         if (!alive) return;
         q("#wb-input").value = String(reader.result).slice(0, 200000);
-        q("#wb-title").value = "Upload — " + file.name;
+        q("#wb-title").value = "Upload: " + file.name;
         setError(null);
         preview();
-        toast(file.name + " loaded — press Run triage.");
+        toast(file.name + " loaded. Press Run triage.");
       };
       reader.readAsText(file);
     }
@@ -422,7 +422,7 @@
       if (previous.text || previous.result) {
         /* Destructive, so reversible rather than confirmed: clearing a box is
            not worth a dialog in the middle of a shift. */
-        toast("Workspace cleared — press Undo to bring it back.");
+        toast("Workspace cleared. Press Undo to bring it back.");
         showUndo(() => {
           q("#wb-input").value = previous.text; q("#wb-title").value = previous.title;
           if (previous.result) { wb.result = previous.result; renderResult(previous.result); }
@@ -465,7 +465,7 @@
         }
         if (!alive) return;
         if (!result.indicators || !result.indicators.length) {
-          setError("No routable indicators in that input — private and reserved address space is dropped on purpose.");
+          setError("No routable indicators in that input. Private and reserved address space is dropped on purpose.");
           q("#wb-results").hidden = true;
           return;
         }
@@ -555,7 +555,19 @@
       C.tweenNumber(q("#wb-cov"), answered, { duration: 420 });
       C.tweenNumber(q("#wb-ms"), result.duration_ms || 0, { duration: 520 });
 
-      q("#wb-summary").textContent = result.summary || "";
+      /* The summary marks the lead indicator as a code span because the same
+         sentence goes into the ticket. Shown here, the backticks were printed
+         as they are; they become a <code> element now, built as nodes, so
+         nothing in the summary is ever parsed as markup. */
+      const summary = q("#wb-summary");
+      summary.textContent = "";
+      String(result.summary || "").split(/(`[^`]*`)/).forEach((part) => {
+        if (/^`[^`]*`$/.test(part)) {
+          const span = document.createElement("code");
+          span.textContent = part.slice(1, -1);
+          summary.appendChild(span);
+        } else if (part) summary.appendChild(document.createTextNode(part));
+      });
       q("#wb-mode-note").innerHTML = (result.mode || wb.mode) === "demo"
         ? '<span class="status-pill">Sample data <span class="on">synthetic</span></span>'
         : '<span class="status-pill">Live <span class="on">vendor data</span></span>';
@@ -843,7 +855,7 @@
 
     function nodeMarkup(n, delay) {
       const rel = n.links.map((e) => e.label + " " + (e.source === n ? e.target : e.source).data.label);
-      const title = "<title>" + esc(n.data.label + (rel.length ? " — " + rel.join("; ") : "")) + "</title>";
+      const title = "<title>" + esc(n.data.label + (rel.length ? ": " + rel.join("; ") : "")) + "</title>";
       const open = '<g class="wb-node ' + (n.root ? "root ioc sev-" + n.verdict : "ent k-" + n.kind) +
         '" data-node="' + esc(n.id) + '" transform="translate(' + n.x.toFixed(1) + "," + n.y.toFixed(1) + ')">' + title +
         '<g class="wb-node-body" style="--d:' + delay + 'ms">';
@@ -937,7 +949,7 @@
           esc(model.hidden + GRAPH_CAP) + ".</p>" : "") +
         /* The same graph as a list, for anyone who cannot read the picture. */
         '<details class="wb-graph-table"><summary>Read the relationships as a list</summary><ul>' +
-          edges.map((e) => "<li>" + esc(e.source.data.label) + " — " + esc(e.label) + " → " + esc(e.target.data.label) +
+          edges.map((e) => "<li>" + esc(e.source.data.label) + " " + esc(e.label) + " " + esc(e.target.data.label) +
             (e.weak ? " (weaker link)" : "") + "</li>").join("") + "</ul></details>";
       graphState = { model, width, active: null };
     }
@@ -1042,7 +1054,7 @@
       const weightedSum = rows.reduce((s, r) => s + r.weighted, 0);
       const mean = weightSum ? weightedSum / weightSum : 0;
       const floor = rows.reduce((max, r) => Math.max(max, r.signal * (E.AUTHORITY[r.provider] || 0.5)), 0);
-      q("#wb-dialog-title").textContent = "Scoring math — " + indicator.value;
+      q("#wb-dialog-title").textContent = "Scoring math: " + indicator.value;
       q("#wb-dialog-body").innerHTML =
         '<div class="table-wrap"><table class="table wb-math"><thead><tr><th>Source</th><th>Signal</th><th>Weight</th>' +
         "<th>Weighted</th><th>Authority</th><th>Floor</th></tr></thead><tbody>" +
@@ -1081,7 +1093,7 @@
       wb.lists = wb.lists.filter((e) => String(e.value).toLowerCase() !== String(value).toLowerCase());
       wb.lists.push({ value, ioc_type: type, list_type: list, reason: "added from the console (demo)" });
       store.set("lists", wb.lists);
-      toast(value + " " + list + "listed — run the triage again to see the override.");
+      toast(value + " " + list + "listed. Run the triage again to see the override.");
     }
 
     function copyText(text, done) {
@@ -1352,7 +1364,7 @@
             "</div>" +
             '<button type="button" class="btn btn-light btn-sm" data-play>Play the timeline</button></div>' +
         "</div>" +
-        '<p class="wb-hint">Synthetic dataset — RFC 5737 addresses, RFC 2606 names and invented family names. No live vendor data.</p>' +
+        '<p class="wb-hint">Synthetic dataset: RFC 5737 addresses, RFC 2606 names and invented family names. No live vendor data.</p>' +
       "</section>" +
       '<section class="card panel"><div class="panel-head"><h4>Every cluster in view</h4></div>' +
         '<div id="cg-table"></div></section>' +

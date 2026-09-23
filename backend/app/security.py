@@ -109,7 +109,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 content={
                     "detail": (
                         f"rate limit exceeded for {bucket} requests "
-                        f"({limit} per {int(self.window)}s) — retry in {retry_after}s"
+                        f"({limit} per {int(self.window)}s); retry in {retry_after}s"
                     )
                 },
                 headers={

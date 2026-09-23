@@ -274,7 +274,7 @@ async def test_a_title_cannot_forge_a_section_of_the_ticket(client):
     # the forged text is flattened into the title line; only the real section starts a line
     assert sum(line.startswith("## 4.") for line in lines) == 1
     assert not any(line.startswith("| Severity | **LOW**") for line in lines)
-    assert lines[0].startswith("# SOC Triage Report — Routine scan")
+    assert lines[0].startswith("# SOC Triage Report: Routine scan")
 
 
 @pytest.mark.asyncio

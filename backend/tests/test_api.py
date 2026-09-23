@@ -122,7 +122,7 @@ async def test_report_endpoint_returns_pasteable_markdown(client):
     )
     assert response.status_code == 200
     report = response.text
-    assert "# SOC Triage Report — IR-2026-004" in report
+    assert "# SOC Triage Report: IR-2026-004" in report
     assert "## 1. Executive summary" in report
     assert "## 4. Recommended containment actions" in report
     assert "185[.]220[.]101[.]34" in report   # defanged for safe pasting

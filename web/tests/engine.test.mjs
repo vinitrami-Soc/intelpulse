@@ -125,7 +125,7 @@ test("demo triage produces a scored, graphed, reportable case", () => {
   assert.ok(result.graph.nodes.length > result.indicators.length, "graph should add related entities");
 
   const markdown = E.toMarkdown(result, { demo: true });
-  assert.ok(markdown.includes("# SOC Triage Report — unit test"));
+  assert.ok(markdown.includes("# SOC Triage Report: unit test"));
   assert.ok(markdown.includes("## 4. Recommended containment actions"));
   assert.ok(markdown.includes("Demo mode"), "demo reports must say they are synthetic");
   assert.ok(markdown.includes("203[.]0[.]113[.]10"), "indicators must be defanged");

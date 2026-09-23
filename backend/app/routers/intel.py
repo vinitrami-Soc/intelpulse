@@ -47,7 +47,7 @@ async def cve_lookup(cve_id: str, session: AsyncSession = Depends(get_session)) 
     if record is None:
         raise HTTPException(
             status_code=404,
-            detail="CVE not in the local NVD slice — run the NVD feed import for a wider window",
+            detail="CVE not in the local NVD slice; run the NVD feed import for a wider window",
         )
     return {
         "cve_id": record.cve_id,

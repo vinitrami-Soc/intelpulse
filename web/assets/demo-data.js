@@ -73,23 +73,23 @@ Reporting user clicked the link at 09:41 GMT.`
         provider: "local_blocklist", label: "Local historical feeds", status: "ok",
         facts: { feed_hits: 2, feeds: ["feodo-tracker", "sample-offline"], malware_families: ["SampleBot C2"], first_seen: "2026-08-29" },
         tags: ["feed:feodo-tracker"], malware_families: ["SampleBot C2"], attack_ids: ["T1071"],
-        signals: [{ key: "local_blocklist", value: 0.95, rationale: "present in offline feed(s): feodo-tracker, sample-offline — SampleBot C2" }],
+        signals: [{ key: "local_blocklist", value: 0.95, rationale: "present in offline feed(s): feodo-tracker, sample-offline (SampleBot C2)" }],
         relations: [{ target: "SampleBot C2", target_type: "malware", relation: "attributed_to", confidence: 0.9 }]
       },
       {
         provider: "geoip", label: "MaxMind GeoLite2 (offline)", status: "ok",
         facts: { country: "NL", country_name: "Netherlands", city: "Amsterdam", asn: 200019, as_org: "Sample Hosting BV" },
         tags: ["elevated-asn"],
-        signals: [{ key: "geoip", value: 0.4, rationale: "AS200019 — bulletproof-reputation hosting (sample dataset)" }],
+        signals: [{ key: "geoip", value: 0.4, rationale: "AS200019, bulletproof-reputation hosting (sample dataset)" }],
         relations: [{ target: "AS200019", target_type: "asn", relation: "announced_by", confidence: 0.6 },
                     { target: "NL", target_type: "country", relation: "located_in", confidence: 0.5 }]
       },
       { provider: "urlhaus", label: "URLhaus (abuse.ch)", status: "clean", facts: { url_count: 0 }, signals: [{ key: "urlhaus", value: 0, rationale: "not listed on URLhaus" }], relations: [] },
       { provider: "otx", label: "AlienVault OTX", status: "ok",
-        facts: { pulse_count: 9, pulse_names: ["SampleBot infrastructure — Sept 2026", "Mass RDP scanning wave"], malware_families: ["SampleBot"], adversaries: [], attack_ids: ["T1071", "T1110"] },
+        facts: { pulse_count: 9, pulse_names: ["SampleBot infrastructure, Sept 2026", "Mass RDP scanning wave"], malware_families: ["SampleBot"], adversaries: [], attack_ids: ["T1071", "T1110"] },
         tags: ["sample-campaign"], malware_families: ["SampleBot"], attack_ids: ["T1071", "T1110"],
         signals: [{ key: "otx", value: 0.87, rationale: "referenced in 9 OTX pulse(s); families: SampleBot" }],
-        relations: [{ target: "SampleBot infrastructure — Sept 2026", target_type: "pulse", relation: "reported_in", confidence: 0.4 }] }
+        relations: [{ target: "SampleBot infrastructure, Sept 2026", target_type: "pulse", relation: "reported_in", confidence: 0.4 }] }
     ],
 
     "198.51.100.42": [
@@ -100,7 +100,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "local_blocklist", label: "Local historical feeds", status: "ok",
         facts: { feed_hits: 1, feeds: ["sample-offline"], malware_families: ["SampleLoader"] },
         tags: ["feed:sample-offline"], malware_families: ["SampleLoader"],
-        signals: [{ key: "local_blocklist", value: 0.8, rationale: "present in offline feed(s): sample-offline — SampleLoader" }],
+        signals: [{ key: "local_blocklist", value: 0.8, rationale: "present in offline feed(s): sample-offline (SampleLoader)" }],
         relations: [{ target: "SampleLoader", target_type: "malware", relation: "attributed_to", confidence: 0.9 }] },
       { provider: "greynoise", label: "GreyNoise", status: "ok",
         facts: { classification: "suspicious", noise: true, riot: false, actor: "unknown" },
@@ -119,7 +119,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "greynoise", label: "GreyNoise", status: "ok",
         facts: { classification: "benign", noise: true, riot: false, actor: "Sample Research Scanner", last_seen: "2026-09-18" },
         tags: ["greynoise:benign", "mass-scanner"],
-        signals: [{ key: "greynoise", value: 0.05, rationale: "internet background noise — known scanner (Sample Research Scanner)" }], relations: [] },
+        signals: [{ key: "greynoise", value: 0.05, rationale: "internet background noise: known scanner (Sample Research Scanner)" }], relations: [] },
       { provider: "abuseipdb", label: "AbuseIPDB", status: "ok",
         facts: { abuse_confidence: 41, total_reports_90d: 120, distinct_reporters: 34, isp: "Sample Research Labs", usage_type: "Data Center/Web Hosting", country: "US", top_categories: ["Port Scan"] },
         tags: ["Port Scan"],
@@ -145,7 +145,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "local_blocklist", label: "Local historical feeds", status: "ok",
         facts: { feed_hits: 1, feeds: ["sample-offline"], malware_families: ["SampleBot C2"] },
         tags: ["feed:sample-offline"], malware_families: ["SampleBot C2"], attack_ids: ["T1071"],
-        signals: [{ key: "local_blocklist", value: 0.9, rationale: "present in offline feed(s): sample-offline — SampleBot C2" }], relations: [] },
+        signals: [{ key: "local_blocklist", value: 0.9, rationale: "present in offline feed(s): sample-offline (SampleBot C2)" }], relations: [] },
       { provider: "abuseipdb", label: "AbuseIPDB", status: "ok",
         facts: { abuse_confidence: 74, total_reports_90d: 88, distinct_reporters: 21, isp: "Sample Hosting BV", country: "NL", top_categories: ["Hacking", "Web App Attack"] },
         tags: ["Hacking", "Web App Attack"],
@@ -153,7 +153,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "geoip", label: "MaxMind GeoLite2 (offline)", status: "ok",
         facts: { country: "NL", country_name: "Netherlands", asn: 200019, as_org: "Sample Hosting BV" },
         tags: ["elevated-asn"],
-        signals: [{ key: "geoip", value: 0.4, rationale: "AS200019 — bulletproof-reputation hosting (sample dataset)" }],
+        signals: [{ key: "geoip", value: 0.4, rationale: "AS200019, bulletproof-reputation hosting (sample dataset)" }],
         relations: [{ target: "AS200019", target_type: "asn", relation: "announced_by", confidence: 0.6 }] },
       { provider: "otx", label: "AlienVault OTX", status: "clean", facts: { pulse_count: 0 }, signals: [{ key: "otx", value: 0, rationale: "no OTX pulses reference this indicator" }], relations: [] },
       { provider: "urlhaus", label: "URLhaus (abuse.ch)", status: "clean", facts: {}, signals: [{ key: "urlhaus", value: 0, rationale: "not listed on URLhaus" }], relations: [] }
@@ -167,7 +167,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "local_blocklist", label: "Local historical feeds", status: "ok",
         facts: { feed_hits: 1, feeds: ["sample-offline"], malware_families: ["SampleStealer"] },
         tags: ["feed:sample-offline"], malware_families: ["SampleStealer"],
-        signals: [{ key: "local_blocklist", value: 0.8, rationale: "present in offline feed(s): sample-offline — SampleStealer" }], relations: [] },
+        signals: [{ key: "local_blocklist", value: 0.8, rationale: "present in offline feed(s): sample-offline (SampleStealer)" }], relations: [] },
       { provider: "otx", label: "AlienVault OTX", status: "ok",
         facts: { pulse_count: 4, pulse_names: ["Credential phishing relay cluster"], malware_families: [], attack_ids: ["T1566"] },
         tags: ["phishing"], attack_ids: ["T1566"],
@@ -176,10 +176,10 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "geoip", label: "MaxMind GeoLite2 (offline)", status: "ok",
         facts: { country: "US", country_name: "United States", asn: 14061, as_org: "Sample Cloud" },
         tags: ["elevated-asn"],
-        signals: [{ key: "geoip", value: 0.4, rationale: "AS14061 — frequent abuse origin (sample dataset)" }],
+        signals: [{ key: "geoip", value: 0.4, rationale: "AS14061, frequent abuse origin (sample dataset)" }],
         relations: [{ target: "AS14061", target_type: "asn", relation: "announced_by", confidence: 0.6 }] },
       { provider: "threatfox", label: "ThreatFox (abuse.ch)", status: "clean", facts: { matches: 0 }, signals: [{ key: "threatfox", value: 0, rationale: "no ThreatFox IOC match" }], relations: [] },
-      { provider: "greynoise", label: "GreyNoise", status: "clean", facts: { classification: "unseen", noise: false }, signals: [{ key: "greynoise", value: 0.35, rationale: "not seen scanning the internet — consistent with targeted activity" }], relations: [] }
+      { provider: "greynoise", label: "GreyNoise", status: "clean", facts: { classification: "unseen", noise: false }, signals: [{ key: "greynoise", value: 0.35, rationale: "not seen scanning the internet, consistent with targeted activity" }], relations: [] }
     ],
 
     "secure-login.example.com": [
@@ -190,7 +190,7 @@ Reporting user clicked the link at 09:41 GMT.`
         relations: [{ target: "https://secure-login.example.com/owa/session?id=8812", target_type: "url", relation: "hosts", confidence: 0.8 },
                     { target: "192.0.2.77", target_type: "ip", relation: "resolves_to", confidence: 0.8 }] },
       { provider: "otx", label: "AlienVault OTX", status: "ok",
-        facts: { pulse_count: 7, pulse_names: ["OWA credential phishing kit", "Sample phishing wave — Sept"], malware_families: ["SamplePhishKit"], attack_ids: ["T1566.002"] },
+        facts: { pulse_count: 7, pulse_names: ["OWA credential phishing kit", "Sample phishing wave, Sept"], malware_families: ["SamplePhishKit"], attack_ids: ["T1566.002"] },
         tags: ["phishing"], malware_families: ["SamplePhishKit"], attack_ids: ["T1566.002"],
         signals: [{ key: "otx", value: 0.82, rationale: "referenced in 7 OTX pulse(s); families: SamplePhishKit" }],
         relations: [{ target: "SamplePhishKit", target_type: "malware", relation: "attributed_to", confidence: 0.7 }] },
@@ -271,7 +271,7 @@ Reporting user clicked the link at 09:41 GMT.`
       { provider: "nvd", label: "NVD (offline)", status: "ok",
         facts: { in_local_nvd: true, cvss_score: 10.0, cvss_vector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H", severity: "CRITICAL", published: "2021-12-10", known_exploited: true, description: "Apache Log4j2 JNDI features do not protect against attacker controlled LDAP and other JNDI related endpoints (Log4Shell)." },
         tags: ["cvss:CRITICAL"], attack_ids: ["T1190"],
-        signals: [{ key: "otx", value: 1.0, rationale: "CVSS 10.0 (CRITICAL) — known exploited in the wild" }],
+        signals: [{ key: "otx", value: 1.0, rationale: "CVSS 10.0 (CRITICAL), known exploited in the wild" }],
         relations: [{ target: "CVE-2021-44228", target_type: "cve", relation: "exploits", confidence: 0.8 }] }
     ]
   }
