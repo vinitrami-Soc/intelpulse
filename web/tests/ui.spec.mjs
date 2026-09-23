@@ -582,7 +582,9 @@ check("no uncaught page errors in the workbench", errors.length === 0, errors.sl
     /* every cluster's position and size: the hub sits in the middle in both
        layouts, so one node alone cannot tell them apart */
     first: [...document.querySelectorAll("#cg-svg .cg-node:not(.child) circle")]
-      .map((c) => c.getAttribute("cx") + "/" + c.getAttribute("r")).join(" ")
+      .map((c) => c.getAttribute("cx") + "/" + c.getAttribute("r")).join(" "),
+    /* zoom and pan are one transform on the view group; the layout stays put */
+    view: document.querySelector("#cg-svg .cg-view")?.getAttribute("transform") || ""
   }));
   const start = await state();
   check("the campaign graph plots its clusters", start.nodes > 20 && start.rows > 10,
@@ -594,7 +596,8 @@ check("no uncaught page errors in the workbench", errors.length === 0, errors.sl
     const labels = document.querySelector("#cg-svg .cg-labels");
     const text = labels?.querySelector("text");
     return {
-      last: labels === document.querySelector("#cg-svg").lastElementChild,
+      /* last inside the view that pans and zooms, so above every node */
+      last: labels === document.querySelector("#cg-svg .cg-view").lastElementChild,
       inert: labels?.getAttribute("pointer-events") === "none",
       halo: text ? getComputedStyle(text).paintOrder : ""
     };
@@ -606,8 +609,8 @@ check("no uncaught page errors in the workbench", errors.length === 0, errors.sl
   await cg.click('[data-zoom="in"]');
   await cg.waitForTimeout(250);
   const zoomed = await state();
-  check("the graph toolbar changes the view", zoomed.first !== start.first,
-  start.first.split(" ")[0] + " → " + zoomed.first.split(" ")[0]);
+  check("the graph toolbar changes the view", zoomed.view !== start.view && /scale\(1\.25/.test(zoomed.view),
+    start.view + " → " + zoomed.view);
   await cg.click('[data-zoom="fit"]');
   await cg.click('[data-layout="tree"]');
   await cg.waitForTimeout(250);
@@ -649,6 +652,64 @@ check("no uncaught page errors in the workbench", errors.length === 0, errors.sl
       const r = document.querySelector("#cg-readout");
       return r.hidden || !r.classList.contains("on") || getComputedStyle(r).opacity === "0";
     }));
+
+  /* Reported: the graph could not be moved, hovering stopped working once it
+     was zoomed, and the member dots were dead. Zoom used to lay the graph out
+     again, bigger, with no way to reach what fell outside the frame. */
+  const frame = await cg.locator("#cg-stage").boundingBox();
+  const beforeDrag = (await state()).view;
+  await cg.mouse.move(frame.x + 40, frame.y + frame.height - 30);
+  await cg.mouse.down();
+  await cg.mouse.move(frame.x + 190, frame.y + frame.height - 110, { steps: 8 });
+  await cg.mouse.up();
+  const afterDrag = (await state()).view;
+  check("dragging the graph pans it", afterDrag !== beforeDrag, beforeDrag + " → " + afterDrag);
+  await cg.click('[data-zoom="fit"]');
+  await cg.click('[data-zoom="in"]');
+  await cg.click('[data-zoom="in"]');
+  await cg.evaluate(() => document.querySelector("#cg-stage").scrollIntoView({ block: "center", behavior: "instant" }));
+  await cg.waitForTimeout(350);
+  /* a member that is on screen, inside the frame, and the topmost thing at its
+     own centre (a cluster's hit disc can sit over a member it owns) */
+  const dot = await cg.evaluate(() => {
+    const s = document.querySelector("#cg-stage").getBoundingClientRect();
+    for (const d of document.querySelectorAll("#cg-svg .cg-node.child .cg-dot")) {
+      const r = d.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      if (x < s.left + 20 || x > s.right - 20 || y < s.top + 20 || y > s.bottom - 50 || y < 0 || y > innerHeight) continue;
+      if (document.elementFromPoint(x, y)?.closest(".cg-node") === d.closest(".cg-node")) return { x, y };
+    }
+    return null;
+  });
+  let memberText = "";
+  let lit = false;
+  if (dot) {
+    await cg.mouse.move(dot.x, dot.y);
+    await cg.waitForTimeout(300);
+    memberText = await cg.evaluate(() => document.querySelector("#cg-readout.on")?.textContent || "");
+    lit = await cg.evaluate(() => document.querySelector("#cg-svg").classList.contains("lit") &&
+      document.querySelectorAll("#cg-svg .cg-node.on").length >= 2);
+  }
+  check("a member dot answers the pointer, even zoomed in", /member of/.test(memberText), memberText.slice(0, 60) || "no dot in frame");
+  check("hovering lights the node and its cluster and dims the rest", lit);
+  await cg.mouse.move(frame.x + 5, frame.y + 5);
+  await cg.click('[data-zoom="fit"]');
+  await cg.keyboard.press("Escape");
+  await cg.click("#cg-table [data-pick]");
+  await cg.waitForTimeout(400);
+  const picked = await cg.evaluate(() => ({
+    readout: document.querySelector("#cg-readout.on")?.textContent || "",
+    focused: document.activeElement?.dataset?.id || "",
+    first: document.querySelector("#cg-table [data-pick]").dataset.pick
+  }));
+  check("a cluster in the table selects it in the graph", picked.focused === picked.first && picked.readout.length > 5,
+    JSON.stringify(picked).slice(0, 90));
+  await cg.keyboard.press("Escape");
+  await cg.focus("#cg-stage");
+  const viewBeforeKeys = (await state()).view;
+  await cg.keyboard.press("ArrowLeft");
+  await cg.keyboard.press("+");
+  check("the frame moves and zooms from the keyboard", (await state()).view !== viewBeforeKeys);
+  await cg.keyboard.press("0");
 
   await cg.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
   await cg.waitForTimeout(400);

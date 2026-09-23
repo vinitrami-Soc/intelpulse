@@ -62,15 +62,66 @@
 
   /* The weights and authority values are the ones backend/app ships. A source
      with no key configured reports "skipped" — never "clean". */
+  /* Each source carries a guide for someone meeting it for the first time:
+     what it is, why IntelPulse asks it, what comes back, whether it needs a
+     key, and the one thing to keep in mind when reading its answer. */
   const SOURCES = [
-    { name: "AbuseIPDB",      kind: "live",    weight: 1.0,  authority: 0.80, note: "Address reputation, corroboration-weighted" },
-    { name: "AlienVault OTX", kind: "live",    weight: 0.9,  authority: 0.70, note: "Community pulses, prone to syndication" },
-    { name: "ThreatFox",      kind: "live",    weight: 1.2,  authority: 0.95, note: "abuse.ch, confirmed command and control" },
-    { name: "URLhaus",        kind: "live",    weight: 1.1,  authority: 0.95, note: "abuse.ch, malware distribution URLs" },
-    { name: "GreyNoise",      kind: "live",    weight: 0.6,  authority: 0.50, note: "Context: is this an internet-wide scanner" },
-    { name: "Local blocklist",kind: "offline", weight: 1.0,  authority: 0.90, note: "Feodo Tracker and FireHOL, imported" },
-    { name: "GeoIP / ASN",    kind: "offline", weight: 0.25, authority: 0.30, note: "MaxMind GeoLite2, hosting context only" },
-    { name: "CVE lookup",     kind: "offline", weight: 0,    authority: 0,    note: "Local NVD slice and the CISA KEV list" }
+    { name: "AbuseIPDB", kind: "live", weight: 1.0, authority: 0.80, note: "Address reputation, corroboration-weighted",
+      checks: "IP addresses", site: "https://www.abuseipdb.com/",
+      what: "A community database where network owners report the IP addresses that attacked them: brute force, scanning, spam and exploitation.",
+      why: "It answers the first question about any address: has anyone else seen it misbehave, and how many separate people say so.",
+      gives: "An abuse confidence score from 0 to 100, the number of reports and distinct reporters, the country and the kind of network.",
+      key: "Yes, a free AbuseIPDB key. The free plan has a daily lookup limit.",
+      watch: "Reports are crowd sourced. A shared cloud or VPN address can carry old reports from a previous tenant, which is why one report is never enough on its own." },
+    { name: "AlienVault OTX", kind: "live", weight: 0.9, authority: 0.70, note: "Community pulses, prone to syndication",
+      checks: "IPs, domains, URLs, hashes and CVEs", site: "https://otx.alienvault.com/",
+      what: "Open Threat Exchange, where researchers publish pulses: write-ups of a campaign together with the indicators it used.",
+      why: "It links an indicator to named campaigns, malware families and ATT&CK techniques, which turns a bare IP into a story.",
+      gives: "How many pulses mention it, their names, the malware families and adversaries they cite, and ATT&CK technique IDs.",
+      key: "Yes, a free OTX key.",
+      watch: "Pulses copy each other, so ten pulses can be one report repeated. That is why its authority is 0.70 and not higher." },
+    { name: "ThreatFox", kind: "live", weight: 1.2, authority: 0.95, note: "abuse.ch, confirmed command and control",
+      checks: "IPs, domains, URLs and hashes", site: "https://threatfox.abuse.ch/",
+      what: "An abuse.ch database of indicators confirmed to belong to malware: command and control servers, payload hosts and sample hashes.",
+      why: "A ThreatFox listing is close to proof. When it says an address is a botnet C2, that is usually the most important fact in the ticket.",
+      gives: "The malware family, the threat type (for example botnet_cc), the reporter's confidence and when it was first seen.",
+      key: "Yes, a free abuse.ch Auth-Key. The same key works for URLhaus.",
+      watch: "It only knows what has been confirmed. No answer from ThreatFox means not listed, never safe." },
+    { name: "URLhaus", kind: "live", weight: 1.1, authority: 0.95, note: "abuse.ch, malware distribution URLs",
+      checks: "URLs, domains and hashes", site: "https://urlhaus.abuse.ch/",
+      what: "An abuse.ch database of web addresses that serve malware.",
+      why: "It tells you whether a link in an email or a proxy log was used to deliver a payload, and whether it is still live.",
+      gives: "Whether the URL is listed, whether it is online or offline, the threat, its tags and the payloads seen there.",
+      key: "Yes, the same free abuse.ch Auth-Key as ThreatFox.",
+      watch: "Malware URLs are short lived. An offline listing still matters for an incident that happened last week." },
+    { name: "GreyNoise", kind: "live", weight: 0.6, authority: 0.50, note: "Context: is this an internet-wide scanner",
+      checks: "IP addresses", site: "https://www.greynoise.io/",
+      what: "A service that watches the whole internet for mass scanning.",
+      why: "Most noisy addresses in a firewall log are harmless scanners. GreyNoise says which ones, so nobody escalates background noise.",
+      gives: "Whether the address scans the internet, a classification (benign, malicious or unknown) and the scanner's name when it is known.",
+      key: "A free community key is enough.",
+      watch: "When it says benign, IntelPulse multiplies the score by 0.45: a known scanner is noise, not a campaign. It is context more than a verdict." },
+    { name: "Local blocklist", kind: "offline", weight: 1.0, authority: 0.90, note: "Feodo Tracker and FireHOL, imported",
+      checks: "IP addresses", site: "https://feodotracker.abuse.ch/",
+      what: "Feodo Tracker (abuse.ch's list of botnet C2 servers) and FireHOL's curated blocklists, downloaded to your own machine.",
+      why: "It works with no keys and no internet at query time, and it remembers infrastructure that live feeds have already dropped.",
+      gives: "Which list an address appears on, and the malware family when the list names one.",
+      key: "No. Import the lists once with make feeds.",
+      watch: "Lists are historical. An address on an old list may have been cleaned up and handed to someone else, so check the date." },
+    { name: "GeoIP / ASN", kind: "offline", weight: 0.25, authority: 0.30, note: "MaxMind GeoLite2, hosting context only",
+      checks: "IP addresses", site: "https://dev.maxmind.com/geoip/geolite2-free-geolocation-data",
+      what: "MaxMind's free GeoLite2 databases: which country an address is in, and which network (ASN) owns it.",
+      why: "Hosting context helps a person read everything else: a home broadband address and a bulletproof hosting range tell different stories.",
+      gives: "The country, the network owner and its ASN, and a note when that network is known for abuse.",
+      key: "Not at query time. The database is downloaded once with a free MaxMind account.",
+      watch: "Location is context, never a verdict. That is why it has the lowest weight and authority of any source." },
+    { name: "CVE lookup", kind: "offline", weight: 0, authority: 0, note: "Local NVD slice and the CISA KEV list",
+      checks: "CVE identifiers", site: "https://nvd.nist.gov/",
+      what: "A local copy of NIST's National Vulnerability Database, plus CISA's list of vulnerabilities known to be exploited (KEV).",
+      why: "When an alert names a CVE, the questions are how bad it is and whether attackers are using it right now.",
+      gives: "The CVSS score and vector, the description, the publish date, and whether CISA lists it as exploited in the wild.",
+      key: "No. Import it once with make feeds.",
+      watch: "It scores CVEs only, straight from CVSS and the KEV flag, so it does not join the average the other sources share." }
   ];
 
   const icon = (id, cls) => '<svg' + (cls ? ' class="' + cls + '"' : "") + '><use href="#' + id + '"/></svg>';
@@ -308,6 +359,18 @@
        workbench's Demo/Live switch and the graph's layout and year controls are
        .seg too, and clicking them threw ("unknown filter: undefined") and
        toasted "Live API findings". */
+    /* A source row opens its guide. The name is the button; the rest of the
+       row is a larger target for the same thing. */
+    $$(".src-open", scope).forEach((btn) => btn.addEventListener("click", () => {
+      const open = btn.getAttribute("aria-expanded") !== "true";
+      btn.setAttribute("aria-expanded", String(open));
+      const detail = document.getElementById(btn.getAttribute("aria-controls"));
+      if (detail) detail.hidden = !open;
+      btn.closest("tr").classList.toggle("open", open);
+    }));
+    $$(".src-row", scope).forEach((tr) => tr.addEventListener("click", (event) => {
+      if (!event.target.closest(".src-open, a")) $(".src-open", tr).click();
+    }));
     $$(".seg button[data-filter]", scope).forEach((btn) => btn.addEventListener("click", () => {
       const group = btn.parentElement;
       $$("button", group).forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
@@ -322,17 +385,49 @@
     $$("[data-count]", scope).forEach((n) => countTo(n, Number(n.dataset.count)));
   }
 
+  /* How much a source counts, in words a beginner can use. */
+  function countsFor(src) {
+    if (!src.weight) return "It is not part of the shared average. It scores the one kind of indicator it covers on its own.";
+    const voice = src.weight >= 1.1 ? "one of the heaviest voices in the average"
+      : src.weight >= 0.9 ? "a full voice in the average"
+      : src.weight >= 0.5 ? "a lighter voice in the average" : "a quiet voice, there for context";
+    return "Weight " + src.weight.toFixed(2) + ": " + voice + ". Authority " + src.authority.toFixed(2) +
+      ": on its own, one confirmed hit can hold the score at up to " + Math.round(src.authority * 100) + "/100.";
+  }
+  function sourceGuide(src) {
+    const plain = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const fact = (title, text) => '<div class="src-fact"><b>' + title + "</b><p>" + plain(text) + "</p></div>";
+    return '<div class="src-guide">' +
+      '<p class="src-lede">' + plain(src.what) + "</p>" +
+      '<div class="src-facts">' +
+        fact("Why IntelPulse asks it", src.why) +
+        fact("What it gives back", src.gives) +
+        fact("How much it counts", countsFor(src)) +
+        fact("Needs an API key?", src.key) +
+      "</div>" +
+      '<div class="src-watch"><b>Good to know</b><span>' + plain(src.watch) + "</span></div>" +
+      '<div class="src-foot"><span>Checks <strong>' + plain(src.checks) + "</strong></span>" +
+        '<a class="src-site" href="' + plain(src.site) + '" target="_blank" rel="noopener noreferrer">' +
+          plain(src.site.replace(/^https:\/\/(www\.)?/, "").replace(/\/.*$/, "")) + " ↗</a></div>" +
+    "</div>";
+  }
+
   function sourcesMarkup() {
-    const row = (src) => '<tr><td data-label="Source"><strong>' + src.name + "</strong><br>" +
-      '<span style="color:var(--ink-3);font-size:11.5px">' + src.note + "</span></td>" +
+    const row = (src, i) => '<tr class="src-row"><td data-label="Source">' +
+        '<button type="button" class="src-open" aria-expanded="false" aria-controls="src-guide-' + i + '">' +
+          '<svg class="src-chev" aria-hidden="true"><use href="#i-chev"/></svg>' +
+          '<span class="src-name"><strong>' + src.name + '</strong><span class="src-note">' + src.note + "</span></span>" +
+        "</button></td>" +
       '<td data-label="Kind"><span class="tag ' + src.kind + '">' + src.kind + "</span></td>" +
       '<td data-label="Weight" class="mono">' + (src.weight ? src.weight.toFixed(2) : "n/a") + "</td>" +
-      '<td data-label="Authority" class="mono">' + (src.authority ? src.authority.toFixed(2) : "n/a") + "</td></tr>";
+      '<td data-label="Authority" class="mono">' + (src.authority ? src.authority.toFixed(2) : "n/a") + "</td></tr>" +
+      '<tr class="src-detail" id="src-guide-' + i + '" hidden><td colspan="4">' + sourceGuide(src) + "</td></tr>";
     return '<section class="card panel">' +
       '<div class="panel-head"><h4>Every source, and what its word is worth</h4></div>' +
       '<p style="color:var(--ink-2);font-size:12.5px;margin-bottom:12px">Weight decides how much a source ' +
       'moves the weighted mean. Authority decides how high it can hold the score on its own: one confirmed ' +
-      'ThreatFox listing still reads critical when four quiet sources disagree.</p>' +
+      'ThreatFox listing still reads critical when four quiet sources disagree. Select a source to see what ' +
+      'it is, why IntelPulse asks it and what it gives back.</p>' +
       (SOURCES.length === 0
         ? emptyState("No sources configured",
             "Connect a backend, or add API keys, and every source will be listed here with its weight.")
@@ -626,6 +721,11 @@
     const max = document.body.scrollHeight - innerHeight;
     $("#progress").style.width = (max > 0 ? (y / max) * 100 : 0) + "%";
     $("#nav").classList.toggle("hide", y > lastY && y > 220);
+    /* The console rail sticks at the top of the viewport. When the nav is on
+       screen and the rail is stuck, the rail steps down under the nav. */
+    const shell = $("#console-full");
+    const stuck = !!shell && !$("#page-console").hidden && shell.getBoundingClientRect().top < 16;
+    document.documentElement.classList.toggle("rail-under-nav", stuck && !$("#nav").classList.contains("hide"));
     $("#to-top").classList.toggle("on", y > 520);
     lastY = y;
     if (!reduce) {
@@ -1067,7 +1167,7 @@
         html: "<p>It is a real, working tool and it is not a commercial product. Both of those " +
               "are true and it would be dishonest to lead with only one.</p>" +
               "<p>What is real: the backend runs, queries live vendor APIs, scores, graphs and " +
-              "raises tickets into Jira and ServiceNow. 200 backend tests, 300 browser checks, CI " +
+              "raises tickets into Jira and ServiceNow. 200 backend tests, 307 browser checks, CI " +
               "on every push, and the extraction step is measured against a 3,400-line corpus.</p>" +
               "<p>What it is not: hosted for you, load-tested by anyone, or supported. This page " +
               "is a demo on bundled synthetic data with no backend behind it. Run it yourself with " +

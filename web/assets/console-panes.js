@@ -91,8 +91,6 @@
     const v = verdictOf(verdict);
     return '<span class="wb-badge ' + v + '">' + SEV_GLYPH[v] + esc(v) + "</span>";
   };
-  const sevVar = (verdict) => "var(--sev-" + (verdict === "allowlisted" ? "ok"
-    : verdict === "informational" ? "info" : verdictOf(verdict)) + ")";
 
   /* Intl throws on a malformed locale tag, and some environments report one.
      A date column is not worth taking the pane down for. */
@@ -540,7 +538,7 @@
 
       q("#wb-kpis").innerHTML =
         kpi("Case verdict", "i-shield",
-          '<div class="wb-hero"><span class="val num" id="wb-hero" style="color:' + sevVar(result.verdict) + '">0</span>' +
+          '<div class="wb-hero"><span class="val num" id="wb-hero">0</span>' +
           '<span class="wb-of">/100</span>' + badge(result.verdict) + "</div>",
           '<button type="button" class="wb-link" data-math="' + esc(worst ? worst.value : "") + '">How was this scored?</button>',
           " wb-kpi-hero") +
@@ -606,10 +604,15 @@
       q("#wb-count").textContent = sorted.length + " indicator" + (sorted.length === 1 ? "" : "s");
 
       q("#wb-iocs").innerHTML = '<div class="wb-ioc-list">' + visible.map((indicator, index) => {
-        const factLine = ([key, value]) =>
+        const factLine = ([key, value]) => {
+          const text = String(Array.isArray(value) ? value.join(", ") : value !== null && typeof value === "object" ? JSON.stringify(value) : value);
+          /* Machine data stays monospaced; a sentence (a CVE description, a
+             pulse name) reads in the interface face instead of one word a line. */
+          const prose = text.length > 40 && /\s/.test(text);
           /* The key column truncates; the title keeps the whole name one hover away. */
-          '<div class="wb-fact" title="' + esc(key) + '"><span class="wb-fk">' + esc(key) + '</span><span class="wb-fv">' +
-          esc(Array.isArray(value) ? value.join(", ") : typeof value === "object" ? JSON.stringify(value) : value) + "</span></div>";
+          return '<div class="wb-fact" title="' + esc(key) + '"><span class="wb-fk">' + esc(String(key).replace(/_/g, " ")) +
+            '</span><span class="wb-fv' + (prose ? " prose" : "") + '">' + esc(text) + "</span></div>";
+        };
         /* Facts stay attached to the source that reported them: merging them is
            how an analyst ends up citing the wrong vendor in a ticket. */
         const sources = (indicator.sources || []).map((s) => {
@@ -617,9 +620,9 @@
             .filter(([, v]) => v !== null && v !== "" && v !== undefined && !(Array.isArray(v) && !v.length))
             .slice(0, 8).map(factLine).join("");
           const href = safeUrl(s.reference);
-          return '<div class="wb-source"><div class="wb-source-name">' + esc(s.label || s.provider) + "</div>" +
-            '<div class="wb-state ' + esc(s.status) + '">' + esc(s.status) +
-              (s.cached ? " · cached" : "") + (s.latency_ms ? " · " + esc(s.latency_ms) + "ms" : "") + "</div>" +
+          return '<div class="wb-source"><div class="wb-source-head"><span class="wb-source-name">' + esc(s.label || s.provider) + "</span>" +
+            '<span class="wb-state ' + esc(s.status) + '">' + esc(s.status) +
+              (s.cached ? " · cached" : "") + (s.latency_ms ? " · " + esc(s.latency_ms) + "ms" : "") + "</span></div>" +
             (s.error ? '<div class="wb-hint">' + esc(s.error) + "</div>" : "") +
             (facts ? '<div class="wb-facts">' + facts + "</div>" : "") +
             (href ? '<a class="wb-link" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">vendor page ↗</a>' : "") +
@@ -633,7 +636,7 @@
             '<span class="wb-type">' + esc(indicator.type) + "</span>" +
             '<span class="wb-value">' + esc(indicator.value) + "</span>" +
             badge(indicator.verdict) +
-            '<span class="wb-score num" style="color:' + sevVar(indicator.verdict) + '">' + esc(indicator.score) + "</span>" +
+            '<span class="wb-score num">' + esc(indicator.score) + "</span>" +
           "</button>" +
           '<div class="wb-ioc-detail" id="' + id + '"' + (open ? "" : " hidden") + ">" +
             '<dl class="wb-kv">' +
@@ -648,11 +651,13 @@
               ? '<div class="chart"><div class="chart-head"><span class="chart-title">Modifiers applied</span></div>' +
                 '<ul class="wb-list">' + indicator.modifiers.map((m) => "<li>" + esc(m) + "</li>").join("") + "</ul></div>" : "") +
             ((indicator.malware_families || []).length || (indicator.attack_techniques || []).length || (indicator.tags || []).length
-              ? '<div class="wb-chips">' +
+              ? '<div class="chart"><div class="chart-head"><span class="chart-title">Attribution and tags</span></div><div class="wb-chips">' +
                 (indicator.malware_families || []).map((f) => '<span class="wb-chip malware">' + esc(f) + "</span>").join("") +
                 (indicator.attack_techniques || []).map((t) => linkOrText(t.url, t.id + " · " + t.name, "wb-chip attack")).join("") +
-                (indicator.tags || []).map((t) => '<span class="wb-chip">' + esc(t) + "</span>").join("") + "</div>" : "") +
-            '<div class="wb-source-grid">' + sources + "</div>" +
+                (indicator.tags || []).map((t) => '<span class="wb-chip">' + esc(t) + "</span>").join("") + "</div></div>" : "") +
+            (sources ? '<div class="chart"><div class="chart-head"><span class="chart-title">Evidence by source</span>' +
+              '<span class="wb-muted">' + (indicator.sources || []).length + " asked</span></div>" +
+              '<div class="wb-source-grid">' + sources + "</div></div>" : "") +
             ((indicator.containment || []).length
               ? '<div class="chart"><div class="chart-head"><span class="chart-title">Recommended containment</span></div>' +
                 '<ul class="wb-list">' + indicator.containment.map((a) => "<li>" + esc(a) + "</li>").join("") + "</ul></div>" : "") +
@@ -1333,7 +1338,7 @@
     { label: "High and critical", keep: (c) => c.sev === "critical" || c.sev === "high" },
     { label: "Critical only", keep: (c) => c.sev === "critical" }
   ];
-  const cg = { year: 2024, layout: "radial", zoom: 1, sev: 0, focus: null };
+  const cg = { year: 2024, layout: "radial", k: 1, tx: 0, ty: 0, sev: 0, focus: null };
 
   function graphBody() {
     return '<div class="cg" data-cg>' +
@@ -1346,15 +1351,18 @@
               '<button type="button" data-layout="tree" aria-pressed="' + (cg.layout === "tree") + '">By share</button></div>' +
             '<button type="button" class="round-btn" data-zoom="out" aria-label="Zoom out"><span aria-hidden="true">−</span></button>' +
             '<button type="button" class="round-btn" data-zoom="in" aria-label="Zoom in"><span aria-hidden="true">+</span></button>' +
+            '<span class="cg-zoom-level num" id="cg-zoom-level" aria-live="polite">100%</span>' +
             '<button type="button" class="btn btn-light btn-sm" data-zoom="fit">Fit</button>' +
             /* data-cg-sev, not the console's own severity hook: wirePanels() renders a
                severity bar into whatever element carries that under #console-body,
                and it was finding this button. */
             '<button type="button" class="btn btn-light btn-sm" data-cg-sev id="cg-sev" aria-live="polite"></button>' +
           "</div></div>" +
-        '<div class="cg-stage" id="cg-stage">' +
+        '<div class="cg-stage" id="cg-stage" tabindex="0" aria-describedby="cg-hint" ' +
+          'aria-label="Campaign graph. Arrow keys move it, plus and minus zoom, 0 fits it back.">' +
           '<svg class="cg-svg" id="cg-svg" role="img" aria-label="Relationship graph of a synthetic threat campaign"></svg>' +
           '<div class="cg-readout" id="cg-readout" role="status" aria-live="polite"></div>' +
+          '<p class="cg-hint" id="cg-hint">Drag to move · Ctrl + scroll or pinch to zoom · hover any dot</p>' +
         "</div>" +
         '<div class="cg-foot">' +
           '<div class="cg-legend" id="cg-legend" aria-label="Legend"></div>' +
@@ -1377,13 +1385,35 @@
     const stage = $("#cg-stage", root), svg = $("#cg-svg", root), readout = $("#cg-readout", root);
     const reduce = C.reduceMotion();
     let W = 960, H = 560, timer = null, raf = 0;
+    let model = { nodes: [], edges: [], live: [], index: new Map() };
+    let view = null;                  // the <g> that pans and zooms
     const el = (name, attrs) => {
       const node = document.createElementNS(svgNS, name);
       for (const key in attrs) node.setAttribute(key, attrs[key]);
       return node;
     };
     const rnd = (seed) => { const x = Math.sin(seed * 9973) * 43758.5453; return x - Math.floor(x); };
+    const hex = (seed, n) => Array.from({ length: n }, (_, i) => Math.floor(rnd(seed * 7 + i) * 16).toString(16)).join("");
     const visible = () => CLUSTERS.filter((c) => c.seen <= cg.year && SEV_STEPS[cg.sev].keep(c));
+
+    /* A member is a real-looking thing a cluster is made of, still synthetic:
+       RFC 5737 addresses, RFC 2606 names, hashes made up from a seed. These
+       used to be dots with nothing behind them, which is why they felt dead. */
+    function member(cluster, n) {
+      const s = cluster.id.length * 101 + n * 13;
+      const byId = {
+        ioc1: () => "203.0.113." + ((17 + n * 29) % 240 + 10),
+        ioc2: () => "198.51.100." + ((7 + n * 37) % 240 + 10),
+        ioc3: () => hex(s, 12) + "…",
+        ioc4: () => "https://secure-login-" + (n + 1) + ".example.com/",
+        ioc5: () => "mailer" + (n + 1) + ".example.net",
+        ioc6: () => "JA3 " + hex(s + 3, 10) + "…",
+        dns: () => "ns" + (n + 1) + ".example.org"
+      };
+      if (byId[cluster.id]) return byId[cluster.id]();
+      if (cluster.kind === "infra") return "192.0.2." + ((11 + n * 23 + cluster.id.charCodeAt(2)) % 240 + 10);
+      return cluster.label + " sample " + (n + 1) + " · " + hex(s + 5, 8);
+    }
 
     function defs() {
       const d = el("defs");
@@ -1400,13 +1430,16 @@
       return d;
     }
 
+    /* Laid out once at scale 1. Zoom and pan are a transform on one group, so
+       a node never moves in its own coordinates: hover, focus and the readout
+       all keep working at any zoom, and nothing is laid out again to zoom. */
     function layout() {
       const cx = W / 2, cy = H / 2;
-      const base = Math.min(W, H) * 0.30 * cg.zoom;
+      const base = Math.min(W, H) * 0.30;
       const nodes = [], edges = [];
       const live = visible();
       nodes.push({ id: "hub", label: "IR-2026-114", sub: "active campaign", kind: "hub", x: cx, y: cy,
-        r: 16 * cg.zoom, pct: 100, seen: 2016, sev: "critical", nodes: live.length });
+        r: 16, pct: 100, seen: 2016, sev: "critical", nodes: live.length });
       const ordered = cg.layout === "tree" ? live.slice().sort((a, b) => b.pct - a.pct) : live;
       ordered.forEach((cluster, index) => {
         const turn = (index / Math.max(1, ordered.length)) * Math.PI * 2 - Math.PI / 2;
@@ -1415,20 +1448,59 @@
         const radius = base * (cg.layout === "tree" ? 0.72 + (index % 3) * 0.24 : 0.66 + rnd(index + 11) * 0.62);
         const x = cx + Math.cos(angle) * radius * 1.32;
         const y = cy + Math.sin(angle) * radius * 0.92;
-        nodes.push(Object.assign({}, cluster, { x, y, r: (7 + cluster.pct * 0.15) * cg.zoom, slot: 0 }));
+        nodes.push(Object.assign({}, cluster, { x, y, r: 7 + cluster.pct * 0.15, slot: 0 }));
         edges.push({ a: "hub", b: cluster.id, kind: "primary" });
         for (let n = 0; n < cluster.nodes; n++) {
           const ca = angle + (rnd(index * 17 + n) - 0.5) * 1.5;
           const cr = radius * (1.2 + rnd(index * 31 + n) * 0.34);
-          nodes.push({ id: cluster.id + "-" + n, kind: cluster.kind, child: true,
-            x: cx + Math.cos(ca) * cr * 1.32, y: cy + Math.sin(ca) * cr * 0.92, r: (2 + rnd(n + index) * 2.2) * cg.zoom });
+          nodes.push({ id: cluster.id + "-" + n, kind: cluster.kind, child: true, parent: cluster.id,
+            label: member(cluster, n), sev: cluster.sev, seen: Math.min(2024, cluster.seen + (n % 3)),
+            x: cx + Math.cos(ca) * cr * 1.32, y: cy + Math.sin(ca) * cr * 0.92, r: 2 + rnd(n + index) * 2.2 });
           edges.push({ a: cluster.id, b: cluster.id + "-" + n, kind: "child" });
         }
       });
       const present = new Set(nodes.map((n) => n.id));
       LINKS.forEach(([a, b]) => { if (present.has(a) && present.has(b)) edges.push({ a, b, kind: "cross" }); });
-      return { nodes, edges, live };
+      return { nodes, edges, live, index: new Map(nodes.map((n) => [n.id, n])) };
     }
+
+    /* ─── the view: pan, zoom, and keeping part of the graph on screen ─── */
+    const K_MIN = 0.6, K_MAX = 4;
+    function clampView() {
+      /* However far it is dragged, a quarter of the graph stays in the frame. */
+      cg.tx = Math.min(W * 0.75, Math.max(W * 0.25 - W * cg.k, cg.tx));
+      cg.ty = Math.min(H * 0.75, Math.max(H * 0.25 - H * cg.k, cg.ty));
+    }
+    function applyView() {
+      if (!view) return;
+      clampView();
+      view.setAttribute("transform", "translate(" + cg.tx.toFixed(2) + " " + cg.ty.toFixed(2) + ") scale(" + cg.k.toFixed(4) + ")");
+      /* Labels grow more slowly than the graph, so a zoom brings things closer
+         without turning every name into a headline. */
+      const ease = 1 / Math.pow(cg.k, 0.55);
+      $$(".cg-labels text", svg).forEach((t) => t.setAttribute("font-size", (Number(t.dataset.size) * ease).toFixed(2)));
+      $$(".cg-labels text", svg).forEach((t) => t.setAttribute("stroke-width", (3.5 / cg.k).toFixed(2)));
+      stage.classList.toggle("zoomed", cg.k > 1.001);
+      const pct = $("#cg-zoom-level", root);
+      if (pct) pct.textContent = Math.round(cg.k * 100) + "%";
+      if (readout.classList.contains("on") && readout.dataset.for) {
+        const node = model.index.get(readout.dataset.for);
+        if (node) placeReadout(node);
+      }
+    }
+    function zoomAt(factor, px, py) {
+      const k = Math.min(K_MAX, Math.max(K_MIN, cg.k * factor));
+      if (k === cg.k) return;
+      /* keep the point under the cursor (or the centre) where it is */
+      cg.tx = px - (px - cg.tx) * (k / cg.k);
+      cg.ty = py - (py - cg.ty) * (k / cg.k);
+      cg.k = k;
+      applyView();
+    }
+    const toView = (clientX, clientY) => {
+      const rect = svg.getBoundingClientRect();
+      return { x: (clientX - rect.left) * (W / rect.width), y: (clientY - rect.top) * (H / rect.height) };
+    };
 
     function render() {
       const rect = stage.getBoundingClientRect();
@@ -1436,19 +1508,22 @@
       H = Math.max(360, Math.min(620, Math.round(W * 0.62)));
       stage.style.height = H + "px";
       svg.setAttribute("viewBox", "0 0 " + W + " " + H);
-      const { nodes, edges, live } = layout();
-      const index = new Map(nodes.map((n) => [n.id, n]));
+      model = layout();
+      const { nodes, edges, live, index } = model;
       const ink = cssVar("--ink"), ink3 = cssVar("--ink-3"), line = cssVar("--line-2");
       svg.textContent = "";
       svg.appendChild(defs());
+      view = el("g", { class: "cg-view" });
+      svg.appendChild(view);
       const hub = index.get("hub");
-      svg.appendChild(el("circle", { cx: hub.x, cy: hub.y, r: 70 * cg.zoom, fill: kindColor("hub"), opacity: ".18", filter: "url(#cg-soft)" }));
+      view.appendChild(el("circle", { cx: hub.x, cy: hub.y, r: 70, fill: kindColor("hub"), opacity: ".18", filter: "url(#cg-soft)", "pointer-events": "none" }));
 
-      const edgeLayer = el("g", { "stroke-linecap": "round", fill: "none" });
+      const edgeLayer = el("g", { class: "cg-edges", "stroke-linecap": "round", fill: "none", "pointer-events": "none" });
       edges.forEach((e) => {
         const a = index.get(e.a), b = index.get(e.b);
         if (!a || !b) return;
         edgeLayer.appendChild(el("line", {
+          class: "cg-edge", "data-a": e.a, "data-b": e.b, "vector-effect": "non-scaling-stroke",
           x1: a.x, y1: a.y, x2: b.x, y2: b.y,
           stroke: e.kind === "primary" ? kindColor("hub") : e.kind === "cross" ? kindColor("infra") : line,
           "stroke-opacity": e.kind === "child" ? ".9" : ".45",
@@ -1456,7 +1531,7 @@
           "stroke-dasharray": e.kind === "cross" ? "3 5" : ""
         }));
       });
-      svg.appendChild(edgeLayer);
+      view.appendChild(edgeLayer);
 
       /* Two labels within 26px on the same side collide; nudge them apart. */
       const labelled = nodes.filter((n) => !n.child && n.id !== "hub");
@@ -1468,7 +1543,7 @@
         }
       });
 
-      const nodeLayer = el("g");
+      const nodeLayer = el("g", { class: "cg-nodes" });
       /* Labels go on their own layer, drawn last. Inside each node's group they
          were painted over by every node drawn after them, so a member dot could
          sit in the middle of "203.0.113.0/24". The layer ignores the pointer,
@@ -1476,37 +1551,43 @@
       const labelLayer = el("g", { class: "cg-labels", "pointer-events": "none" });
       nodes.forEach((node) => {
         const group = el("g", { class: "cg-node" + (node.child ? " child" : "") });
+        group.dataset.id = node.id;
         if (!node.child) {
           group.setAttribute("tabindex", "0");
           group.setAttribute("role", "button");
           group.setAttribute("aria-label", node.label + ", " + KIND_LABEL[node.kind].toLowerCase() +
             (node.id === "hub" ? "" : ", " + node.pct + "% of the graph, " + node.sev));
-          group.dataset.id = node.id;
-          group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r + 3.5, fill: "none",
-            stroke: kindColor(node.kind), "stroke-opacity": ".35", "stroke-width": "1" }));
+          group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r + 3.5, fill: "none", class: "cg-ring",
+            stroke: kindColor(node.kind), "stroke-opacity": ".35", "stroke-width": "1", "vector-effect": "non-scaling-stroke" }));
         }
-        group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r, fill: "url(#cg-g-" + node.kind + ")",
-          stroke: kindColor(node.kind), "stroke-opacity": node.child ? ".4" : ".7", "stroke-width": node.child ? ".4" : ".8" }));
+        /* A member is 2 to 4px across: an invisible disc around it is what the
+           pointer actually has to find. */
+        group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r + (node.child ? 7 : 6), class: "cg-hit", fill: "transparent" }));
+        group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r, class: "cg-dot", fill: "url(#cg-g-" + node.kind + ")",
+          stroke: kindColor(node.kind), "stroke-opacity": node.child ? ".4" : ".7", "stroke-width": node.child ? ".4" : ".8",
+          "vector-effect": "non-scaling-stroke" }));
         if (!node.child) {
           /* Labels radiate outward on the side the node sits on, like spokes. */
           const out = node.id === "hub" ? 1 : (node.x >= W / 2 ? 1 : -1);
           const lx = node.x + out * (node.r + 8), ly = node.y + (node.slot || 0);
+          const size = node.id === "hub" ? 12.5 : 11;
           const label = el("text", { x: lx, y: ly - 1, "text-anchor": out === 1 ? "start" : "end", fill: ink,
-            "font-size": (node.id === "hub" ? 12.5 : 11) * Math.min(1.2, cg.zoom), "font-weight": node.id === "hub" ? "700" : "600" });
+            "font-size": size, "font-weight": node.id === "hub" ? "700" : "600", "data-for": node.id, "data-size": size });
           label.textContent = node.label;
           labelLayer.appendChild(label);
           const sub = el("text", { x: lx, y: ly + 11, "text-anchor": out === 1 ? "start" : "end", fill: ink3,
-            "font-size": 9.5 * Math.min(1.2, cg.zoom), class: "cg-mono" });
+            "font-size": 9.5, class: "cg-mono", "data-for": node.id, "data-size": 9.5 });
           sub.textContent = node.id === "hub" ? node.sub : node.pct + "% · " + node.sev;
           labelLayer.appendChild(sub);
         }
         nodeLayer.appendChild(group);
       });
-      svg.appendChild(nodeLayer);
-      svg.appendChild(labelLayer);
+      view.appendChild(nodeLayer);
+      view.appendChild(labelLayer);
+      applyView();
       renderMeta(nodes, live);
-      if (cg.focus && index.get(cg.focus)) showReadout(index.get(cg.focus), true);
-      else hideReadout(true);
+      if (cg.focus && index.get(cg.focus)) { showReadout(index.get(cg.focus), true); light(cg.focus); }
+      else { unlight(); hideReadout(true); }
     }
 
     function renderMeta(nodes, live) {
@@ -1529,42 +1610,107 @@
         '<span class="cg-key"><i style="background:var(--cg-' + k + ')"></i>' + KIND_LABEL[k] +
         ' <b class="num">' + (k === "hub" ? 1 : counts[k]) + "</b></span>").join("");
       $("#cg-sev", root).textContent = SEV_STEPS[cg.sev].label;
+      /* The table is the graph as rows. Each cluster's name selects it in the
+         graph, and the share reads as a bar in the cluster's own colour. */
       $("#cg-table", root).innerHTML = live.length
         ? '<div class="table-wrap"><table class="table cg-table"><thead><tr><th>Cluster</th><th>Kind</th><th>Severity</th>' +
-          "<th>Share</th><th>First seen</th></tr></thead><tbody>" +
+          "<th>Share</th><th>Members</th><th>First seen</th></tr></thead><tbody>" +
           live.slice().sort((a, b) => b.pct - a.pct).map((c) =>
-            '<tr><td data-label="Cluster">' + esc(c.label) + '</td><td data-label="Kind">' + esc(KIND_LABEL[c.kind]) +
-            '</td><td data-label="Severity">' + badge(c.sev) + '</td><td data-label="Share" class="mono">' + c.pct +
-            '%</td><td data-label="First seen" class="mono">' + c.seen + "</td></tr>").join("") + "</tbody></table></div>"
+            '<tr><td data-label="Cluster"><button type="button" class="cg-pick" data-pick="' + esc(c.id) + '">' +
+              '<i class="cg-dot-key" style="background:var(--cg-' + c.kind + ')" aria-hidden="true"></i>' + esc(c.label) + "</button></td>" +
+            '<td data-label="Kind" class="cg-kind">' + esc(KIND_LABEL[c.kind]) + "</td>" +
+            '<td data-label="Severity">' + badge(c.sev) + "</td>" +
+            '<td data-label="Share"><span class="cg-share"><span class="cg-share-bar"><i style="width:' + c.pct + "%;background:var(--cg-" + c.kind + ')"></i></span>' +
+              '<span class="num">' + c.pct + "%</span></span></td>" +
+            '<td data-label="Members" class="num">' + c.nodes + "</td>" +
+            '<td data-label="First seen" class="num">' + c.seen + "</td></tr>").join("") + "</tbody></table></div>"
         : '<div class="empty-state"><b>Nothing in view</b><span>No cluster was first seen by ' + cg.year +
           " at this severity. Widen the filter or move the timeline forward.</span></div>";
     }
 
-    function showReadout(node, pin) {
-      readout.innerHTML =
-        '<div class="cg-rt">' + esc(node.label) + "</div>" +
+    /* ─── lighting: the hovered node, what it touches, and nothing else ─── */
+    function light(id) {
+      const node = model.index.get(id);
+      if (!node) { unlight(); return; }
+      const on = new Set([id]);
+      if (node.child) on.add(node.parent);
+      else if (id === "hub") model.nodes.forEach((n) => { if (!n.child) on.add(n.id); });
+      else {
+        on.add("hub");
+        model.nodes.forEach((n) => { if (n.parent === id) on.add(n.id); });
+        LINKS.forEach(([a, b]) => { if (a === id) on.add(b); if (b === id) on.add(a); });
+      }
+      svg.classList.add("lit");
+      $$(".cg-node", svg).forEach((g) => g.classList.toggle("on", on.has(g.dataset.id)));
+      $$(".cg-labels text", svg).forEach((t) => t.classList.toggle("on", on.has(t.dataset.for)));
+      $$(".cg-edge", svg).forEach((l) => l.classList.toggle("on", l.dataset.a === id || l.dataset.b === id));
+    }
+    function unlight() {
+      svg.classList.remove("lit");
+      $$(".cg-svg .on", root).forEach((n) => n.classList.remove("on"));
+    }
+
+    function readoutHtml(node) {
+      if (node.child) {
+        const parent = model.index.get(node.parent) || {};
+        return '<div class="cg-rt cg-mono">' + esc(node.label) + "</div>" +
+          '<div class="cg-rs">member of ' + esc(parent.label || "") + " · " + esc(KIND_LABEL[node.kind].toLowerCase()) + "</div>" +
+          '<dl class="wb-kv"><dt>first seen</dt><dd>' + esc(node.seen) + "</dd><dt>severity</dt><dd>" + badge(node.sev) + "</dd>" +
+          "<dt>cluster</dt><dd>" + esc(parent.pct) + "% of the graph</dd></dl>" +
+          '<div class="cg-rhint">Click to keep this open</div>';
+      }
+      return '<div class="cg-rt">' + esc(node.label) + "</div>" +
         '<div class="cg-rs">' + esc(node.id === "hub" ? "campaign hub" : KIND_LABEL[node.kind].toLowerCase()) +
           " · first seen " + esc(node.seen) + "</div>" +
         '<div class="cg-rbar"><i style="width:' + node.pct + "%;background:var(--cg-" + node.kind + ')"></i></div>' +
         '<dl class="wb-kv"><dt>share</dt><dd>' + node.pct + "%</dd><dt>" + (node.id === "hub" ? "clusters" : "members") +
         "</dt><dd>" + node.nodes + "</dd><dt>severity</dt><dd>" + badge(node.sev) + "</dd></dl>";
+    }
+    function placeReadout(node) {
       const rect = stage.getBoundingClientRect(), scale = rect.width / W;
-      let left = node.x * scale + 18, top = node.y * scale - 16;
-      left = Math.max(8, Math.min(left, rect.width - 222));
-      top = Math.max(8, Math.min(top, rect.height - 150));
+      const sx = (node.x * cg.k + cg.tx) * scale, sy = (node.y * cg.k + cg.ty) * scale;
+      const box = readout.getBoundingClientRect();
+      const w = box.width || 214, h = box.height || 150;
+      let left = sx + 18, top = sy - 16;
+      if (left + w > rect.width - 8) left = sx - w - 18;       // flip to the other side rather than cover it
+      left = Math.max(8, Math.min(left, rect.width - w - 8));
+      top = Math.max(8, Math.min(top, rect.height - h - 8));
       readout.style.left = left + "px"; readout.style.top = top + "px";
+    }
+    function showReadout(node, pin) {
+      readout.innerHTML = readoutHtml(node);
+      readout.dataset.for = node.id;
       readout.classList.add("on");
       readout.dataset.pinned = pin ? "1" : "";
+      placeReadout(node);
     }
     function hideReadout(force) {
-      if (force || !readout.dataset.pinned) { readout.classList.remove("on"); if (force) readout.dataset.pinned = ""; }
+      if (force || !readout.dataset.pinned) {
+        readout.classList.remove("on");
+        if (force) { readout.dataset.pinned = ""; readout.dataset.for = ""; }
+      }
     }
 
     const nodeFor = (target) => {
-      const g = target.closest && target.closest(".cg-node:not(.child)");
-      if (!g) return null;
-      return layout().nodes.find((n) => n.id === g.dataset.id) || null;
+      const g = target && target.closest && target.closest(".cg-node");
+      return g ? model.index.get(g.dataset.id) || null : null;
     };
+
+    function select(id, center) {
+      const node = model.index.get(id);
+      if (!node) return;
+      cg.focus = id;
+      if (center) {
+        /* bring it to the middle of the frame, at least a little closer */
+        cg.k = Math.max(cg.k, 1.4);
+        cg.tx = W / 2 - node.x * cg.k;
+        cg.ty = H / 2 - node.y * cg.k;
+        applyView();
+      }
+      light(id);
+      showReadout(node, true);
+    }
+    function clearFocus() { cg.focus = null; unlight(); hideReadout(true); }
 
     function setYear(year) {
       cg.year = year;
@@ -1572,7 +1718,9 @@
       render();
     }
 
+    let suppressClick = false;
     function onClick(event) {
+      if (suppressClick) { suppressClick = false; return; }
       const t = event.target;
       const layoutBtn = t.closest("[data-layout]");
       if (layoutBtn) {
@@ -1582,26 +1730,113 @@
       }
       const zoom = t.closest("[data-zoom]");
       if (zoom) {
-        cg.zoom = zoom.dataset.zoom === "in" ? Math.min(1.7, cg.zoom * 1.18)
-          : zoom.dataset.zoom === "out" ? Math.max(0.62, cg.zoom / 1.18) : 1;
-        render(); return;
+        if (zoom.dataset.zoom === "fit") { cg.k = 1; cg.tx = 0; cg.ty = 0; applyView(); }
+        else zoomAt(zoom.dataset.zoom === "in" ? 1.25 : 1 / 1.25, W / 2, H / 2);
+        return;
       }
       if (t.closest("[data-cg-sev]")) { cg.sev = (cg.sev + 1) % SEV_STEPS.length; cg.focus = null; render(); return; }
       const year = t.closest("[data-year]");
       if (year) { stopPlay(); setYear(Number(year.dataset.year)); return; }
       if (t.closest("[data-play]")) { play(); return; }
+      const pick = t.closest("[data-pick]");
+      if (pick) {
+        select(pick.dataset.pick, true);
+        stage.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+        const g = $('.cg-node[data-id="' + pick.dataset.pick + '"]', svg);
+        if (g) g.focus({ preventScroll: true });
+        return;
+      }
       const node = nodeFor(t);
-      if (node) { cg.focus = cg.focus === node.id ? null : node.id; if (cg.focus) showReadout(node, true); else hideReadout(true); return; }
-      if (t.closest("#cg-stage")) { cg.focus = null; hideReadout(true); }
+      if (node) { if (cg.focus === node.id) clearFocus(); else select(node.id, false); return; }
+      if (t.closest("#cg-stage") && !t.closest("#cg-readout")) clearFocus();
     }
-    function onOver(event) { const n = nodeFor(event.target); if (n) showReadout(n, false); }
-    function onOut(event) { if (nodeFor(event.target)) hideReadout(false); }
+    function onOver(event) {
+      if (drag && drag.moved) return;
+      const n = nodeFor(event.target);
+      if (!n) return;
+      if (!cg.focus) light(n.id);
+      if (!readout.dataset.pinned) showReadout(n, false);
+    }
+    function onOut(event) {
+      const n = nodeFor(event.target);
+      if (!n || (event.relatedTarget && nodeFor(event.relatedTarget) === n)) return;
+      if (cg.focus) light(cg.focus); else unlight();
+      hideReadout(false);
+    }
     function onKey(event) {
       const n = nodeFor(event.target);
-      if (n && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); cg.focus = n.id; showReadout(n, true); }
-      if (event.key === "Escape") { cg.focus = null; hideReadout(true); }
+      if (n && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); select(n.id, false); return; }
+      if (event.key === "Escape") { clearFocus(); return; }
+      /* The frame itself, or any node in it: arrows move, + and - zoom, 0 fits. */
+      if (!event.target.closest || !event.target.closest("#cg-stage")) return;
+      const step = 48;
+      const moves = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      if (moves[event.key]) { event.preventDefault(); cg.tx += moves[event.key][0]; cg.ty += moves[event.key][1]; applyView(); }
+      else if (event.key === "+" || event.key === "=") { event.preventDefault(); zoomAt(1.25, W / 2, H / 2); }
+      else if (event.key === "-" || event.key === "_") { event.preventDefault(); zoomAt(1 / 1.25, W / 2, H / 2); }
+      else if (event.key === "0") { event.preventDefault(); cg.k = 1; cg.tx = 0; cg.ty = 0; applyView(); }
     }
-    function onFocusIn(event) { const n = nodeFor(event.target); if (n) showReadout(n, false); }
+    function onFocusIn(event) {
+      const n = nodeFor(event.target);
+      if (!n) return;
+      if (!cg.focus) light(n.id);
+      if (!readout.dataset.pinned) showReadout(n, false);
+    }
+
+    /* ─── dragging to pan, pinching and Ctrl+scrolling to zoom ───
+       A mouse drags the graph at any zoom. A finger only drags it once it is
+       zoomed in, so on a phone the page still scrolls past a graph at rest. */
+    const pointers = new Map();
+    let drag = null, pinch = null;
+    function onDown(event) {
+      if (event.button !== 0 || event.target.closest("#cg-readout")) return;
+      if (event.pointerType === "touch" && cg.k <= 1.001 && !pointers.size) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pointers.size === 1) drag = { id: event.pointerId, x: event.clientX, y: event.clientY, tx: cg.tx, ty: cg.ty, moved: false };
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, k: cg.k };
+        drag = null;
+      }
+    }
+    function onMove(event) {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (pinch && pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        const mid = toView((a.x + b.x) / 2, (a.y + b.y) / 2);
+        zoomAt((pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d)) / cg.k, mid.x, mid.y);
+        return;
+      }
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        stage.classList.add("panning");
+        try { stage.setPointerCapture(event.pointerId); } catch (_) { /* already released */ }
+      }
+      const rect = svg.getBoundingClientRect(), scale = W / rect.width;
+      cg.tx = drag.tx + dx * scale;
+      cg.ty = drag.ty + dy * scale;
+      applyView();
+    }
+    function onUp(event) {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinch = null;
+      if (drag && event.pointerId === drag.id) {
+        if (drag.moved) { suppressClick = true; setTimeout(() => { suppressClick = false; }, 0); }
+        drag = null;
+        stage.classList.remove("panning");
+      }
+    }
+    function onWheel(event) {
+      /* Plain scrolling still scrolls the page; Ctrl or a trackpad pinch zooms. */
+      if (!(event.ctrlKey || event.metaKey)) return;
+      event.preventDefault();
+      const p = toView(event.clientX, event.clientY);
+      zoomAt(Math.exp(-event.deltaY * 0.0022), p.x, p.y);
+    }
 
     function play() {
       if (reduce) { setYear(2024); return; }
@@ -1620,6 +1855,11 @@
     root.addEventListener("mouseout", onOut);
     root.addEventListener("keydown", onKey);
     root.addEventListener("focusin", onFocusIn);
+    stage.addEventListener("pointerdown", onDown);
+    stage.addEventListener("pointermove", onMove);
+    stage.addEventListener("pointerup", onUp);
+    stage.addEventListener("pointercancel", onUp);
+    stage.addEventListener("wheel", onWheel, { passive: false });
     addEventListener("resize", onResize);
     /* A theme flip changes --ink under the labels; the SVG reads it at draw time. */
     const themeWatch = new MutationObserver(onResize);
@@ -1637,6 +1877,11 @@
       root.removeEventListener("mouseout", onOut);
       root.removeEventListener("keydown", onKey);
       root.removeEventListener("focusin", onFocusIn);
+      stage.removeEventListener("pointerdown", onDown);
+      stage.removeEventListener("pointermove", onMove);
+      stage.removeEventListener("pointerup", onUp);
+      stage.removeEventListener("pointercancel", onUp);
+      stage.removeEventListener("wheel", onWheel);
     };
   }
 

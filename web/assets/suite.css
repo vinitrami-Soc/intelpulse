@@ -785,10 +785,17 @@ button { font-family: inherit; cursor: pointer; }
    stretching. Below 900px the rail is a drawer and none of this applies. */
 @media (min-width: 901px) {
   .page-console .console { overflow: clip; }
+  /* It sticks 16px from the top, which is where it belongs once the site
+     nav has slid away on the way down. It used to stick at 84px to clear the
+     nav, so on every scroll down it floated with an empty band above the logo.
+     While the nav is back on screen (scrolling up), the stuck rail steps down
+     under it with a transform, so the two never overlap. */
   .page-console #console-side {
-    position: sticky; top: 84px; align-self: start; border-right: 0;
-    max-height: calc(100vh - 100px); overflow-y: auto; overscroll-behavior: contain;
+    position: sticky; top: 16px; align-self: start; border-right: 0;
+    max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain;
+    transition: transform var(--t) var(--ease);
   }
+  .rail-under-nav .page-console #console-side { transform: translateY(68px); max-height: calc(100vh - 100px); }
   .page-console #console-body { border-left: 1px solid var(--line); }
 }
 
@@ -989,7 +996,7 @@ button { font-family: inherit; cursor: pointer; }
 .wb-input[aria-invalid="true"] { border-color: var(--sev-critical); }
 .wb-field { flex: 1 1 200px; }
 .wb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.wb-actions { margin-top: 12px; }
+.wb-actions { margin-top: 0; padding-top: 14px; border-top: 1px solid var(--line); }
 .wb .btn kbd { font: 600 10px var(--mono); opacity: .7; margin-left: 6px; }
 .wb-file { position: relative; cursor: pointer; }
 .wb-file:focus-within { outline: 2px solid var(--flame); outline-offset: 2px; }
@@ -1033,26 +1040,33 @@ button { font-family: inherit; cursor: pointer; }
 }
 .wb-chip b { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
 .wb-chip.on { color: var(--sev-ok); border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent); background: var(--sev-ok-bg); }
-.wb-chip.malware { color: var(--sev-high); border-color: color-mix(in srgb, var(--sev-high) 34%, transparent); background: var(--sev-high-bg); }
+.wb-chip.malware { color: var(--flame-ink-2); border-color: color-mix(in srgb, var(--flame) 26%, transparent); background: var(--flame-wash); }
 .wb-chip.attack { color: var(--azure-ink); border-color: color-mix(in srgb, var(--azure) 36%, transparent); background: var(--azure-wash); }
 
-.wb-kv { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 5px 12px; font-size: 12.5px; margin: 0; }
+/* One label column for the whole indicator card: the key-value rows, the
+   diff and the evidence bars all start their values at the same x. */
+.wb { --wb-label: 148px; }
+.wb-kv { display: grid; grid-template-columns: var(--wb-label) minmax(0, 1fr); gap: 6px 12px; font-size: 12.5px; margin: 0; align-items: baseline; }
 .wb-kv dt { color: var(--ink-3); font-size: 11.5px; }
 .wb-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-/* ─── verdict badges: hue, glyph and the word ─── */
+/* ─── verdict badges: the console's severity pills, plus the glyph ───
+   The same fills as .pill-sev and the overview's severity bar (critical in
+   ink, high in flame, medium neutral, low azure), so a verdict looks the same
+   in the workbench, the case history, the graph table and the overview. The
+   glyph stays: severity is never carried by colour alone. */
 .wb-badge {
   display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; white-space: nowrap;
-  font: 650 10.5px var(--sans); text-transform: uppercase; letter-spacing: .05em;
-  padding: 3px 8px; border-radius: var(--r-full); border: 1px solid transparent;
+  font: 600 11px var(--sans); letter-spacing: .01em;
+  padding: 4px 10px 4px 9px; border-radius: var(--r-full); border: 1px solid transparent;
 }
-.wb-badge svg { width: 9px; height: 9px; fill: currentColor; }
-.wb-badge.critical { color: var(--sev-critical); border-color: color-mix(in srgb, var(--sev-critical) 36%, transparent); background: var(--sev-critical-bg); }
-.wb-badge.high { color: var(--sev-high); border-color: color-mix(in srgb, var(--sev-high) 36%, transparent); background: var(--sev-high-bg); }
-.wb-badge.medium { color: var(--sev-medium); border-color: color-mix(in srgb, var(--sev-medium) 38%, transparent); background: var(--sev-medium-bg); }
-.wb-badge.low { color: var(--sev-low); border-color: color-mix(in srgb, var(--sev-low) 36%, transparent); background: var(--sev-low-bg); }
-.wb-badge.informational { color: var(--sev-info); border-color: var(--line-2); background: var(--sev-info-bg); }
-.wb-badge.allowlisted { color: var(--sev-ok); border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent); background: var(--sev-ok-bg); }
+.wb-badge svg { width: 8px; height: 8px; fill: currentColor; }
+.wb-badge.critical { background: var(--ink); color: var(--paper); }
+.wb-badge.high { background: var(--flame-wash); color: var(--flame-ink-2); border-color: color-mix(in srgb, var(--flame) 22%, transparent); }
+.wb-badge.medium { background: var(--ground-2); color: var(--ink-2); border-color: var(--line); }
+.wb-badge.low { background: var(--azure-wash); color: var(--azure-ink); }
+.wb-badge.informational { background: var(--ground-2); color: var(--ink-3); border-color: var(--line); }
+.wb-badge.allowlisted { background: var(--sev-ok-bg); color: var(--sev-ok); }
 
 /* ─── results ─── */
 .wb-results { display: grid; gap: 12px; min-width: 0; }
@@ -1079,25 +1093,30 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--line); padding: 2px 6px; border-radius: 5px; background: var(--ground-2); }
 .wb-value { flex: 1 1 160px; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
 .wb-score { font: 650 16px var(--mono); min-width: 36px; text-align: right; }
-.wb-ioc-detail { border-top: 1px solid var(--line); padding: 12px; display: grid; gap: 4px; min-width: 0; }
+.wb-ioc-detail { border-top: 1px solid var(--line); padding: 16px; display: grid; gap: 18px; min-width: 0; }
+.wb-ioc-detail > .chart, .wb-ioc-detail .wb-chips { margin-top: 0; }
 .wb-ioc-detail[hidden] { display: none; }
 .wb-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 3px; }
 
 .wb-diff-tag { font: 650 10px var(--sans); text-transform: uppercase; letter-spacing: .06em;
   padding: 2px 8px; border-radius: var(--r-full); border: 1px solid var(--line-2); color: var(--ink-2); }
-.wb-diff-tag.worse { color: var(--sev-critical); background: var(--sev-critical-bg); border-color: transparent; }
+.wb-diff-tag.worse { color: var(--flame-ink-2); background: var(--flame-wash); border-color: transparent; }
 .wb-diff-tag.better { color: var(--sev-ok); background: var(--sev-ok-bg); border-color: transparent; }
 
-.wb-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; }
-.wb-source { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px; background: var(--ground); min-width: 0; }
-.wb-source-name { font-size: 12.5px; font-weight: 600; }
-.wb-state { font: 500 11px var(--mono); color: var(--ink-3); margin-top: 2px; }
-.wb-state.ok { color: var(--sev-ok); }
-.wb-state.error, .wb-state.rate_limited { color: var(--sev-high); }
-.wb-facts { margin-top: 6px; display: grid; gap: 2px; }
-.wb-fact { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: 6px; font-size: 11.5px; }
+/* auto-fit, not auto-fill: one source gets the whole row instead of a
+   200px column with a sentence wrapped a word a line beside empty space. */
+.wb-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.wb-source { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ground); min-width: 0; display: grid; gap: 8px; align-content: start; }
+.wb-source-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.wb-source-name { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.wb-state { font: 600 10.5px var(--sans); color: var(--ink-3); background: var(--ground-2); border-radius: var(--r-full); padding: 2px 8px; white-space: nowrap; flex: 0 0 auto; }
+.wb-state.ok { color: var(--sev-ok); background: var(--sev-ok-bg); }
+.wb-state.error, .wb-state.rate_limited { color: var(--flame-ink-2); background: var(--flame-wash); }
+.wb-facts { display: grid; }
+.wb-fact { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 10px; font-size: 12px; padding: 5px 0; border-top: 1px solid var(--line); align-items: baseline; }
 .wb-fk { color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-fv { font-family: var(--mono); overflow-wrap: anywhere; }
+.wb-fv { font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.wb-fv.prose { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: var(--ink-2); }
 
 .wb-report {
   margin-top: 10px; max-height: 340px; overflow: auto; font: 11.5px/1.55 var(--mono); color: var(--ink-2);
@@ -1231,7 +1250,7 @@ button { font-family: inherit; cursor: pointer; }
 .wb .chart-note { font: 600 11px var(--sans); color: var(--flame-ink); background: none; border: 0; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
 .wb .chart-note:hover { background: var(--flame-wash); }
 .wb .bars { display: flex; flex-direction: column; align-items: stretch; gap: 3px; height: auto; padding-top: 0; }
-.wb .bar-row { display: grid; grid-template-columns: minmax(70px, 30%) minmax(0, 1fr) 40px; align-items: center; gap: 8px; padding: 2px 4px; border-radius: 6px; }
+.wb .bar-row { display: grid; grid-template-columns: var(--wb-label) minmax(0, 1fr) 44px; align-items: center; gap: 12px; padding: 3px 0; border-radius: 6px; }
 .wb .bar-row:hover { background: var(--ground-2); }
 .wb .bar-label { font: 500 11.5px var(--sans); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb .bar-track { height: 10px; border-radius: 3px; background: var(--ramp-track); overflow: hidden; min-width: 0; }
@@ -1246,10 +1265,15 @@ button { font-family: inherit; cursor: pointer; }
 .wb .meter.sev-medium i { background: var(--sev-medium); }
 .wb .meter.sev-low i { background: var(--sev-low); }
 .wb .coverage { display: flex; flex-wrap: wrap; gap: 2px; }
-.wb .coverage i { width: 8px; height: 14px; border-radius: 2px; background: var(--line-2); }
-.wb .coverage i[data-state="ok"] { background: var(--ramp-3); }
-.wb .coverage i[data-state="clean"] { background: var(--ramp-1); }
-.wb .coverage i[data-state="error"], .wb .coverage i[data-state="rate_limited"] { background: var(--sev-high); }
+/* In the console's grading: flame for a source that answered with something,
+   a quieter flame for one that answered clean, a hollow cell for one that was
+   skipped, and a hatched cell for one that failed. The cell's title names it. */
+.wb .coverage i { width: 8px; height: 14px; border-radius: 3px; background: var(--ground-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+.wb .coverage i[data-state="ok"] { background: var(--flame); box-shadow: none; }
+.wb .coverage i[data-state="clean"] { background: color-mix(in srgb, var(--flame) 38%, var(--ground-2)); box-shadow: none; }
+.wb .coverage i[data-state="error"], .wb .coverage i[data-state="rate_limited"] {
+  background: repeating-linear-gradient(135deg, var(--ink-3) 0 2px, transparent 2px 4px); box-shadow: inset 0 0 0 1px var(--ink-3);
+}
 .wb .table-view { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
 .wb .table-view th, .wb .table-view td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
 .wb .table-view th { font: 600 10px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
@@ -1263,7 +1287,40 @@ button { font-family: inherit; cursor: pointer; }
 .cg-stage { position: relative; width: 100%; min-height: 360px; border-radius: var(--r-sm);
   background: radial-gradient(ellipse at 50% 45%, var(--ground-2), var(--ground) 72%); overflow: hidden; }
 .cg-svg { display: block; width: 100%; height: 100%; }
-.cg-node:not(.child) { cursor: pointer; }
+/* Every node answers the pointer, members included: they used to be dots
+   with nothing behind them. The frame drags; a finger drags it once zoomed. */
+.cg-stage { cursor: grab; touch-action: pan-x pan-y; }
+.cg-stage.panning { cursor: grabbing; }
+.cg-stage.zoomed { touch-action: none; }
+.cg-stage:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
+.cg-node { cursor: pointer; }
+.cg-stage.panning .cg-node { cursor: grabbing; }
+.cg-node .cg-dot { transition: transform var(--t) var(--ease); transform-box: fill-box; transform-origin: center; }
+.cg-node:hover .cg-dot, .cg-node:focus-visible .cg-dot { transform: scale(1.3); }
+.cg-node.child:hover .cg-dot { transform: scale(2); }
+.cg-svg .cg-node, .cg-svg .cg-edge, .cg-svg .cg-labels text { transition: opacity var(--t) var(--ease); }
+.cg-svg.lit .cg-node:not(.on), .cg-svg.lit .cg-labels text:not(.on) { opacity: .18; }
+.cg-svg.lit .cg-edge:not(.on) { opacity: .1; }
+.cg-svg.lit .cg-edge.on { stroke-opacity: .95; }
+.cg-hint {
+  position: absolute; left: 10px; bottom: 10px; margin: 0; pointer-events: none;
+  font-size: 11px; color: var(--ink-3); background: var(--glass); border: 1px solid var(--glass-line);
+  backdrop-filter: blur(8px); border-radius: var(--r-full); padding: 4px 10px;
+}
+.cg-zoom-level { min-width: 44px; text-align: center; font-size: 11.5px; color: var(--ink-3); }
+.cg-rhint { font-size: 10.5px; color: var(--ink-3); margin-top: 8px; }
+
+/* the table is the graph as rows; a cluster's name selects it in the graph */
+.cg-pick {
+  display: inline-flex; align-items: center; gap: 9px; padding: 4px 0; border: 0; background: none;
+  font: 600 13px var(--sans); color: var(--ink); text-align: left; cursor: pointer; border-radius: 6px;
+}
+.cg-pick:hover { color: var(--flame-ink); }
+.cg-dot-key { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 6%, transparent); }
+.cg-kind { color: var(--ink-2); }
+.cg-share { display: inline-flex; align-items: center; gap: 10px; }
+.cg-share-bar { width: 88px; height: 6px; border-radius: 3px; background: var(--ground-2); overflow: hidden; }
+.cg-share-bar i { display: block; height: 100%; border-radius: 3px; }
 .cg-node:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
 .cg-node:focus-visible > circle:first-child { stroke: var(--flame); stroke-width: 2.5; stroke-opacity: 1; }
 .cg-mono { font-family: var(--mono); }
@@ -1298,6 +1355,9 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 @media (max-width: 720px) {
+  .wb { --wb-label: 92px; }
+  .wb-ioc-detail { padding: 12px; gap: 16px; }
+  .wb-fact { grid-template-columns: 96px minmax(0, 1fr); }
   .wb-kv { grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .wb-kv dd { margin-bottom: 6px; }
   .wb-mode-note { margin-left: 0; }
@@ -1313,10 +1373,12 @@ button { font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .wb .bar-fill, .wb-spinner { animation: none; }
   .wb-starter, .cg-readout, .wb-chev { transition: none; }
+  .cg-node .cg-dot, .cg-svg .cg-node, .cg-svg .cg-edge, .cg-svg .cg-labels text, .page-console #console-side { transition: none; }
 }
 @media (forced-colors: active) {
   .wb-badge, .wb-chip, .wb-diff-tag { border: 1px solid CanvasText; }
-  .wb .bar-fill, .wb .meter i, .wb .coverage i, .cg-key i { forced-color-adjust: none; }
+  .wb .bar-fill, .wb .meter i, .wb .coverage i, .cg-key i, .cg-dot-key, .cg-share-bar i { forced-color-adjust: none; }
+  .cg-share-bar { border: 1px solid CanvasText; }
 }
 /* The console's .table sizes five columns by percentage (27/15/17/23/18).
    The scoring-math table has six, so the sixth — the authority floor, the
@@ -1336,3 +1398,47 @@ button { font-family: inherit; cursor: pointer; }
      edge when a theme flattens it anyway. */
   .wb .bar-fill, .wb .meter i { outline: 1px solid CanvasText; }
 }
+
+/* ─── intelligence sources: every row opens a guide for beginners ─── */
+.src-row { cursor: pointer; }
+.src-row:hover td, .src-row.open td { background: var(--ground-2); }
+.src-row.open td { border-bottom-color: transparent; }
+.src-open {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 2px 0;
+  border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 8px;
+}
+.src-chev { width: 14px; height: 14px; flex: 0 0 14px; margin-top: 3px; stroke: var(--ink-3); fill: none; stroke-width: 2.1;
+  transform: rotate(-90deg); transition: transform var(--t) var(--ease); }
+.src-open[aria-expanded="true"] .src-chev { transform: none; stroke: var(--flame); }
+.src-name { display: grid; gap: 2px; min-width: 0; }
+.src-name strong { font-size: 13px; }
+.src-note { color: var(--ink-3); font-size: 11.5px; }
+.src-detail > td { padding: 0 12px 16px; background: var(--ground-2); white-space: normal; }
+.src-guide { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); }
+.src-lede { margin: 0; font-size: 14px; line-height: 1.55; color: var(--ink); }
+/* four facts, two by two: an even block instead of three and an orphan */
+.src-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.src-fact { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ground); }
+.src-fact b { display: block; font: 600 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.src-fact p { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.src-watch { display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--r-sm); background: var(--flame-wash);
+  border: 1px solid color-mix(in srgb, var(--flame) 22%, transparent); font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.src-watch b { font: 600 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--flame-ink-2); }
+.src-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; font-size: 12px; color: var(--ink-3); }
+.src-foot strong { color: var(--ink-2); font-weight: 600; }
+.src-site { color: var(--flame-ink); font-weight: 600; text-decoration: none; }
+.src-site:hover { text-decoration: underline; }
+@media (max-width: 720px) {
+  .src-facts { grid-template-columns: minmax(0, 1fr); }
+  .src-detail > td { padding: 0 0 12px; }
+  .src-guide { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .src-chev { transition: none; } }
+@media (pointer: coarse) { .src-open, .cg-pick { min-height: 44px; } }
+/* six columns: the site's five-column widths left "First seen" no room */
+.cg-table th:nth-child(1) { width: 26%; }
+.cg-table th:nth-child(2) { width: 16%; }
+.cg-table th:nth-child(3) { width: 14%; }
+.cg-table th:nth-child(4) { width: 22%; }
+.cg-table th:nth-child(5) { width: 10%; }
+.cg-table th:nth-child(6) { width: 12%; }

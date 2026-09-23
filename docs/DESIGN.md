@@ -36,12 +36,23 @@ encoded three times over:
 
 | Channel | How |
 | --- | --- |
-| Hue | critical rose · high orange · medium amber · low sky · informational slate |
+| Hue | critical ink · high flame · medium neutral · low azure · informational muted, the console's severity pills |
 | Glyph | ▲ critical · ◆ high · ■ medium · ● low · ▬ informational · ✓ allowlisted |
 | Text | every badge spells the verdict out |
 
-No chart fill ever carries severity alone. The one chart with fills — the
-evidence contribution bar — uses the validated single-hue ramp.
+A verdict badge looks the same wherever it appears:
+- the overview's severity bar;
+- the workbench's KPI cards and indicators;
+- the case history;
+- the campaign graph's cluster table.
+
+The badges used to be a second, rose and amber palette that belonged to the
+workbench alone. The investigation graph's gauges keep the validated severity
+hues, because a ring has no room for a word; the glyph and the verdict sit
+under every ring.
+
+No chart fill ever carries severity alone. The one chart with fills, the
+evidence contribution bar, uses the validated single-hue ramp.
 
 ## The forms, chosen by the data's job
 

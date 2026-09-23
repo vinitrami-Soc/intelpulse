@@ -486,6 +486,28 @@ check("a console view can be linked to directly",
   (await page.$eval("#console-body h3", (h) => h.textContent)).includes("Intelligence sources"),
   await page.$eval("#console-body h3", (h) => h.textContent.trim()));
 
+/* Reported: the sources were a table you could only read. Every row opens a
+   guide for someone meeting the source for the first time. */
+{
+  const closed = await page.$$eval(".src-detail", (rows) => rows.filter((r) => !r.hidden).length);
+  await page.click(".src-row:nth-of-type(3) td[data-label='Weight']");
+  await page.waitForTimeout(200);
+  const guide = await page.evaluate(() => {
+    const btn = document.querySelectorAll(".src-open")[1];
+    const detail = document.getElementById(btn.getAttribute("aria-controls"));
+    return { expanded: btn.getAttribute("aria-expanded"), shown: !detail.hidden, text: detail.textContent,
+      sources: document.querySelectorAll(".src-open").length, guides: document.querySelectorAll(".src-guide").length };
+  });
+  check("each intelligence source opens a guide that says why it is asked and what it gives",
+    closed === 0 && guide.expanded === "true" && guide.shown && /Why IntelPulse asks it/.test(guide.text) &&
+      /What it gives back/.test(guide.text) && guide.sources === guide.guides && guide.sources >= 8,
+    JSON.stringify({ closed, expanded: guide.expanded, shown: guide.shown, sources: guide.sources }));
+  await page.focus(".src-open");
+  await page.keyboard.press("Enter");
+  check("a source guide opens from the keyboard too",
+    await page.$eval(".src-open", (b) => b.getAttribute("aria-expanded") === "true"));
+}
+
 await page.evaluate(() => {
   [...document.querySelectorAll("#side-nav-full .nav-item")].find((n) => n.dataset.pane === "campaigns")?.click();
 });
