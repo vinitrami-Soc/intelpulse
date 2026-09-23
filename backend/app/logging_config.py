@@ -27,6 +27,10 @@ _SECRET_ENV_KEYS = (
     "ABUSECH_AUTH_KEY",
     "VIRUSTOTAL_API_KEY",
     "POSTGRES_PASSWORD",
+    # the ticket sinks and the API's own token arrived after this list did
+    "API_TOKEN",
+    "JIRA_API_TOKEN",
+    "SERVICENOW_PASSWORD",
 )
 
 _PATTERNS = (

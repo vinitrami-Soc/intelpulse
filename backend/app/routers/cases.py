@@ -1,7 +1,7 @@
 """Case history, audit trail and report regeneration from stored results."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from ..models import AuditLog, Case, IndicatorResult
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import CaseSummary
 from ..scoring import Contribution, IndicatorVerdict
+from ..security import principal
 from ..services.tickets import TicketError, create_ticket
 
 router = APIRouter(tags=["cases"])
@@ -53,7 +54,8 @@ def _rehydrate(results: list[IndicatorResult]) -> list[IndicatorVerdict]:
 @router.get("/cases", response_model=list[CaseSummary])
 async def list_cases(
     limit: int = Query(25, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    # bounded: an offset past SQLite's 64-bit integer was a 500 (found by schema fuzzing)
+    offset: int = Query(0, ge=0, le=2**63 - 1),
     verdict: str | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> list[CaseSummary]:
@@ -135,6 +137,7 @@ async def case_report(
 @router.post("/cases/{case_id}/ticket")
 async def raise_ticket(
     case_id: str,
+    request: Request,
     sink: str = Query(..., pattern="^(jira|servicenow)$"),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
@@ -176,7 +179,7 @@ async def raise_ticket(
     session.add(
         AuditLog(
             action="ticket.created",
-            actor=case.analyst or "anonymous",
+            actor=principal(request),
             target=case.id,
             detail={"sink": ticket.sink, "key": ticket.key, "url": ticket.url},
         )
@@ -186,12 +189,12 @@ async def raise_ticket(
 
 
 @router.delete("/cases/{case_id}", status_code=204)
-async def delete_case(case_id: str, session: AsyncSession = Depends(get_session)) -> None:
+async def delete_case(case_id: str, request: Request, session: AsyncSession = Depends(get_session)) -> None:
     case = await session.get(Case, case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="case not found")
     await session.execute(delete(Case).where(Case.id == case_id))
-    session.add(AuditLog(action="case.deleted", actor="anonymous", target=case_id, detail={}))
+    session.add(AuditLog(action="case.deleted", actor=principal(request), target=case_id, detail={}))
 
 
 @router.get("/stats")

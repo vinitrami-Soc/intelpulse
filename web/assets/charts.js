@@ -35,9 +35,17 @@
    * One bar per source that answered, sorted by weighted contribution, so the
    * reader's first question — "why is this 95?" — is answered top-down.
    */
+  /* A finite number or 0. Evidence arrives from the API in live mode, and a
+     string where a number belongs either crashed .toFixed() or, for the weight,
+     went into the markup unescaped. Found by mutating every field of a real
+     result; pinned by the browser suite. */
+  const num = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
+
   function contributionChart(evidence, options) {
     options = options || {};
-    const rows = (evidence || []).slice().sort((a, b) => b.weighted - a.weighted);
+    const rows = (Array.isArray(evidence) ? evidence : []).map((row) => Object.assign({}, row, {
+      signal: num(row && row.signal), weight: num(row && row.weight), weighted: num(row && row.weighted)
+    })).sort((a, b) => b.weighted - a.weighted);
     if (!rows.length) return "";
     const max = Math.max(...rows.map((r) => r.weighted), 0.001);
 

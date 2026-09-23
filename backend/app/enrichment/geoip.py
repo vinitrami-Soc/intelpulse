@@ -105,8 +105,13 @@ class GeoIPProvider(Provider):
                     value = max(value, 0.35)
                     reasons.append(f"hosted in {city.country.iso_code}")
                     tags.append(f"geo:{city.country.iso_code}")
-            except Exception:  # address not in database
-                pass
+            except geoip2.errors.AddressNotFoundError:
+                pass   # the expected miss: an address the database does not cover
+            except Exception:
+                # Anything else is a broken or unreadable database. Keep going,
+                # because a lookup is best-effort, but say so: this used to be
+                # swallowed, and a corrupt file would have looked like "no data".
+                logger.warning("GeoIP city lookup failed", exc_info=True)
 
         if self._asn is not None:
             try:
@@ -127,8 +132,10 @@ class GeoIPProvider(Provider):
                     value = max(value, 0.4)
                     reasons.append(f"AS{asn.autonomous_system_number} — {note}")
                     tags.append("elevated-asn")
-            except Exception:
+            except geoip2.errors.AddressNotFoundError:
                 pass
+            except Exception:
+                logger.warning("GeoIP ASN lookup failed", exc_info=True)
 
         if not facts:
             return self._result(

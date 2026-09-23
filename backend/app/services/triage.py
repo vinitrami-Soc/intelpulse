@@ -196,6 +196,7 @@ async def persist_case(
     raw_input: str | None = None,
     source: str = "api",
     analyst: str | None = None,
+    actor: str = "anonymous",
 ) -> Case:
     case = Case(
         id=outcome.case_id,
@@ -230,9 +231,11 @@ async def persist_case(
     session.add(
         AuditLog(
             action="triage.completed",
-            actor=analyst or "anonymous",
+            # who the server verified; the name the client typed is only a label
+            actor=actor,
             target=case.id,
             detail={
+                "claimed_by": analyst,
                 "indicator_count": len(outcome.verdicts),
                 "verdict": outcome.verdict,
                 "score": outcome.score,

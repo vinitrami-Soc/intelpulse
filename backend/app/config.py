@@ -28,7 +28,17 @@ class Settings(BaseSettings):
     app_name: str = "IntelPulse"
     environment: str = "development"
     log_level: str = "INFO"
-    cors_origins: str = "*"
+    # The dashboards allowed to call this API from a browser: the compose web
+    # service, the local dev server and the published demo. "*" used to be the
+    # default, which let any page the analyst had open drive the local API.
+    cors_origins: str = (
+        "http://localhost:8080,http://127.0.0.1:8080,"
+        "http://localhost:8123,http://127.0.0.1:8123,"
+        "https://vinitrami-soc.github.io"
+    )
+    # When set, every /api route but /api/health and /api/scoring/model needs
+    # "Authorization: Bearer <token>". Unset keeps the single-analyst default.
+    api_token: str | None = None
     data_dir: Path = DEFAULT_DATA_DIR
 
     # --- storage ---------------------------------------------------------
@@ -110,6 +120,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def cors_allows_any(self) -> bool:
+        return "*" in self.cors_origin_list
 
     @property
     def provider_weights(self) -> dict[str, float]:

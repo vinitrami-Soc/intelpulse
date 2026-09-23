@@ -33,6 +33,17 @@
   const $ = (sel, scope) => (scope || document).querySelector(sel);
   const $$ = (sel, scope) => Array.from((scope || document).querySelectorAll(sel));
 
+  /* The API token lives for the tab and no longer: sessionStorage, never
+     localStorage, so it is gone when the tab closes and never written to disk
+     alongside the history. */
+  const secret = {
+    get() { try { return sessionStorage.getItem("intelpulse:apiToken") || ""; } catch (_) { return ""; } },
+    set(value) {
+      try { if (value) sessionStorage.setItem("intelpulse:apiToken", value); else sessionStorage.removeItem("intelpulse:apiToken"); }
+      catch (_) { /* storage blocked: the token lasts as long as this view */ }
+    }
+  };
+
   const store = {
     get(key, fallback) {
       try { const raw = localStorage.getItem("intelpulse:" + key); return raw === null ? fallback : JSON.parse(raw); }
@@ -110,14 +121,59 @@
 
   const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+  /* ─── the trust boundary ───
+     A live result comes from whatever API the analyst pointed the workbench
+     at. Every number in it is made a finite number here, before anything
+     renders, and every list a list; strings stay strings and are escaped where
+     they are written. Mutating every field of a real result one at a time found
+     three that reached the markup unescaped and 89 ways to crash the view;
+     web/tests/security.spec.mjs repeats that on every run. */
+  const finite = (value) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
+  const list = (value) => (Array.isArray(value) ? value : []);
+  const own = (map, key) => (Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined);
+  function normalizeResult(raw) {
+    const r = Object.assign({}, raw && typeof raw === "object" ? raw : {});
+    r.score = finite(r.score); r.duration_ms = finite(r.duration_ms); r.cache_hits = finite(r.cache_hits);
+    /* An unknown verdict is re-derived from the score with the backend's own
+       bands, rather than shown as "informational" and understating a threat. */
+    const verdict = (v, score) => (VERDICTS.includes(v) ? v : E.verdictFor(score));
+    r.verdict = verdict(r.verdict, r.score);
+    r.indicators = list(r.indicators).filter((i) => i && typeof i === "object").map((i) => Object.assign({}, i, {
+      value: String(i.value == null ? "" : i.value), type: String(i.type == null ? "" : i.type),
+      score: finite(i.score), verdict: verdict(i.verdict, finite(i.score)), confidence: finite(i.confidence),
+      providers_queried: finite(i.providers_queried), providers_answered: finite(i.providers_answered),
+      evidence: list(i.evidence).filter((e) => e && typeof e === "object").map((e) => Object.assign({}, e, {
+        signal: finite(e.signal), weight: finite(e.weight), weighted: finite(e.weighted) })),
+      sources: list(i.sources).filter((x) => x && typeof x === "object"),
+      modifiers: list(i.modifiers), tags: list(i.tags), malware_families: list(i.malware_families),
+      attack_techniques: list(i.attack_techniques).filter((x) => x && typeof x === "object"),
+      containment: list(i.containment)
+    }));
+    const g = r.graph;
+    r.graph = g && typeof g === "object" && Array.isArray(g.nodes) && Array.isArray(g.edges)
+      ? { nodes: g.nodes.filter((n) => n && n.data && typeof n.data === "object"),
+          edges: g.edges.filter((e) => e && e.data && typeof e.data === "object") }
+      : null;
+    r.diffs = list(r.diffs).filter((d) => d && typeof d === "object").map((d) => Object.assign({}, d, {
+      sources_added: list(d.sources_added), sources_removed: list(d.sources_removed),
+      new_malware_families: list(d.new_malware_families), new_attack_ids: list(d.new_attack_ids)
+    }));
+    return r;
+  }
+
   /* ════════════════════════════════════════════════════ the workbench ══ */
 
   /* Module-level, so leaving the pane and coming back finds the case still open. */
+  /* Storage is input too: anything on this machine can write to it, and a
+     null in the history used to take the view down. Each value is checked for
+     the shape it must have, and replaced by the default when it is not. */
+  const objects = (value) => (Array.isArray(value) ? value.filter((v) => v && typeof v === "object" && !Array.isArray(v)) : []);
+  const storedBase = store.get("apiBase", "http://localhost:8000");
   const wb = {
-    mode: store.get("mode", "demo"),
-    apiBase: store.get("apiBase", "http://localhost:8000"),
-    lists: store.get("lists", []),
-    history: store.get("history", []),
+    mode: store.get("mode", "demo") === "live" ? "live" : "demo",
+    apiBase: typeof storedBase === "string" && safeUrl(storedBase) ? storedBase : "http://localhost:8000",
+    lists: objects(store.get("lists", [])).filter((e) => typeof e.value === "string"),
+    history: objects(store.get("history", [])),
     health: null,
     result: null,
     showAll: false,
@@ -163,6 +219,9 @@
             '<div class="wb-row"><input id="wb-api" class="wb-field" type="url" inputmode="url" spellcheck="false" autocomplete="off" aria-describedby="wb-api-error" value="' + esc(wb.apiBase) + '">' +
               '<button type="button" class="btn btn-light btn-sm" data-act="connect">Connect</button></div>' +
             '<p class="wb-error" id="wb-api-error" role="alert" hidden></p>' +
+            '<label class="label-xs" for="wb-token" style="margin-top:10px;display:block">API token <span class="wb-muted">(if the API sets API_TOKEN)</span></label>' +
+            '<input id="wb-token" class="wb-field" type="password" autocomplete="off" spellcheck="false" aria-describedby="wb-token-hint">' +
+            '<p class="wb-hint" id="wb-token-hint">Kept for this tab only, sent as a Bearer header, never stored with your history.</p>' +
           "</div>" +
         "</section>" +
         '<section class="card panel wb-side">' +
@@ -220,8 +279,11 @@
       inflight.add(controller);
       try {
         const base = wb.apiBase.replace(/\/+$/, "");
+        const headers = { "Content-Type": "application/json" };
+        const token = secret.get();
+        if (token) headers.Authorization = "Bearer " + token;
         const response = await fetch(base + path, Object.assign({
-          headers: { "Content-Type": "application/json" }, signal: controller.signal
+          headers, signal: controller.signal, credentials: "omit"
         }, options || {}));
         if (!response.ok) {
           let detail = response.statusText;
@@ -279,7 +341,12 @@
       if (wb.mode === "demo") { wb.health = null; renderProviders(); renderTicketButton(); return; }
       q("#wb-conn").className = "wb-conn"; q("#wb-conn").textContent = "connecting…";
       try {
-        wb.health = await api("/api/health");
+        /* the same boundary as a triage result: lists are lists of objects */
+        const h = await api("/api/health");
+        wb.health = Object.assign({}, h && typeof h === "object" ? h : {}, {
+          providers: objects(h && h.providers),
+          cache: h && h.cache && typeof h.cache === "object" ? h.cache : {}
+        });
         if (!alive) return;
         renderProviders();
       } catch (error) {
@@ -308,7 +375,7 @@
       if (wb.mode === "demo") {
         indicators = E.extract(text, { allowDocumentation: true });
       } else {
-        try { indicators = (await api("/api/extract", { method: "POST", body: JSON.stringify({ text }) })).indicators; }
+        try { indicators = objects((await api("/api/extract", { method: "POST", body: JSON.stringify({ text }) }) || {}).indicators); }
         catch (error) { if (error.name !== "AbortError") toast("Extract failed: " + error.message); return; }
       }
       if (!alive) return;
@@ -387,12 +454,13 @@
           '</div><span class="sk sk-panel"></span></div>';
       }
       try {
-        const title = q("#wb-title").value.trim() || "Ad-hoc triage";
+        /* one clean line, as the API will make it */
+        const title = E.cleanLabel(q("#wb-title").value, 200) || "Ad-hoc triage";
         let result;
         if (wb.mode === "demo") {
           result = E.demoTriage(text, DEMO, { title, lists: wb.lists });
         } else {
-          result = await api("/api/triage", { method: "POST", body: JSON.stringify({ text, title, persist: true }) });
+          result = normalizeResult(await api("/api/triage", { method: "POST", body: JSON.stringify({ text, title, persist: true }) }));
           result.mode = "live";
         }
         if (!alive) return;
@@ -424,7 +492,9 @@
        mode keeps the last snapshot per indicator here and runs the identical
        comparison from the engine, so the renderer does not care which it got. */
     function attachDiffs(result) {
-      const seen = store.get("snapshots", {});
+      const stored = store.get("snapshots", {});
+      /* a plain map with no prototype: a "__proto__" key read back from storage is just a key */
+      const seen = Object.assign(Object.create(null), stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {});
       if (!Array.isArray(result.diffs) || !result.diffs.length) {
         result.diffs = (result.indicators || []).map((indicator) => {
           const previous = seen[indicator.value];
@@ -461,8 +531,8 @@
 
     function renderResult(result) {
       q("#wb-results").hidden = false;
-      const answered = result.indicators.reduce((s, i) => s + (i.providers_answered || 0), 0);
-      const queried = result.indicators.reduce((s, i) => s + (i.providers_queried || 0), 0);
+      const answered = result.indicators.reduce((s, i) => s + finite(i.providers_answered), 0);
+      const queried = result.indicators.reduce((s, i) => s + finite(i.providers_queried), 0);
       const allSources = result.indicators.reduce((acc, i) => acc.concat(i.sources || []), []);
       const byType = Object.entries(result.indicators.reduce((acc, i) => { acc[i.type] = (acc[i.type] || 0) + 1; return acc; }, {}))
         .map(([k, v]) => v + " " + k).join(" · ");
@@ -478,7 +548,7 @@
         kpi("Sources answered", "i-globe", '<div class="val num"><span id="wb-cov">0</span><small class="wb-of">/' + queried + "</small></div>",
           C.coverageStrip(allSources)) +
         kpi("Enrichment", "i-clock", '<div class="val num"><span id="wb-ms">0</span><small class="wb-of"> ms</small></div>',
-          "<small>" + (result.cache_hits ? result.cache_hits + " cached lookup(s)" : "no cache hits") + "</small>");
+          "<small>" + (finite(result.cache_hits) ? finite(result.cache_hits) + " cached lookup(s)" : "no cache hits") + "</small>");
 
       C.tweenNumber(q("#wb-hero"), result.score, { duration: 620 });
       C.tweenNumber(q("#wb-n"), result.indicators.length, { duration: 420 });
@@ -637,7 +707,7 @@
         const textW = label.length * (mono ? 6.6 : 6.1);
         const node = {
           id: String(d.id), data: d, root, verdict, label, mono,
-          kind: root ? "root" : (KIND_OF[d.kind] || "ref"),
+          kind: root ? "root" : (own(KIND_OF, d.kind) || "ref"),
           indicator: root ? scoreOf.get(String(d.id).replace(/^ioc:/, "")) || null : null,
           w: root ? Math.max(60, textW + 10) : Math.round(textW + 44), h: root ? 90 : 26,
           oy: root ? 16 : 0, x: 0, y: 0
@@ -800,7 +870,7 @@
       return open +
         '<rect class="wb-pill" x="' + left.toFixed(1) + '" y="-13" width="' + n.w.toFixed(1) + '" height="26" rx="13"/>' +
         '<circle class="wb-kdot" cx="' + (left + 14).toFixed(1) + '" r="9"/>' +
-        '<use class="wb-gicon" href="#' + (KIND_ICON[n.data.kind] || "i-dots") + '" x="' + (left + 8.5).toFixed(1) +
+        '<use class="wb-gicon" href="#' + (own(KIND_ICON, n.data.kind) || "i-dots") + '" x="' + (left + 8.5).toFixed(1) +
           '" y="-5.5" width="11" height="11"/>' +
         '<text class="wb-plabel' + (n.mono ? " mono" : "") + '" x="' + (left + 29).toFixed(1) + '" y="3.8">' + esc(n.label) + "</text>" +
         "</g></g>";
@@ -1072,7 +1142,7 @@
       let rows = wb.history;
       if (wb.mode === "live") {
         try {
-          rows = (await api("/api/cases?limit=25")).map((c) => ({
+          rows = objects(await api("/api/cases?limit=25")).map((c) => ({
             case_id: c.id, title: c.title, verdict: c.verdict, score: c.max_score,
             indicator_count: c.indicator_count, mode: "live", created_at: c.created_at
           }));
@@ -1133,7 +1203,9 @@
             return;
           }
           field.removeAttribute("aria-invalid"); box.hidden = true; box.textContent = "";
-          wb.apiBase = value; store.set("apiBase", value); checkHealth(); break;
+          wb.apiBase = value; store.set("apiBase", value);
+          secret.set(q("#wb-token").value.trim());
+          checkHealth(); break;
         }
         case "show-all": wb.showAll = true; renderIndicators(wb.result); break;
         case "copy-report": copyText(q("#wb-report").dataset.markdown || "", "Markdown ticket copied."); break;
@@ -1176,13 +1248,14 @@
     /* What the browser suite drives: rendering a hand-built result (a hostile
        provider response, say) and the URL check itself. Only while mounted. */
     window.IntelPulse = {
-      render(result) { wb.result = result; renderResult(result); },
+      render(result) { wb.result = normalizeResult(result); renderResult(wb.result); },
       safeUrl,
       get result() { return wb.result; }
     };
 
     /* Coming back to the pane finds the draft and the open case where they were. */
     q("#wb-input").value = wb.draft.text;
+    q("#wb-token").value = secret.get();
     q("#wb-title").value = wb.draft.title;
     checkHealth();
     renderHistory();

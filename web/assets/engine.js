@@ -55,9 +55,11 @@
   const URL_RE = /\bhttps?:\/\/[^\s<>"'\)\]\},]{4,2048}/gi;
   const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
   const HASH_RE = /\b[a-f0-9]{32}\b|\b[a-f0-9]{40}\b|\b[a-f0-9]{64}\b/gi;
-  const EMAIL_RE = /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,24}\b/gi;
+  /* Bounded like the backend's, for the same reason: unbounded, both were
+     quadratic on "a.a.a.a…" and a long paste froze the tab. */
+  const EMAIL_RE = /\b[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,24}\b/gi;
   const CVE_RE = /\bCVE-\d{4}-\d{4,7}\b/gi;
-  const DOMAIN_RE = /\b(?:(?!-)[a-z0-9-]{1,63}(?<!-)\.)+[a-z]{2,24}\b/gi;
+  const DOMAIN_RE = /\b(?:(?!-)[a-z0-9-]{1,63}(?<!-)\.){1,20}[a-z]{2,24}\b/gi;
 
   const FILE_SUFFIXES = new Set(("exe dll sys bat cmd ps1 vbs js jar lnk scr doc docx xls xlsx " +
     "ppt pptx pdf zip rar 7z png jpg jpeg gif svg ico css log txt tmp dat bin iso msi conf cfg " +
@@ -385,7 +387,24 @@
     return "█".repeat(filled) + "░".repeat(10 - filled);
   }
 
-  function executiveSummary(indicators, verdict, score) {
+  /* Untrusted text on its way into a label or a Markdown ticket: a port of
+     backend/app/text.py. A newline is what lets a title forge a section of the
+     ticket, a bracket makes a link or an image, a scheme is one click away. */
+  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
+  function cleanLabel(value, limit) {
+    limit = limit || 200;
+    const text = String(value == null ? "" : value).replace(INVISIBLE, " ").replace(/\s+/g, " ").trim();
+    return text.length <= limit ? text : text.slice(0, limit - 1).replace(/\s+$/, "") + "\u2026";
+  }
+  function mdText(value, limit) {
+    return cleanLabel(value, limit || 300)
+      .replace(/\bhttp(s?):\/\//gi, (m, s) => "hxxp" + s + "://")
+      .replace(/([\\`\[\]<>|])/g, "\\$1");
+  }
+  const code = (value) => "`" + defang(String(value)).replace(/`/g, "%60") + "`";
+
+  function executiveSummary(indicators, verdict, score, markdown) {
+    const label = markdown ? mdText : cleanLabel;
     if (!indicators.length) return "No indicators were extracted from the supplied input.";
     const actionable = indicators.filter((i) => i.score >= THRESHOLDS.medium);
     const families = Array.from(new Set([].concat.apply([], indicators.map((i) => i.malware_families || []))));
@@ -393,13 +412,13 @@
       "The highest composite score is " + score + "/100 (" + verdict.toUpperCase() + ").";
     if (actionable.length) {
       const worst = actionable.reduce((a, b) => (a.score >= b.score ? a : b));
-      lead += " " + actionable.length + " indicator(s) are actionable, led by `" + defang(worst.value) +
-        "` (" + worst.verdict.toUpperCase() + ", " + worst.score + "/100, confidence " +
+      lead += " " + actionable.length + " indicator(s) are actionable, led by " + code(worst.value) +
+        " (" + worst.verdict.toUpperCase() + ", " + worst.score + "/100, confidence " +
         Math.round(worst.confidence * 100) + "%).";
     } else {
       lead += " No indicator reached the actionable threshold; treat this as informational.";
     }
-    if (families.length) lead += " Associated malware/activity: " + families.slice(0, 4).join(", ") + ".";
+    if (families.length) lead += " Associated malware/activity: " + families.slice(0, 4).map((f) => label(f, 80)).join(", ") + ".";
     return lead;
   }
 
@@ -408,41 +427,42 @@
     const now = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
     const sorted = result.indicators.slice().sort((a, b) => b.score - a.score);
     const lines = [
-      "# SOC Triage Report — " + result.title, "",
+      "# SOC Triage Report — " + mdText(result.title, 200), "",
       "| Field | Value |", "| --- | --- |",
-      "| Case ID | `" + result.case_id + "` |",
+      "| Case ID | " + code(result.case_id) + " |",
       "| Generated | " + now + " |",
-      "| Analyst | " + (options.analyst || "IntelPulse (automated)") + " |",
+      "| Analyst | " + (options.analyst ? mdText(options.analyst, 120) : "IntelPulse (automated)") + " |",
       "| Severity | **" + result.verdict.toUpperCase() + "** (" + result.score + "/100) |",
       "| Priority | " + (SEVERITY_SLA[result.verdict] || "P4") + " |",
       "| Indicators | " + result.indicators.length + " |",
       "| Enrichment time | " + result.duration_ms + " ms |",
       "", "## 1. Executive summary", "",
-      result.summary || executiveSummary(result.indicators, result.verdict, result.score),
+      /* recomputed, escaped: a live result's summary is plain text from the API */
+      executiveSummary(result.indicators, result.verdict, result.score, true),
       "", "## 2. Indicators observed", "",
       "| Indicator | Type | Score | Verdict | Confidence | Sources agreeing |",
       "| --- | --- | --- | --- | --- | --- |"
     ];
     sorted.forEach((i) => {
       const agreeing = (i.evidence || []).filter((e) => e.signal >= 0.5).length;
-      lines.push("| `" + defang(i.value) + "` | " + i.type + " | " + i.score + "/100 `" +
+      lines.push("| " + code(i.value) + " | " + mdText(i.type, 10) + " | " + i.score + "/100 `" +
         scoreBar(i.score) + "` | **" + i.verdict.toUpperCase() + "** | " +
         Math.round(i.confidence * 100) + "% | " + agreeing + "/" + i.providers_answered + " |");
     });
 
     lines.push("", "## 3. Evidence and attribution", "");
     sorted.forEach((i) => {
-      lines.push("### `" + defang(i.value) + "` — " + i.verdict.toUpperCase() + " (" + i.score + "/100)", "");
-      if ((i.malware_families || []).length) lines.push("- **Malware / campaign:** " + i.malware_families.join(", "));
+      lines.push("### " + code(i.value) + " — " + i.verdict.toUpperCase() + " (" + i.score + "/100)", "");
+      if ((i.malware_families || []).length) lines.push("- **Malware / campaign:** " + i.malware_families.map((f) => mdText(f, 80)).join(", "));
       if ((i.attack_techniques || []).length) {
         lines.push("- **MITRE ATT&CK:** " + i.attack_techniques.slice(0, 6)
-          .map((t) => t.id + " (" + t.name + ")").join(", "));
+          .map((t) => mdText(t.id, 20) + " (" + mdText(t.name, 80) + ")").join(", "));
       }
-      if ((i.tags || []).length) lines.push("- **Tags:** " + i.tags.slice(0, 10).join(", "));
+      if ((i.tags || []).length) lines.push("- **Tags:** " + i.tags.slice(0, 10).map((t) => mdText(t, 60)).join(", "));
       (i.evidence || []).forEach((e) => {
-        lines.push("- **" + e.provider + "** (signal " + e.signal.toFixed(2) + ", weight " + e.weight + "): " + e.rationale);
+        lines.push("- **" + mdText(e.provider, 40) + "** (signal " + Number(e.signal).toFixed(2) + ", weight " + Number(e.weight) + "): " + mdText(e.rationale, 400));
       });
-      (i.modifiers || []).forEach((m) => lines.push("- **Modifier:** " + m));
+      (i.modifiers || []).forEach((m) => lines.push("- **Modifier:** " + mdText(m, 300)));
       lines.push("");
     });
 
@@ -450,7 +470,7 @@
     const seen = new Set();
     sorted.forEach((i) => {
       if (["informational", "allowlisted"].includes(i.verdict)) return;
-      lines.push("**`" + defang(i.value) + "` (" + i.verdict.toUpperCase() + ")**");
+      lines.push("**" + code(i.value) + " (" + i.verdict.toUpperCase() + ")**");
       (i.containment || []).forEach((action) => {
         if (seen.has(action)) return;
         seen.add(action);
@@ -696,6 +716,7 @@
     containmentActions: containmentActions, executiveSummary: executiveSummary,
     toMarkdown: toMarkdown, toTicketJson: toTicketJson, buildGraph: buildGraph,
     demoTriage: demoTriage, scoreBar: scoreBar, SEVERITY_SLA: SEVERITY_SLA, uuid: uuid,
-    BANDS: BANDS, snapshotOf: snapshotOf, diffSnapshots: diffSnapshots
+    BANDS: BANDS, snapshotOf: snapshotOf, diffSnapshots: diffSnapshots,
+    cleanLabel: cleanLabel, mdText: mdText
   };
 });

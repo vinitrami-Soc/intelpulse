@@ -40,10 +40,17 @@ _URL_RE = re.compile(r"\bhttps?://[^\s<>\"'\)\]\},]{4,2048}", re.I)
 _IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _IPV6_RE = re.compile(r"\b(?:[A-F0-9]{1,4}:){2,7}[A-F0-9]{1,4}\b", re.I)
 _HASH_RE = re.compile(r"\b[A-F0-9]{32}\b|\b[A-F0-9]{40}\b|\b[A-F0-9]{64}\b", re.I)
-_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,24}\b", re.I)
+# Both of the next two were quadratic on input like "a.a.a.a…" or "1.1.1.1…":
+# an unbounded repeat ran to the end of the text from every start position, then
+# backtracked all the way. 8,000 characters took a second; the 200,000-character
+# paste limit would have held a worker for about ten minutes. Bounding each
+# repeat to what the standards allow (a 64-character local part, RFC 5321; a
+# 253-character host) makes the work per start position constant.
+_EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]{1,64}@[A-Z0-9.-]{1,253}\.[A-Z]{2,24}\b", re.I)
 _CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,7}\b", re.I)
 _DOMAIN_RE = re.compile(
-    r"\b(?:(?!-)[A-Z0-9-]{1,63}(?<!-)\.)+[A-Z]{2,24}\b", re.I
+    # at most 20 labels before the TLD: far past any real indicator, and finite
+    r"\b(?:(?!-)[A-Z0-9-]{1,63}(?<!-)\.){1,20}[A-Z]{2,24}\b", re.I
 )
 
 # Extensions and suffixes that look like domains in logs but are not.

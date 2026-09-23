@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,8 +12,10 @@ from ..db import get_session
 from ..ioc import Indicator, classify, extract, summarise
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import ExtractRequest, ExtractResponse, TriageRequest, TriageResponse
+from ..security import principal
 from ..services.history import diff_for_indicator
 from ..services.triage import persist_case, triage
+from ..text import clean_label
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["triage"])
@@ -70,7 +72,7 @@ async def extract_endpoint(payload: ExtractRequest) -> ExtractResponse:
 
 @router.post("/triage", response_model=TriageResponse)
 async def triage_endpoint(
-    payload: TriageRequest, session: AsyncSession = Depends(get_session)
+    payload: TriageRequest, request: Request, session: AsyncSession = Depends(get_session)
 ) -> TriageResponse:
     indicators = _indicators_from_request(payload)
     if not indicators:
@@ -94,6 +96,7 @@ async def triage_endpoint(
             raw_input=payload.text,
             source="paste" if payload.text else "api",
             analyst=payload.analyst,
+            actor=principal(request),
         )
         persisted = True
 
@@ -102,9 +105,10 @@ async def triage_endpoint(
 
 @router.post("/triage/upload", response_model=TriageResponse)
 async def triage_upload(
+    request: Request,
     file: UploadFile = File(...),
-    title: str = Form("Uploaded log triage"),
-    analyst: str | None = Form(None),
+    title: str = Form("Uploaded log triage", max_length=200),
+    analyst: str | None = Form(None, max_length=120),
     session: AsyncSession = Depends(get_session),
 ) -> TriageResponse:
     """Accepts .txt/.log/.csv/.json (including evtx-converted JSON) up to 5 MB."""
@@ -114,19 +118,29 @@ async def triage_upload(
             status_code=413,
             detail=f"file exceeds {settings.max_upload_bytes // (1024 * 1024)} MB limit",
         )
+    # A log is text. A NUL byte early on means a binary (an executable came
+    # back as a 200 with its strings "triaged"), which is not what this is for.
+    if b"\x00" in raw[:8192]:
+        raise HTTPException(status_code=415, detail="the upload is not a text file (.txt, .log, .csv or .json)")
     text = raw.decode("utf-8", errors="ignore")
     indicators = extract(text, limit=settings.max_iocs_per_request)
     if not indicators:
         raise HTTPException(status_code=422, detail="no indicators found in the uploaded file")
 
-    outcome = await triage(indicators, title=f"{title} — {file.filename}", analyst=analyst)
-    await persist_case(session, outcome, raw_input=text[:20_000], source="upload", analyst=analyst)
+    # The filename is chosen by whoever made the file: it is a label like any other.
+    label = clean_label(f"{clean_label(title, 120)} — {clean_label(file.filename or 'upload', 80)}", 200)
+    claimed = clean_label(analyst, 120) or None if analyst else None
+    outcome = await triage(indicators, title=label, analyst=claimed)
+    await persist_case(
+        session, outcome, raw_input=text[:20_000], source="upload", analyst=claimed, actor=principal(request)
+    )
     return TriageResponse(**outcome.as_dict(), persisted=True)
 
 
 @router.post("/triage/report")
 async def triage_report(
     payload: TriageRequest,
+    request: Request,
     fmt: str = Query("markdown", pattern="^(markdown|json)$"),
     session: AsyncSession = Depends(get_session),
 ):
@@ -139,7 +153,8 @@ async def triage_report(
     )
     if payload.persist:
         await persist_case(
-            session, outcome, raw_input=payload.text, source="report", analyst=payload.analyst
+            session, outcome, raw_input=payload.text, source="report", analyst=payload.analyst,
+            actor=principal(request),
         )
 
     if fmt == "json":

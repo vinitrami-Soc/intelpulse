@@ -10,6 +10,13 @@ from datetime import UTC, datetime
 
 from .ioc import defang
 from .scoring import IndicatorVerdict
+from .text import clean_label, md_text
+
+
+def _code(value: str) -> str:
+    """An indicator as an inline code span. A URL may carry a backtick, which
+    would close the span early, so it is written the way a URL writes it."""
+    return "`" + defang(value).replace("`", "%60") + "`"
 
 SEVERITY_SLA = {
     "critical": "P1 — contain within 1 hour",
@@ -78,9 +85,19 @@ def _score_bar(score: int) -> str:
     return "█" * filled + "░" * (10 - filled)
 
 
-def executive_summary(case_title: str, verdicts: list[IndicatorVerdict], verdict: str, score: int) -> str:
+def executive_summary(
+    case_title: str,
+    verdicts: list[IndicatorVerdict],
+    verdict: str,
+    score: int,
+    *,
+    markdown: bool = False,
+) -> str:
     actionable = [v for v in verdicts if v.is_actionable]
     families = sorted({f for v in verdicts for f in v.malware_families})
+    # Family names are the vendors' words: one clean line each, and escaped
+    # when the summary is going into Markdown.
+    label = md_text if markdown else clean_label
     if not verdicts:
         return "No indicators were extracted from the supplied input."
     lead = (
@@ -91,13 +108,13 @@ def executive_summary(case_title: str, verdicts: list[IndicatorVerdict], verdict
         worst = max(actionable, key=lambda v: v.score)
         lead += (
             f" {len(actionable)} indicator(s) are actionable, led by "
-            f"`{defang(worst.indicator.value)}` ({worst.verdict.upper()}, {worst.score}/100, "
+            f"{_code(worst.indicator.value)} ({worst.verdict.upper()}, {worst.score}/100, "
             f"confidence {worst.confidence:.0%})."
         )
     else:
         lead += " No indicator reached the actionable threshold; treat this as informational."
     if families:
-        lead += f" Associated malware/activity: {', '.join(families[:4])}."
+        lead += f" Associated malware/activity: {', '.join(label(f, 80) for f in families[:4])}."
     return lead
 
 
@@ -113,13 +130,13 @@ def to_markdown(
 ) -> str:
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines: list[str] = [
-        f"# SOC Triage Report — {case_title}",
+        f"# SOC Triage Report — {md_text(case_title, 200)}",
         "",
         "| Field | Value |",
         "| --- | --- |",
         f"| Case ID | `{case_id}` |",
         f"| Generated | {now} |",
-        f"| Analyst | {analyst or 'IntelPulse (automated)'} |",
+        f"| Analyst | {md_text(analyst, 120) if analyst else 'IntelPulse (automated)'} |",
         f"| Severity | **{case_level.upper()}** ({case_score}/100) |",
         f"| Priority | {SEVERITY_SLA.get(case_level, 'P4')} |",
         f"| Indicators | {len(verdicts)} |",
@@ -127,7 +144,7 @@ def to_markdown(
         "",
         "## 1. Executive summary",
         "",
-        executive_summary(case_title, verdicts, case_level, case_score),
+        executive_summary(case_title, verdicts, case_level, case_score, markdown=True),
         "",
         "## 2. Indicators observed",
         "",
@@ -137,31 +154,33 @@ def to_markdown(
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
         agreeing = sum(1 for c in v.contributions if c.signal >= 0.5)
         lines.append(
-            f"| `{defang(v.indicator.value)}` | {v.indicator.type} | {v.score}/100 "
+            f"| {_code(v.indicator.value)} | {v.indicator.type} | {v.score}/100 "
             f"`{_score_bar(v.score)}` | **{v.verdict.upper()}** | {v.confidence:.0%} | "
             f"{agreeing}/{v.providers_answered} |"
         )
 
     lines += ["", "## 3. Evidence and attribution", ""]
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
-        lines.append(f"### `{defang(v.indicator.value)}` — {v.verdict.upper()} ({v.score}/100)")
+        lines.append(f"### {_code(v.indicator.value)} — {v.verdict.upper()} ({v.score}/100)")
         lines.append("")
         if v.malware_families:
-            lines.append(f"- **Malware / campaign:** {', '.join(v.malware_families)}")
+            lines.append(f"- **Malware / campaign:** {', '.join(md_text(f, 80) for f in v.malware_families)}")
         if v.attack_techniques:
-            techniques = ", ".join(f"{t['id']} ({t['name']})" for t in v.attack_techniques[:6])
+            techniques = ", ".join(
+                f"{md_text(t.get('id', ''), 20)} ({md_text(t.get('name', ''), 80)})" for t in v.attack_techniques[:6]
+            )
             lines.append(f"- **MITRE ATT&CK:** {techniques}")
         if v.tags:
-            lines.append(f"- **Tags:** {', '.join(v.tags[:10])}")
+            lines.append(f"- **Tags:** {', '.join(md_text(t, 60) for t in v.tags[:10])}")
         for contribution in v.contributions:
             if contribution.signal <= 0 and not contribution.rationale:
                 continue
             lines.append(
-                f"- **{contribution.provider}** (signal {contribution.signal:.2f}, "
-                f"weight {contribution.weight:g}): {contribution.rationale}"
+                f"- **{md_text(contribution.provider, 40)}** (signal {contribution.signal:.2f}, "
+                f"weight {contribution.weight:g}): {md_text(contribution.rationale, 400)}"
             )
         for modifier in v.modifiers:
-            lines.append(f"- **Modifier:** {modifier}")
+            lines.append(f"- **Modifier:** {md_text(modifier, 300)}")
         lines.append("")
 
     lines += ["## 4. Recommended containment actions", ""]
@@ -169,7 +188,7 @@ def to_markdown(
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
         if v.verdict in ("informational", "allowlisted"):
             continue
-        header = f"**`{defang(v.indicator.value)}` ({v.verdict.upper()})**"
+        header = f"**{_code(v.indicator.value)} ({v.verdict.upper()})**"
         lines.append(header)
         for action in containment_actions(v):
             if action in seen:

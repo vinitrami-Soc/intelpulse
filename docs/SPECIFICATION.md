@@ -275,9 +275,10 @@ Three testing problems were worth more than the tests they fixed:
 - **The extractor had eight tests over about five sample lines.** Regexes that survive five lines
   routinely die on five thousand, and these did — see 4.7.
 
-Current totals: **166** backend (pytest + ruff) · **51** Node (engine parity, findings model,
-triage-diff parity, design guards) · **69** workbench · **81** site and console · **83** phone,
-tablet and assistant.
+Current totals: **200** backend (pytest + ruff, 34 of them the 2026 security audit's regressions)
+· **56** Node (engine parity, findings model, triage-diff parity, design guards) · **91** workbench
+and campaign graph · **83** site and console · **99** phone, tablet and assistant · **27** browser
+security (hostile API, poisoned storage, CSP).
 
 ### 4.7 Measuring extraction instead of asserting it
 

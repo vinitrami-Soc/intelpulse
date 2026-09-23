@@ -94,11 +94,14 @@ docker compose up --build
 No API keys? It still runs. Unconfigured providers report themselves as `skipped` in
 `/api/health` and in every result — the platform never presents a missing source as a clean verdict.
 
+Anywhere but your own machine, set `API_TOKEN` in `.env` and paste the same value into the
+console's **API token** field when you connect; list your dashboard's address in `CORS_ORIGINS`.
+
 ### Local, without Docker
 
 ```bash
 make install                 # venv + dependencies
-make test                    # 25 tests, no network required
+make test                    # 200 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -245,8 +248,8 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 166 backend tests: extraction (incl. the 3,400-line corpus), scoring,
-                 # API contract, reports, security controls
+make test        # 200 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+                 # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 56 node tests: engine parity, console model, design-system guards
 make test-ui     # Chromium: the workbench and graph suite (XSS, hostile URLs, degradation,
                  # evidence, both graphs, diffs, a11y) plus the site suite (every control, the
@@ -298,8 +301,14 @@ asserts nothing becomes DOM.
 
 ## Security and honesty notes
 
-Full detail, with the test that proves each control, is in [docs/SECURITY.md](docs/SECURITY.md).
-The short version:
+Full detail, with the test that proves each control, is in [docs/SECURITY.md](docs/SECURITY.md);
+the September 2026 OWASP audit — thirteen findings, each reproduced, fixed and pinned by a test — is
+in [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md). The short version:
+
+* **Only your dashboard can write.** A `POST` or `DELETE` a browser sends from any origin not in
+  `CORS_ORIGINS` is refused, because CORS alone never stopped a form post. Set `API_TOKEN` and every
+  data route needs `Authorization: Bearer`; the audit log records who the server verified, not the
+  name a client typed.
 
 * **Egress is allowlisted.** Twelve known intelligence hosts, HTTPS only, resolution checked against
   private/loopback/link-local/metadata space on every hop including redirects. IntelPulse never
@@ -307,16 +316,19 @@ The short version:
 * **Internal addresses never leave.** Private, loopback, link-local, CGNAT and documentation space is
   filtered during extraction, before any provider is called.
 * **Quota and CPU are budgeted.** Per-client rate limits sized per endpoint (triage 30/min, writes
-  60/min, reads 240/min), 1 MiB JSON bodies, 5 MiB uploads, 200 000 characters of text, 100 indicators
-  per request. `X-Forwarded-For` is ignored unless explicitly trusted.
+  60/min, reads 240/min), 1 MiB JSON bodies (counted as they stream, chunked or not), 5 MiB text-only
+  uploads, 200 000 characters of text, 100 indicators per request, and extraction patterns that stay
+  linear on hostile input. `X-Forwarded-For` is ignored unless explicitly trusted.
 * **Logs are JSON and masked.** Request id, client, route, status, duration — with configured secrets
   and anything credential-shaped redacted from messages, arguments and tracebacks.
 * **The UI treats every log line as hostile.** Output encoding everywhere, `http(s)`-only URL
-  validation on links that come from providers, and a CSP that blocks inline script and `eval`.
+  validation on links that come from providers, one normalising boundary for every result the API
+  returns, validated browser storage, and a CSP that blocks inline script and
+  `eval`. Tickets are escaped and defanged, so a title or a vendor string cannot write a section.
 * **Dependencies are audited.** `make audit`; the pins moved forward when `pip-audit` found advisories
   in the originals.
-* **Nothing is overstated.** There is no authentication yet — the design target is a deployment behind
-  the SOC's own boundary, and the roadmap says so. Unconfigured or failing sources are reported as
+* **Nothing is overstated.** Authentication is one shared token, not users and roles — the design
+  target is a deployment behind the SOC's own boundary, and the roadmap says so. Unconfigured or failing sources are reported as
   `skipped`/`error`, never as "clean", and every report states its source coverage.
 * Secrets live in `.env` only; the API container runs as an unprivileged user with a healthcheck.
 * Containment guidance is defensive only: block, hunt, isolate, revoke, patch.
@@ -328,7 +340,7 @@ The short version:
 - [ ] VirusTotal and Shodan providers (keys already read from config)
 - [ ] STIX 2.1 / MISP export alongside Markdown and JSON
 - [ ] Webhook ingestion so a SIEM can push alerts directly
-- [ ] Per-analyst auth and API keys for multi-user deployments (the one real gap today)
+- [ ] Per-analyst identity (OIDC) and roles for multi-user deployments; today it is one shared token
 - [ ] Redis-backed rate limiting for multi-replica deployments (the interface is already one method)
 
 ---
