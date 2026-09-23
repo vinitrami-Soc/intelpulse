@@ -652,12 +652,19 @@
     rail.addEventListener("focusin", pause);
     rail.addEventListener("focusout", resume);
     rail.addEventListener("pointerdown", (event) => {
-      drag = { x: event.clientX, from: rail.scrollLeft };
+      drag = { x: event.clientX };
       rail.setPointerCapture(event.pointerId);
       rail.classList.add("grabbing");
     });
+    /* By the step since the last move, not from where the drag began. From the
+       start, a long drag that set out near the seam wrote positions past the
+       end of the track; the browser clamped them and the rail stopped following
+       the pointer (measured: 565px for a 700px drag). By the step, the wrap
+       below keeps every write inside the middle run. */
     rail.addEventListener("pointermove", (event) => {
-      if (drag) rail.scrollLeft = drag.from - (event.clientX - drag.x);
+      if (!drag) return;
+      rail.scrollLeft += drag.x - event.clientX;
+      drag.x = event.clientX;
     });
     const release = () => { drag = null; rail.classList.remove("grabbing"); };
     rail.addEventListener("pointerup", release);

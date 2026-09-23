@@ -144,8 +144,12 @@ take the ticket.
 - Case verdict, indicator breakdown, source coverage and enrichment timing as the console's KPI row.
 - Per-indicator evidence: which source said what, with what weight, and how that produced the score,
   with the arithmetic itself one button away in a real dialog.
-- What changed since the last triage of the same indicator, a relationship graph whose nodes open
-  their evidence, the generated ticket, case history and allow/block lists.
+- What changed since the last triage of the same indicator, the generated ticket, case history and
+  allow/block lists.
+- A relationship graph: each indicator is a gauge whose ring fills to its score, everything it points
+  at is a pill coloured by kind, and a link is dashed when its source was less than 70% sure of it.
+  Hovering or tabbing to a node lights its neighbourhood, names its links and opens a readout;
+  selecting an indicator opens its evidence. It shows the 25 highest-scoring indicators, like the list.
 - It keeps its draft while you look at another view and come back.
 
 ### 3.4 Campaign graph — `#/console/campaigns`

@@ -350,7 +350,26 @@ await page.mouse.down();
 await page.mouse.move(rail.x - 220, rail.y, { steps: 12 });
 await page.mouse.up();
 const dragged = await at();
-check("the rail can be dragged", Math.abs(dragged - held1 - 220) < 40, Math.round(dragged - held1) + "px for a 220px drag");
+/* Modulo one run: a drag that crosses the seam wraps by exactly one run,
+   which is invisible by design. Measured raw, a drag that started near the
+   seam read as -1419px for 220 and failed CI for the wrap, not the drag. */
+const travelled = (from, to) => (((to - from) % span) + span) % span;
+check("the rail can be dragged", Math.abs(travelled(held1, dragged) - 220) < 40,
+  Math.round(travelled(held1, dragged)) + "px for a 220px drag");
+
+/* A long drag that sets out just before the seam. Positioned from the drag's
+   start, it wrote past the end of the track, the browser clamped it, and the
+   rail stopped following the pointer: 565px for a 700px drag. */
+await page.evaluate((s) => { document.querySelector("#marquee").scrollLeft = Math.round(s * 2 - 100); }, span);
+await page.waitForTimeout(80);
+const longFrom = await at();
+await page.mouse.move(rail.x + 350, rail.y);
+await page.mouse.down();
+await page.mouse.move(rail.x - 350, rail.y, { steps: 35 });
+await page.mouse.up();
+const longTo = await at();
+check("a long drag across the seam keeps following the pointer", Math.abs(travelled(longFrom, longTo) - 700) < 40,
+  Math.round(travelled(longFrom, longTo)) + "px for a 700px drag");
 
 await page.mouse.move(rail.x, rail.y);
 await page.mouse.down();

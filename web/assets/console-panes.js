@@ -182,10 +182,9 @@
           '<p class="wb-summary" id="wb-summary"></p></section>' +
         '<section class="card panel"><div class="panel-head"><h4>Every indicator, and why it scored</h4>' +
           '<span class="label-xs" id="wb-count"></span></div><div id="wb-iocs"></div></section>' +
-        '<div class="panel-row">' +
-          '<section class="card panel"><div class="panel-head"><h4>How they relate</h4></div>' +
-            '<div id="wb-graph" class="wb-graph"></div>' +
-            '<p class="wb-hint">Select an indicator node to open its evidence.</p></section>' +
+        '<section class="card panel wb-graph-card"><div class="panel-head"><h4>How they relate</h4>' +
+            '<span class="label-xs">hover or tab to a node · select an indicator to open its evidence</span></div>' +
+            '<div id="wb-graph" class="wb-graph"></div></section>' +
           '<section class="card panel"><div class="panel-head"><h4>SOC ticket</h4></div>' +
             '<div class="wb-row wb-actions">' +
               '<button type="button" class="btn btn-dark btn-sm" data-act="copy-report">Copy Markdown</button>' +
@@ -195,7 +194,6 @@
             "</div>" +
             '<p class="wb-hint" id="wb-ticket-note" role="status" aria-live="polite"></p>' +
             '<pre class="wb-report" id="wb-report" tabindex="0" aria-label="Ticket preview"></pre></section>' +
-        "</div>" +
       "</div>" +
 
       '<section class="card panel"><div class="panel-head"><h4>Case history</h4>' +
@@ -597,6 +595,217 @@
     }
 
     /* ─── the result's own graph ─── */
+    /* ─── how they relate ───
+       Indicators are gauges (the ring fills to the score, the colour is the
+       verdict), everything they point at is a pill coloured by kind from the
+       campaign graph's validated set, and a link is solid when the source was
+       confident about it (0.7 or more) and dashed when it was not. Hovering or
+       focusing a node lights its neighbourhood and names each link; the same
+       facts are in the list under the graph, so nothing lives only on hover. */
+    const GRAPH_CAP = 25;             // the indicator list pages at 25; so does the graph
+    const KIND_OF = {
+      malware: "malware", actor: "malware",
+      asn: "infra", country: "infra",
+      ip: "ioc", domain: "ioc", url: "ioc", hash: "ioc", email: "ioc"
+    };
+    const KIND_NAME = { malware: "Malware or actor", infra: "Infrastructure", ioc: "Related indicator", ref: "Report or CVE" };
+    const KIND_ICON = {
+      malware: "i-bot", actor: "i-target", asn: "i-layers", country: "i-flag", ip: "i-target",
+      domain: "i-globe", url: "i-globe", hash: "i-key", email: "i-doc", pulse: "i-doc", cve: "i-shield"
+    };
+    const RING = 21, RING_C = 2 * Math.PI * RING;
+    /* Severity is never colour alone: the glyph and the word ride with it. */
+    const SEV_CHAR = { critical: "▲", high: "◆", medium: "■", low: "●", informational: "▬", allowlisted: "✓" };
+    const clip = (text, max) => { const t = String(text); return t.length > max ? t.slice(0, max - 1) + "…" : t; };
+
+    function graphModel(graph, indicators) {
+      /* Keep the 25 highest-scoring indicators and what they point at. */
+      const scoreOf = new Map((indicators || []).map((i) => [i.value, i]));
+      const roots = graph.nodes.filter((n) => n.data.root)
+        .sort((a, b) => (b.data.score || 0) - (a.data.score || 0));
+      const keptRoots = new Set(roots.slice(0, GRAPH_CAP).map((n) => n.data.id));
+      const keptEdges = graph.edges.filter((e) => keptRoots.has(e.data.source) || keptRoots.has(e.data.target));
+      const keep = new Set(keptRoots);
+      keptEdges.forEach((e) => { keep.add(e.data.source); keep.add(e.data.target); });
+      const nodes = graph.nodes.filter((n) => keep.has(n.data.id)).map((n) => {
+        const d = n.data, root = Boolean(d.root);
+        const verdict = verdictOf(d.verdict);
+        const label = clip(d.label, root ? 24 : 22);
+        const mono = root || ["ip", "domain", "url", "hash", "asn", "cve"].includes(d.kind);
+        /* Text width is estimated rather than measured: the layout runs before
+           anything is in the DOM. Mono is 6.6px a character at 11px, sans 6.1. */
+        const textW = label.length * (mono ? 6.6 : 6.1);
+        const node = {
+          id: String(d.id), data: d, root, verdict, label, mono,
+          kind: root ? "root" : (KIND_OF[d.kind] || "ref"),
+          indicator: root ? scoreOf.get(String(d.id).replace(/^ioc:/, "")) || null : null,
+          w: root ? Math.max(60, textW + 10) : Math.round(textW + 44), h: root ? 90 : 26,
+          oy: root ? 16 : 0, x: 0, y: 0
+        };
+        return node;
+      });
+      const index = new Map(nodes.map((n) => [n.id, n]));
+      const edges = keptEdges.map((e, i) => ({
+        i, source: index.get(String(e.data.source)), target: index.get(String(e.data.target)),
+        label: String(e.data.label || "related to"), confidence: Number(e.data.confidence)
+      })).filter((e) => e.source && e.target);
+      /* Weak means a source said so. A link with no confidence at all is drawn
+         plain: unknown is not the same as unsure. */
+      edges.forEach((e) => { e.weak = Number.isFinite(e.confidence) && e.confidence < 0.7; });
+      nodes.forEach((n) => { n.links = edges.filter((e) => e.source === n || e.target === n); });
+      return { nodes, edges, index, hidden: Math.max(0, roots.length - GRAPH_CAP) };
+    }
+
+    /* Deterministic: the same case always draws the same picture. Connected
+       groups get a cell each, roots start in their cell, their neighbours on a
+       circle round them, and a short relaxation settles springs, a weak
+       repulsion and box-against-box collisions. */
+    function layoutGraph(model, width) {
+      const { nodes, edges } = model;
+      const parent = new Map(nodes.map((n) => [n.id, n.id]));
+      const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+      edges.forEach((e) => { const a = find(e.source.id), b = find(e.target.id); if (a !== b) parent.set(a, b); });
+      const groups = new Map();
+      nodes.forEach((n) => { const g = find(n.id); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); });
+      const comps = [...groups.values()].sort((a, b) =>
+        Math.max(...b.map((n) => n.data.score || 0)) - Math.max(...a.map((n) => n.data.score || 0)) || b.length - a.length);
+
+      const area = nodes.reduce((sum, n) => sum + (n.w + 40) * (n.h + 34), 0);
+      const height = Math.round(Math.min(900, Math.max(width < 520 ? 360 : 400, (area / width) * 1.7)));
+      const cols = Math.max(1, Math.min(comps.length, Math.round(Math.sqrt(comps.length * width / height))));
+      const rows = Math.ceil(comps.length / cols);
+      comps.forEach((comp, ci) => {
+        const cx = ((ci % cols) + 0.5) * width / cols, cy = (Math.floor(ci / cols) + 0.5) * height / rows;
+        const roots = comp.filter((n) => n.root);
+        roots.forEach((r, ri) => { r.ax = cx; r.ay = cy; r.x = cx + (ri - (roots.length - 1) / 2) * 120; r.y = cy - 10; });
+        const around = new Map();
+        comp.filter((n) => !n.root).forEach((n) => {
+          const owners = n.links.map((e) => (e.source === n ? e.target : e.source)).filter((o) => o.root);
+          n.ax = cx; n.ay = cy;
+          if (owners.length > 1) {
+            n.x = owners.reduce((s, o) => s + o.x, 0) / owners.length;
+            n.y = owners.reduce((s, o) => s + o.y, 0) / owners.length + 70;
+            return;
+          }
+          const owner = owners[0] || roots[0] || { x: cx, y: cy, id: "" };
+          if (!around.has(owner.id)) around.set(owner.id, []);
+          around.get(owner.id).push(n);
+          n.owner = owner;
+        });
+        around.forEach((list) => list.forEach((n, k) => {
+          const angle = -Math.PI / 2 + (k + 0.5) * (2 * Math.PI / list.length);
+          n.x = n.owner.x + Math.cos(angle) * 125; n.y = n.owner.y + Math.sin(angle) * 105;
+        }));
+      });
+
+      const pad = 12;
+      for (let step = 0, steps = 260; step < steps; step++) {
+        const alpha = 1 - step / steps;
+        edges.forEach((e) => {
+          const a = e.source, b = e.target;
+          const rest = (a.root ? 36 : a.w / 2) + (b.root ? 36 : b.w / 2) + 72;
+          const dx = b.x - a.x, dy = b.y - a.y, d = Math.max(1, Math.hypot(dx, dy));
+          const f = (d - rest) * 0.06 * alpha, fx = (dx / d) * f, fy = (dy / d) * f;
+          const wa = a.root ? 0.25 : 1, wb = b.root ? 0.25 : 1;
+          a.x += fx * wa; a.y += fy * wa; b.x -= fx * wb; b.y -= fy * wb;
+        });
+        for (let i = 0; i < nodes.length; i++) {
+          const a = nodes[i];
+          a.x += (a.ax - a.x) * 0.012 * alpha; a.y += (a.ay - a.y) * 0.012 * alpha;
+          for (let j = i + 1; j < nodes.length; j++) {
+            const b = nodes[j];
+            const dx = b.x - a.x, dy = (b.y + b.oy) - (a.y + a.oy);
+            const d2 = Math.max(400, dx * dx + dy * dy), push = 2600 * alpha / d2, d = Math.sqrt(d2);
+            a.x -= (dx / d) * push; a.y -= (dy / d) * push; b.x += (dx / d) * push; b.y += (dy / d) * push;
+            /* boxes that still overlap separate along the shallower axis */
+            const ox = (a.w + b.w) / 2 + pad - Math.abs(dx), oy = (a.h + b.h) / 2 + pad - Math.abs(dy);
+            if (ox > 0 && oy > 0) {
+              if (ox < oy) { const m = (ox / 2) * Math.sign(dx || 1); a.x -= m; b.x += m; }
+              else { const m = (oy / 2) * Math.sign(dy || 1); a.y -= m; b.y += m; }
+            }
+          }
+        }
+        nodes.forEach((n) => {
+          n.x = Math.min(width - n.w / 2 - 6, Math.max(n.w / 2 + 6, n.x));
+          n.y = Math.min(height - n.h / 2 - n.oy - 6, Math.max(n.h / 2 - n.oy + 6, n.y));
+        });
+      }
+      return height;
+    }
+
+    /* How far from a node's centre a link becomes visible: the ring's edge for
+       an indicator, the pill's border for anything else. */
+    function reach(n, ux, uy) {
+      if (n.root) {
+        /* Below the ring sit the value and the verdict (y 28 to 60, the node's
+           width across). A link heading into that block becomes visible where
+           it leaves it; any other way, at the ring. */
+        if (uy <= 0) return 30;
+        const enter = 28 / uy, exitX = Math.abs(ux) > 1e-6 ? (n.w / 2) / Math.abs(ux) : Infinity, exitY = 60 / uy;
+        return enter < exitX ? Math.max(30, Math.min(exitX, exitY)) : 30;
+      }
+      const tx = Math.abs(ux) > 1e-6 ? (n.w / 2) / Math.abs(ux) : Infinity;
+      const ty = Math.abs(uy) > 1e-6 ? (n.h / 2) / Math.abs(uy) : Infinity;
+      return Math.min(tx, ty);
+    }
+    function edgePath(e) {
+      const a = e.source, b = e.target;
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y;
+      const bend = (e.i % 2 ? -1 : 1) * 0.12;
+      const cx = mx - dy * bend, cy = my + dx * bend;
+      /* The link's name goes halfway along the part you can see, not halfway
+         between the centres, which on a short link is on top of a node. */
+      const len = Math.max(1, Math.hypot(dx, dy)), ux = dx / len, uy = dy / len;
+      const ra = reach(a, ux, uy), rb = reach(b, -ux, -uy);
+      const visible = Math.max(0, len - ra - rb);
+      const t = Math.min(0.8, Math.max(0.2, (ra + visible / 2) / len));
+      /* A name only goes on a link that has room for it, measured along the
+         link's own direction; the readout names every link either way. */
+      e.labelW = e.label.length * 5.7 + 14;
+      e.fits = visible >= Math.abs(ux) * e.labelW + Math.abs(uy) * 18 + 8;
+      e.mid = {
+        x: (1 - t) * (1 - t) * a.x + 2 * (1 - t) * t * cx + t * t * b.x,
+        y: (1 - t) * (1 - t) * a.y + 2 * (1 - t) * t * cy + t * t * b.y
+      };
+      return "M" + a.x.toFixed(1) + " " + a.y.toFixed(1) + "Q" + cx.toFixed(1) + " " + cy.toFixed(1) + " " +
+        b.x.toFixed(1) + " " + b.y.toFixed(1);
+    }
+
+    function nodeMarkup(n, delay) {
+      const rel = n.links.map((e) => e.label + " " + (e.source === n ? e.target : e.source).data.label);
+      const title = "<title>" + esc(n.data.label + (rel.length ? " — " + rel.join("; ") : "")) + "</title>";
+      const open = '<g class="wb-node ' + (n.root ? "root ioc sev-" + n.verdict : "ent k-" + n.kind) +
+        '" data-node="' + esc(n.id) + '" transform="translate(' + n.x.toFixed(1) + "," + n.y.toFixed(1) + ')">' + title +
+        '<g class="wb-node-body" style="--d:' + delay + 'ms">';
+      if (n.root) {
+        const score = Math.max(0, Math.min(100, Number(n.data.score) || 0));
+        return open +
+          '<circle class="wb-glow" r="44"/>' +
+          (n.verdict === "critical" ? '<circle class="wb-pulse" r="' + RING + '"/>' : "") +
+          '<g class="wb-hit" tabindex="0" role="button" aria-label="' + esc("Open the evidence for " + n.data.label +
+            ", " + n.verdict + ", score " + score) + '">' +
+            '<circle class="wb-hit-area" r="27"/>' +
+            '<circle class="wb-ring-track" r="' + RING + '"/>' +
+            /* a zero-length arc with a round cap still paints a dot, so a 0 draws no arc */
+            (score > 0 ? '<circle class="wb-ring" r="' + RING + '" transform="rotate(-90)" stroke-dasharray="' +
+              (RING_C * score / 100).toFixed(1) + " " + RING_C.toFixed(1) + '"/>' : "") +
+            '<circle class="wb-core" r="15.5"/>' +
+            '<text class="wb-score" y="4.5" text-anchor="middle">' + esc(score) + "</text>" +
+          "</g>" +
+          '<text class="wb-label mono" y="' + (RING + 17) + '" text-anchor="middle">' + esc(n.label) + "</text>" +
+          '<text class="wb-sub" y="' + (RING + 31) + '" text-anchor="middle">' + esc(SEV_CHAR[n.verdict] + " " + n.verdict.toUpperCase()) + "</text>" +
+          "</g></g>";
+      }
+      const left = -n.w / 2;
+      return open +
+        '<rect class="wb-pill" x="' + left.toFixed(1) + '" y="-13" width="' + n.w.toFixed(1) + '" height="26" rx="13"/>' +
+        '<circle class="wb-kdot" cx="' + (left + 14).toFixed(1) + '" r="9"/>' +
+        '<use class="wb-gicon" href="#' + (KIND_ICON[n.data.kind] || "i-dots") + '" x="' + (left + 8.5).toFixed(1) +
+          '" y="-5.5" width="11" height="11"/>' +
+        '<text class="wb-plabel' + (n.mono ? " mono" : "") + '" x="' + (left + 29).toFixed(1) + '" y="3.8">' + esc(n.label) + "</text>" +
+        "</g></g>";
+    }
+
     function renderResultGraph(result) {
       const box = q("#wb-graph");
       const graph = result.graph || E.buildGraph(result.indicators || []);
@@ -604,71 +813,138 @@
         box.innerHTML = '<p class="wb-hint">Nothing to relate: a single indicator has no neighbours.</p>';
         return;
       }
-      const width = Math.max(320, box.clientWidth || 560);
-      const height = Math.min(420, Math.max(300, Math.round(width * 0.62)));
-      const nodes = graph.nodes.map((n, i) => {
-        const angle = (i / Math.max(1, graph.nodes.length)) * Math.PI * 2;
-        const radius = n.data.root ? height * 0.16 : height * 0.36;
-        return { id: n.data.id, data: n.data, x: width / 2 + Math.cos(angle) * radius, y: height / 2 + Math.sin(angle) * radius };
-      });
-      const index = new Map(nodes.map((n) => [n.id, n]));
-      const edges = graph.edges.map((e) => ({ source: index.get(e.data.source), target: index.get(e.data.target), label: e.data.label }))
-        .filter((e) => e.source && e.target);
-      /* A small force pass: repel everything, pull neighbours to a rest length. */
-      for (let step = 0; step < 200; step++) {
-        nodes.forEach((a) => {
-          let fx = 0, fy = 0;
-          nodes.forEach((b) => {
-            if (a === b) return;
-            const dx = a.x - b.x, dy = a.y - b.y, d = Math.max(24, Math.hypot(dx, dy)), rep = 8000 / (d * d);
-            fx += (dx / d) * rep; fy += (dy / d) * rep;
-          });
-          edges.forEach((e) => {
-            const o = e.source === a ? e.target : e.target === a ? e.source : null;
-            if (!o) return;
-            const dx = o.x - a.x, dy = o.y - a.y, d = Math.max(1, Math.hypot(dx, dy));
-            fx += (dx / d) * (d - 110) * 0.0012 * d; fy += (dy / d) * (d - 110) * 0.0012 * d;
-          });
-          a.x = Math.min(width - 50, Math.max(50, a.x + Math.max(-12, Math.min(12, fx))));
-          a.y = Math.min(height - 34, Math.max(28, a.y + Math.max(-12, Math.min(12, fy))));
-        });
-      }
-      const fill = (node) => node.data.verdict ? cssVar("--sev-" + (node.data.verdict === "allowlisted" ? "ok"
-        : node.data.verdict === "informational" ? "info" : node.data.verdict)) : cssVar("--ramp-3");
-      const line = cssVar("--line-2");
-      const shape = (node) => {
-        const size = node.data.root ? 13 : 9;
-        if (node.data.kind === "malware" || node.data.kind === "actor") {
-          return '<polygon points="0,' + (-size * 1.3) + " " + (size * 0.9) + "," + size + " " + (-size * 0.9) + "," + size +
-            '" fill="' + esc(fill(node)) + '" stroke="' + esc(line) + '"/>';
-        }
-        if (["asn", "country", "pulse"].includes(node.data.kind)) {
-          return '<rect x="' + -size * 1.4 + '" y="' + -size * 0.8 + '" width="' + size * 2.8 + '" height="' + size * 1.6 +
-            '" rx="4" fill="' + esc(fill(node)) + '" stroke="' + esc(line) + '"/>';
-        }
-        return '<circle r="' + size + '" fill="' + esc(fill(node)) + '" stroke="' + esc(node.data.root ? cssVar("--flame") : line) +
-          '" stroke-width="' + (node.data.root ? 2 : 1) + '"/>';
-      };
-      box.innerHTML = '<svg class="wb-svg" viewBox="0 0 ' + width + " " + height + '" role="img" aria-label="How the indicators in this case relate to each other">' +
-        edges.map((e) => '<line class="wb-edge" x1="' + e.source.x.toFixed(1) + '" y1="' + e.source.y.toFixed(1) +
-          '" x2="' + e.target.x.toFixed(1) + '" y2="' + e.target.y.toFixed(1) + '"/>').join("") +
-        nodes.map((node) => {
-          const ioc = String(node.id).startsWith("ioc:");
-          /* Edge names are not printed on the edges — every one at once was the
-             single biggest source of clutter. They are one hover away instead,
-             and a screen reader gets them from the same <title>. */
-          const rel = edges.filter((e) => e.source === node || e.target === node).map((e) =>
-            (e.label || "related to") + " " + (e.source === node ? e.target : e.source).data.label);
-          const title = "<title>" + esc(node.data.label + (rel.length ? " — " + rel.join("; ") : "")) + "</title>";
-          return '<g class="wb-node' + (ioc ? " ioc" : "") + '" data-node="' + esc(node.id) + '"' +
-            (ioc ? ' tabindex="0" role="button" aria-label="Open the evidence for ' + esc(node.data.label) + '"' : "") +
-            ' transform="translate(' + node.x.toFixed(1) + "," + node.y.toFixed(1) + ')">' + title + shape(node) +
-            '<text y="' + (node.data.root ? 26 : 21) + '" text-anchor="middle">' + esc(String(node.data.label).slice(0, 24)) + "</text></g>";
-        }).join("") + "</svg>" +
+      const model = graphModel(graph, result.indicators);
+      const width = Math.max(320, Math.round(box.clientWidth || 640));
+      const height = layoutGraph(model, width);
+      const { nodes, edges } = model;
+      /* Roots first, then outward: each node's entrance waits on the one it hangs off. */
+      const delay = (n) => n.root ? nodes.filter((m) => m.root).indexOf(n) * 70
+        : 180 + Math.min(600, Math.round(Math.hypot(n.x - (n.owner || n).x, n.y - (n.owner || n).y) * 1.6));
+      /* Animate a case once. A theme flip remounts the view, and replaying the
+         entrance for a picture the analyst has already read is noise. */
+      const animate = !C.reduceMotion() && wb.graphShown !== result.case_id;
+      wb.graphShown = result.case_id;
+      const roots = nodes.filter((n) => n.root).length;
+      const stat = (value, label) => '<span class="wb-gstat"><b>' + esc(value) + "</b> " + esc(label) + "</span>";
+
+      box.innerHTML =
+        '<div class="wb-gstats">' +
+          stat(roots, roots === 1 ? "indicator" : "indicators") +
+          stat(nodes.length - roots, "linked entities") +
+          stat(edges.length, (edges.length === 1 ? "link" : "links") + ", " +
+            edges.filter((e) => !e.weak).length + " of them confident") +
+        "</div>" +
+        '<div class="wb-gstage' + (animate ? " enter" : "") + '">' +
+          '<svg class="wb-svg" viewBox="0 0 ' + width + " " + height + '" width="' + width + '" height="' + height +
+            '" role="group" aria-label="How the indicators in this case relate to each other">' +
+            '<defs><pattern id="wb-dots" width="18" height="18" patternUnits="userSpaceOnUse">' +
+              '<circle class="wb-dot" cx="1.5" cy="1.5" r="1"/></pattern>' +
+              '<filter id="wb-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter></defs>' +
+            '<rect class="wb-field" width="' + width + '" height="' + height + '" fill="url(#wb-dots)"/>' +
+            '<g class="wb-edges">' + edges.map((e) =>
+              '<path class="wb-edge' + (e.weak ? " weak" : "") + '" data-edge="' + e.i + '" d="' + edgePath(e) +
+                '" style="--d:' + (animate ? Math.max(delay(e.source), delay(e.target)) - 80 : 0) + 'ms"/>').join("") + "</g>" +
+            '<g class="wb-nodes">' + nodes.map((n) => nodeMarkup(n, animate ? delay(n) : 0)).join("") + "</g>" +
+            /* Link names, drawn last so they sit above the nodes; shown only for the node in focus. */
+            '<g class="wb-elabels" aria-hidden="true">' + edges.map((e) => {
+              const w = e.labelW;
+              return '<g class="wb-elabel' + (e.fits ? "" : " tight") + '" data-edge="' + e.i + '" transform="translate(' + e.mid.x.toFixed(1) + "," + e.mid.y.toFixed(1) + ')">' +
+                '<rect x="' + (-w / 2).toFixed(1) + '" y="-9" width="' + w.toFixed(1) + '" height="18" rx="9"/>' +
+                '<text y="3.5" text-anchor="middle">' + esc(e.label) + "</text></g>";
+            }).join("") + "</g>" +
+          "</svg>" +
+          '<div class="wb-gread" role="status" aria-live="polite" hidden></div>' +
+        "</div>" +
+        '<div class="wb-glegend" aria-label="Legend">' +
+          '<span class="wb-gkey"><svg viewBox="-12 -12 24 24" aria-hidden="true"><circle class="wb-ring-track" r="9"/>' +
+            '<circle class="wb-ring key" r="9" transform="rotate(-90)" stroke-dasharray="40 57"/></svg>Indicator: the ring fills to the score</span>' +
+          ["malware", "infra", "ioc", "ref"].map((k) =>
+            '<span class="wb-gkey"><i class="wb-kswatch k-' + k + '"></i>' + esc(KIND_NAME[k]) + "</span>").join("") +
+          '<span class="wb-gkey"><svg viewBox="0 0 26 8" aria-hidden="true"><path class="wb-edge" d="M1 4H25"/></svg>Confident link</span>' +
+          '<span class="wb-gkey"><svg viewBox="0 0 26 8" aria-hidden="true"><path class="wb-edge weak" d="M1 4H25"/></svg>Weaker link</span>' +
+        "</div>" +
+        (model.hidden ? '<p class="wb-hint">Showing the ' + GRAPH_CAP + " highest-scoring indicators; the list above has all " +
+          esc(model.hidden + GRAPH_CAP) + ".</p>" : "") +
         /* The same graph as a list, for anyone who cannot read the picture. */
         '<details class="wb-graph-table"><summary>Read the relationships as a list</summary><ul>' +
-          edges.map((e) => "<li>" + esc(e.source.data.label) + " — " + esc(e.label || "related to") + " → " +
-            esc(e.target.data.label) + "</li>").join("") + "</ul></details>";
+          edges.map((e) => "<li>" + esc(e.source.data.label) + " — " + esc(e.label) + " → " + esc(e.target.data.label) +
+            (e.weak ? " (weaker link)" : "") + "</li>").join("") + "</ul></details>";
+      graphState = { model, width, active: null };
+    }
+
+    /* One node at a time is "in focus": its links and neighbours stay lit, the
+       rest of the picture steps back, and a readout names what it is. */
+    let graphState = null;
+    function lightNode(id) {
+      const stage = q("#wb-graph .wb-gstage");
+      if (!stage || !graphState) return;
+      const svg = stage.querySelector("svg"), read = stage.querySelector(".wb-gread");
+      const node = id ? graphState.model.index.get(id) : null;
+      if (graphState.active === (node && node.id)) return;
+      graphState.active = node ? node.id : null;
+      $$(".is-lit", svg).forEach((el) => el.classList.remove("is-lit"));
+      svg.classList.toggle("has-focus", Boolean(node));
+      if (!node) { read.hidden = true; return; }
+      const lit = new Set([node.id]);
+      node.links.forEach((e) => {
+        lit.add(e.source.id); lit.add(e.target.id);
+        $$('[data-edge="' + e.i + '"]', svg).forEach((el) => el.classList.add("is-lit"));
+      });
+      $$(".wb-node", svg).forEach((el) => { if (lit.has(el.dataset.node)) el.classList.add("is-lit"); });
+
+      /* Built with textContent throughout: every string here came from a log
+         line or a provider response. */
+      read.textContent = "";
+      const add = (tag, cls, text) => { const el = document.createElement(tag); if (cls) el.className = cls; el.textContent = text; read.appendChild(el); return el; };
+      add("div", "wb-gread-title" + (node.mono ? " mono" : ""), node.data.label);
+      if (node.root) {
+        const ind = node.indicator;
+        add("div", "wb-gread-sub", String(node.data.kind || "indicator").toUpperCase() + " · score " +
+          Math.round(Number(node.data.score) || 0) + "/100 · " + node.verdict);
+        if (ind) add("div", "wb-gread-row", (ind.providers_answered || 0) + " of " + (ind.providers_queried || 0) + " sources answered");
+      } else {
+        add("div", "wb-gread-sub", KIND_NAME[node.kind] + (node.data.kind ? " · " + node.data.kind : ""));
+        if (node.data.source_provider) add("div", "wb-gread-row", "Reported by " + node.data.source_provider);
+      }
+      node.links.slice(0, 5).forEach((e) => {
+        const other = e.source === node ? e.target : e.source;
+        add("div", "wb-gread-link", (e.source === node ? e.label + " → " : "← " + e.label + " · ") + other.data.label +
+          (e.weak ? " (weaker)" : ""));
+      });
+      if (node.links.length > 5) add("div", "wb-gread-row", "and " + (node.links.length - 5) + " more");
+      if (node.root) add("div", "wb-gread-hint", "Click or press Enter to open the evidence");
+      read.hidden = false;
+
+      /* In whichever corner of the stage covers least of what is lit: the node
+         and its neighbours are what the reader is looking at. */
+      const scale = svg.getBoundingClientRect().width / graphState.width;
+      const box = [...lit].map((id) => graphState.model.index.get(id)).reduce((acc, n) => ({
+        l: Math.min(acc.l, (n.x - n.w / 2) * scale), r: Math.max(acc.r, (n.x + n.w / 2) * scale),
+        t: Math.min(acc.t, (n.y + n.oy - n.h / 2) * scale), b: Math.max(acc.b, (n.y + n.oy + n.h / 2) * scale)
+      }), { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity });
+      const stageW = stage.clientWidth, stageH = stage.clientHeight, cardW = read.offsetWidth, cardH = read.offsetHeight, m = 10;
+      const corners = [[m, m], [stageW - cardW - m, m], [m, stageH - cardH - m], [stageW - cardW - m, stageH - cardH - m]];
+      const overlap = ([x, y]) => Math.max(0, Math.min(x + cardW, box.r) - Math.max(x, box.l)) *
+        Math.max(0, Math.min(y + cardH, box.b) - Math.max(y, box.t));
+      const [left, top] = corners.reduce((best, c) => (overlap(c) < overlap(best) ? c : best));
+      read.style.left = Math.max(m, left) + "px";
+      read.style.top = Math.max(m, top) + "px";
+    }
+    function onGraphPointer(event) {
+      /* A finger has no hover: a tap shows a node (see onClick), and content
+         scrolling under a resting touch point must not light one up. */
+      if (event.pointerType === "touch") return;
+      const g = event.target.closest && event.target.closest("#wb-graph .wb-node");
+      if (event.type === "pointerover" && g) lightNode(g.dataset.node);
+      if (event.type === "pointerout" && g && !(event.relatedTarget && g.contains(event.relatedTarget))) {
+        const next = event.relatedTarget && event.relatedTarget.closest && event.relatedTarget.closest("#wb-graph .wb-node");
+        if (!next) lightNode(null);
+      }
+    }
+    function onGraphFocus(event) {
+      const g = event.target.closest && event.target.closest("#wb-graph .wb-node");
+      if (event.type === "focusin" && g) lightNode(g.dataset.node);
+      if (event.type === "focusout" && g) lightNode(null);
     }
 
     function focusIoc(nodeId) {
@@ -824,8 +1100,11 @@
       if (scenario) { loadScenario(scenario.dataset.scenario); return; }
       const top = t.closest(".wb-ioc-top");
       if (top) { toggleIoc(top.closest(".wb-ioc")); return; }
-      const node = t.closest(".wb-node.ioc");
+      const node = t.closest(".wb-node.root");
       if (node) { focusIoc(node.dataset.node); return; }
+      const entity = t.closest("#wb-graph .wb-node.ent");
+      if (entity) { lightNode(graphState && graphState.active === entity.dataset.node ? null : entity.dataset.node); return; }
+      if (t.closest("#wb-graph .wb-gstage")) { lightNode(null); return; }
       const copy = t.closest("[data-copy]");
       if (copy) { copyText(copy.dataset.copy, "Copied " + copy.dataset.copy); return; }
       const list = t.closest("[data-list]");
@@ -868,8 +1147,9 @@
       if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && root.contains(event.target)) {
         event.preventDefault(); runTriage(); return;
       }
-      const node = event.target.closest && event.target.closest(".wb-node.ioc");
+      const node = event.target.closest && event.target.closest(".wb-node.root");
       if (node && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); focusIoc(node.dataset.node); }
+      if (event.key === "Escape" && graphState && graphState.active) { lightNode(null); }
     }
     function onChange(event) {
       if (event.target.id === "wb-file") { readFile(event.target.files[0]); event.target.value = ""; }
@@ -886,6 +1166,10 @@
     root.addEventListener("keydown", onKey);
     root.addEventListener("change", onChange);
     root.addEventListener("input", onInput);
+    root.addEventListener("pointerover", onGraphPointer);
+    root.addEventListener("pointerout", onGraphPointer);
+    root.addEventListener("focusin", onGraphFocus);
+    root.addEventListener("focusout", onGraphFocus);
     dialog.addEventListener("close", onDialogClose);
     dialog.addEventListener("click", onDialogClick);
 
@@ -914,6 +1198,10 @@
       root.removeEventListener("keydown", onKey);
       root.removeEventListener("change", onChange);
       root.removeEventListener("input", onInput);
+      root.removeEventListener("pointerover", onGraphPointer);
+      root.removeEventListener("pointerout", onGraphPointer);
+      root.removeEventListener("focusin", onGraphFocus);
+      root.removeEventListener("focusout", onGraphFocus);
       dialog.removeEventListener("close", onDialogClose);
       dialog.removeEventListener("click", onDialogClick);
     };

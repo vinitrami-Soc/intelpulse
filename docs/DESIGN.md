@@ -51,7 +51,7 @@ evidence contribution bar — uses the validated single-hue ramp.
 | Why that number | **Horizontal bars**, one hue, sorted by weighted contribution, direct-labelled | A radar chart |
 | How much to trust it | **Meter** — fill carries state, track is a lighter step of the same ramp | A second number pretending to be a score |
 | Which sources answered | **One cell per provider**, labelled on hover | A donut of "coverage %" |
-| The relationships | **Node graph**, SVG drawn in the page, with the pairs listed underneath | A table of pairs on its own |
+| The relationships | **Node graph**, SVG drawn in the page: indicators as score gauges, entities as pills, the pairs listed underneath | A table of pairs on its own |
 
 Every chart ships a table view (`Show table`) — the WCAG-clean equivalent, not
 an afterthought.
@@ -377,6 +377,32 @@ re-laid-out at 390px. That only works from `transform-origin: top left`. With
 of the *1180px scaler*, not the middle of the frame, so on a phone the whole
 mock lands outside the frame and the hero shows an empty white box. It did,
 until a responsive screenshot caught it.
+
+## Investigation graph
+
+"How they relate" draws one case. Every indicator is a gauge: the ring fills
+to its score in the verdict's colour, the number sits inside it, and the
+verdict's glyph and word sit under the value, so severity is never the ring's
+colour alone. Everything an indicator points at is a pill with a kind icon,
+coloured from the campaign graph's validated set (malware or actor,
+infrastructure, related indicator) or neutral for reports and CVEs. A link is
+solid when the source was at least 70% sure of it and dashed below that.
+
+* **Focus, not decoration.** Hovering or tabbing to a node lights it, its
+  links and its neighbours, dims the rest to a fifth, and opens a readout in
+  whichever corner of the stage covers least of what is lit. A link names
+  itself only while its node is in focus, and only when the visible stretch
+  of the link has room for the name; the readout names every link either way.
+* **Motion that means something, once.** A new case enters indicator first,
+  then outward by distance; a critical indicator pulses three times and
+  stops. A theme flip does not replay it, and `prefers-reduced-motion` draws
+  it still. Only `transform` and `opacity` animate.
+* **Text from providers stays text.** The readout is built with
+  `textContent`; the markup uses `esc()`. A browser test hands the graph an
+  `<img>` for a label and a `<script>` for a link name.
+* **Only what acts takes focus.** Indicator gauges are the tab stops (a 54px
+  target), because Enter opens their evidence. A domain a source merely
+  mentioned used to be focusable and did nothing.
 
 ## Campaign graph
 

@@ -1101,14 +1101,107 @@ button { font-family: inherit; cursor: pointer; }
 }
 .wb-report:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; }
 
+/* ── how they relate ──
+   Indicators are gauges, entities are pills coloured by kind (the campaign
+   graph's validated set), links are curves: solid when the source was
+   confident, dashed when it was not. Only transform and opacity animate. */
 .wb-graph { min-height: 240px; }
+.wb-gstats { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: -4px 0 10px; font-size: 12px; color: var(--ink-3); }
+.wb-gstat b { font-weight: 650; color: var(--ink); }
+.wb-gstage {
+  position: relative; overflow: hidden; border-radius: var(--r); border: 1px solid var(--line);
+  background: radial-gradient(120% 100% at 50% 0%, var(--paper) 0%, var(--ground) 72%);
+}
 .wb-svg { display: block; width: 100%; height: auto; }
-.wb-edge { stroke: var(--line-2); stroke-width: 1.2; }
-.wb-node text { font: 500 10.5px var(--sans); fill: var(--ink-2); }
-.wb-node.ioc { cursor: pointer; }
-/* A ring for the keyboard, distinct from the hover stroke, so focus never reads as a pointer resting there. */
-.wb-node.ioc:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
-.wb-node.ioc:focus-visible circle, .wb-node.ioc:hover circle { stroke: var(--flame); stroke-width: 2.5; }
+.wb-dot { fill: var(--line-2); }
+
+.wb-edge {
+  fill: none; stroke: var(--ink-3); stroke-opacity: .45; stroke-width: 1.4; stroke-linecap: round;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.wb-edge.weak { stroke-dasharray: 4 5; }
+.wb-svg.has-focus .wb-edge { opacity: .12; }
+.wb-svg.has-focus .wb-edge.is-lit { opacity: 1; stroke: var(--flame); stroke-opacity: .9; stroke-width: 2; }
+
+.wb-node { transition: opacity var(--t-fast) var(--ease); }
+.wb-svg.has-focus .wb-node:not(.is-lit) { opacity: .2; }
+.wb-node-body { transition: transform var(--t-fast) var(--ease); }
+.wb-node:hover .wb-node-body, .wb-node:focus-within .wb-node-body { transform: scale(1.06); }
+
+.wb-node.root { --c: var(--sev-info); }
+.wb-node.sev-critical { --c: var(--sev-critical); }
+.wb-node.sev-high { --c: var(--sev-high); }
+.wb-node.sev-medium { --c: var(--sev-medium); }
+.wb-node.sev-low { --c: var(--sev-low); }
+.wb-node.sev-allowlisted { --c: var(--sev-ok); }
+.wb-glow { fill: var(--c); opacity: .18; filter: url(#wb-blur); }
+.wb-hit { cursor: pointer; }
+.wb-hit:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
+.wb-hit-area { fill: transparent; }
+.wb-ring-track { fill: none; stroke: var(--line); stroke-width: 4; }
+.wb-ring { fill: none; stroke: var(--c); stroke-width: 4; stroke-linecap: round; }
+.wb-ring.key { stroke: var(--ink-2); stroke-width: 3; }
+.wb-core { fill: var(--paper); stroke: var(--line); stroke-width: 1; }
+.wb-score { font: 700 12.5px var(--sans); fill: var(--ink); }
+.wb-label { font: 500 11px var(--mono); fill: var(--ink); }
+/* --sev-* is validated at 4.5:1 on the paper, so the verdict word may wear it. */
+.wb-sub { font: 700 9px var(--sans); letter-spacing: .08em; fill: var(--c); }
+.wb-pulse { fill: none; stroke: var(--c); stroke-width: 2; opacity: 0; }
+
+.wb-graph .k-malware { --k: var(--cg-malware); }
+.wb-graph .k-infra { --k: var(--cg-infra); }
+.wb-graph .k-ioc { --k: var(--cg-ioc); }
+.wb-graph .k-ref { --k: var(--ink-3); }
+.wb-pill { fill: var(--paper); stroke: var(--line-2); stroke-width: 1; }
+.wb-node.ent:hover .wb-pill, .wb-svg.has-focus .wb-node.ent.is-lit .wb-pill { stroke: var(--k); stroke-width: 1.5; }
+.wb-kdot { fill: var(--k); opacity: .15; }
+.wb-gicon { width: 11px; height: 11px; fill: none; stroke: var(--k); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.wb-plabel { font: 500 11px var(--sans); fill: var(--ink-2); }
+.wb-plabel.mono { font-family: var(--mono); font-size: 10.5px; }
+
+.wb-elabel { opacity: 0; pointer-events: none; transition: opacity var(--t-fast) var(--ease); }
+.wb-svg.has-focus .wb-elabel.is-lit { opacity: 1; }
+.wb-elabel.tight { display: none; }
+.wb-elabel rect { fill: var(--ink); }
+.wb-elabel text { font: 600 9.5px var(--sans); letter-spacing: .02em; fill: var(--paper); }
+
+.wb-gread {
+  position: absolute; z-index: 2; width: min(264px, calc(100% - 16px)); padding: 12px 14px;
+  border-radius: var(--r-sm); background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shade);
+  font-size: 12px; line-height: 1.45; color: var(--ink-2); pointer-events: none;
+}
+.wb-gread-title { font-size: 13px; font-weight: 650; color: var(--ink); overflow-wrap: anywhere; }
+.wb-gread-title.mono { font-family: var(--mono); font-size: 12px; }
+.wb-gread-sub { margin-top: 2px; font-size: 11px; color: var(--ink-3); }
+.wb-gread-row { margin-top: 6px; }
+.wb-gread-link { margin-top: 4px; font-size: 11.5px; overflow-wrap: anywhere; }
+.wb-gread-hint { margin-top: 8px; font-size: 11px; font-weight: 600; color: var(--flame-ink); }
+
+.wb-glegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 11.5px; color: var(--ink-3); }
+.wb-gkey { display: inline-flex; align-items: center; gap: 6px; }
+.wb-gkey svg { width: 18px; height: 18px; overflow: visible; }
+.wb-gkey svg[viewBox="0 0 26 8"] { width: 26px; height: 8px; }
+.wb-kswatch { width: 10px; height: 10px; border-radius: 50%; background: var(--k); }
+
+@keyframes wb-pop { from { opacity: 0; transform: scale(.35); } }
+@keyframes wb-fade { from { opacity: 0; } }
+@keyframes wb-pulse { from { opacity: .6; transform: scale(1); } to { opacity: 0; transform: scale(2.2); } }
+.wb-gstage.enter .wb-node-body { animation: wb-pop 560ms cubic-bezier(.34, 1.56, .64, 1) backwards; animation-delay: var(--d, 0ms); }
+.wb-gstage.enter .wb-edge { animation: wb-fade 700ms var(--ease) backwards; animation-delay: var(--d, 0ms); }
+/* Three slow pulses on a critical indicator, then still: enough to find it, not enough to nag. */
+.wb-gstage.enter .wb-pulse { animation: wb-pulse 2.4s var(--ease) 3; animation-delay: calc(var(--d, 0ms) + 700ms); }
+@media (prefers-reduced-motion: reduce) {
+  .wb-gstage.enter .wb-node-body, .wb-gstage.enter .wb-edge, .wb-gstage.enter .wb-pulse { animation: none; }
+  .wb-node-body, .wb-node, .wb-edge, .wb-elabel { transition: none; }
+}
+@media (forced-colors: active) {
+  .wb-edge, .wb-ring, .wb-ring-track, .wb-core, .wb-pill, .wb-gicon { stroke: CanvasText; }
+  .wb-edge.is-lit { stroke: Highlight; }
+  .wb-glow, .wb-kdot, .wb-pulse, .wb-dot { display: none; }
+  .wb-node text, .wb-elabel text { fill: CanvasText; }
+  .wb-elabel rect { fill: Canvas; stroke: CanvasText; }
+  .wb-hit:focus-visible { outline-color: Highlight; }
+}
 .wb-graph-table { margin-top: 8px; font-size: 12px; color: var(--ink-3); }
 .wb-graph-table summary { cursor: pointer; font-weight: 600; }
 .wb-graph-table ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 2px; overflow-wrap: anywhere; }

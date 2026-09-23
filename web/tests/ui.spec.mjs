@@ -217,6 +217,8 @@ const closed = await page.evaluate(() => ({
 check("Escape closes it and focus returns to what opened it", !closed.open && closed.back, JSON.stringify(closed));
 
 // ————————————————————————————— 7. the investigation graph
+/* Indicators are gauges, everything else is a pill, and a link's name stays
+   out of the picture until its node is in focus. */
 const graph = await page.evaluate(() => {
   const nodes = [...document.querySelectorAll("#wb-graph .wb-node")];
   const at = nodes.map((n) => (n.getAttribute("transform").match(/translate\(([-\d.]+),([-\d.]+)\)/) || []).slice(1).map(Number));
@@ -225,31 +227,123 @@ const graph = await page.evaluate(() => {
     closest = Math.min(closest, Math.hypot(at[i][0] - at[j][0], at[i][1] - at[j][1]));
   }
   const text = document.querySelector("#wb-graph .wb-node text");
+  const roots = [...document.querySelectorAll("#wb-graph .wb-node.root")];
   return {
     nodes: nodes.length,
-    strayText: [...document.querySelectorAll("#wb-graph svg text")].filter((t) => !t.closest(".wb-node")).length,
+    roots: roots.length,
+    gauges: roots.filter((r) => r.querySelector(".wb-ring-track") && r.querySelector(".wb-score")).length,
+    scoresMatch: roots.every((r) => {
+      const ind = window.IntelPulse.result.indicators.find((i) => "ioc:" + i.value === r.dataset.node);
+      return ind && r.querySelector(".wb-score").textContent === String(ind.score);
+    }),
+    labelsShown: [...document.querySelectorAll("#wb-graph .wb-elabel")].filter((l) => getComputedStyle(l).opacity !== "0").length,
     named: nodes.filter((n) => / — /.test(n.querySelector("title")?.textContent || "")).length,
     closest: Math.round(closest),
     halo: text ? getComputedStyle(text).paintOrder : "",
-    table: document.querySelectorAll("#wb-graph details li").length
+    table: document.querySelectorAll("#wb-graph details li").length,
+    legend: document.querySelectorAll("#wb-graph .wb-gkey").length,
+    stats: document.querySelector("#wb-graph .wb-gstats")?.textContent.replace(/\s+/g, " ").trim() || ""
   };
 });
 check("it plots the investigation", graph.nodes > 3, graph.nodes + " nodes");
-check("no edge shouts its name until you ask", graph.strayText === 0, graph.strayText + " edge labels");
+check("every indicator is a gauge carrying its own score", graph.roots > 0 && graph.gauges === graph.roots && graph.scoresMatch,
+  graph.gauges + " of " + graph.roots);
+check("no link shouts its name until you ask", graph.labelsShown === 0, graph.labelsShown + " link names showing at rest");
 check("hovering a node names its relationships", graph.named > 0, graph.named + " nodes carry them");
 check("no two nodes sit on top of each other", graph.closest >= 40, graph.closest + " units apart at the closest");
 check("labels carry a halo so they survive an edge", /stroke/.test(graph.halo), graph.halo);
 check("the graph has a text equivalent", graph.table > 0, graph.table + " relationships listed");
+check("the graph says what it holds and how to read it", graph.legend >= 6 && /3 indicators/.test(graph.stats),
+  graph.stats);
 
-await page.focus("#wb-graph .wb-node.ioc");
+/* Hover a gauge: its neighbourhood stays lit, everything else steps back, a
+   readout names it and every link it has. */
+const critical = await page.$("#wb-graph .wb-node.sev-critical .wb-hit");
+await critical.evaluate((el) => el.closest(".wb-graph-card").scrollIntoView({ block: "center", behavior: "instant" }));
+await page.waitForTimeout(200);
+const cbox = await critical.boundingBox();
+await page.mouse.move(cbox.x + cbox.width / 2, cbox.y + cbox.height / 2);
+await page.waitForTimeout(350);
+const lit = await page.evaluate(() => {
+  const svg = document.querySelector("#wb-graph svg");
+  const node = document.querySelector("#wb-graph .wb-node.sev-critical");
+  const links = [...svg.querySelectorAll(".wb-edge.is-lit")].length;
+  const read = document.querySelector("#wb-graph .wb-gread");
+  const dimmed = [...svg.querySelectorAll(".wb-node:not(.is-lit)")].map((n) => Number(getComputedStyle(n).opacity));
+  const rb = read.getBoundingClientRect();
+  const covered = [...svg.querySelectorAll(".wb-node.is-lit")].filter((n) => {
+    const b = n.getBoundingClientRect();
+    return b.left < rb.right && b.right > rb.left && b.top < rb.bottom && b.bottom > rb.top;
+  }).length;
+  return {
+    focus: svg.classList.contains("has-focus") && node.classList.contains("is-lit"),
+    links, dimmed: dimmed.every((o) => o < 0.5) && dimmed.length > 0,
+    read: read.hidden ? "" : read.textContent,
+    names: [...svg.querySelectorAll(".wb-elabel.is-lit:not(.tight)")].filter((l) => getComputedStyle(l).opacity === "1").length,
+    covered
+  };
+});
+check("hovering an indicator lights its neighbourhood and dims the rest", lit.focus && lit.links >= 3 && lit.dimmed,
+  lit.links + " links lit");
+check("the readout names the indicator and its links", /203\.0\.113\.10/.test(lit.read) && /attributed to/.test(lit.read),
+  lit.read.slice(0, 70));
+check("links with room name themselves while their node is in focus", lit.names > 0, lit.names + " names");
+check("the readout sits clear of what it describes", lit.covered === 0, lit.covered + " lit nodes under it");
+await page.mouse.move(5, 5);
+await page.waitForTimeout(300);
+check("moving away puts the picture back", await page.evaluate(() =>
+  !document.querySelector("#wb-graph svg").classList.contains("has-focus") &&
+  document.querySelector("#wb-graph .wb-gread").hidden));
+
+await page.focus("#wb-graph .wb-node.root .wb-hit");
+check("keyboard focus shows the same readout as hover", await page.evaluate(() =>
+  !document.querySelector("#wb-graph .wb-gread").hidden));
 await page.keyboard.press("Enter");
 await page.waitForTimeout(400);
 check("a graph node opens that indicator's evidence from the keyboard",
   await page.evaluate(() => {
-    const value = document.querySelector("#wb-graph .wb-node.ioc").dataset.node.replace(/^ioc:/, "");
+    const value = document.querySelector("#wb-graph .wb-node.root").dataset.node.replace(/^ioc:/, "");
     const card = [...document.querySelectorAll(".wb-ioc")].find((c) => c.dataset.ioc === value);
     return Boolean(card) && card.querySelector(".wb-ioc-top").getAttribute("aria-expanded") === "true";
   }));
+/* Only an indicator with a card to open takes focus. A domain that a source
+   merely mentioned used to be focusable and did nothing on Enter. */
+check("only nodes that do something take keyboard focus", await page.evaluate(() =>
+  [...document.querySelectorAll("#wb-graph [tabindex]")].every((el) => el.closest(".wb-node.root"))));
+
+/* Provider-supplied names reach the graph and its readout. They are text. */
+const hostileGraph = await page.evaluate(async () => {
+  const label = '<img src=x id="graph-injected">';
+  window.IntelPulse.render({
+    case_id: "hostile-graph", title: "t", verdict: "high", score: 80, duration_ms: 1, summary: "", cache_hits: 0, mode: "demo",
+    indicators: [{ value: "198.51.100.9", type: "ip", score: 80, verdict: "high", confidence: 0.8, evidence: [], modifiers: [],
+      tags: [], malware_families: [], providers_queried: 1, providers_answered: 1, attack_techniques: [], containment: [], sources: [] }],
+    graph: { nodes: [
+      { data: { id: "ioc:198.51.100.9", label: "198.51.100.9", kind: "ip", score: 80, verdict: "high", root: true } },
+      { data: { id: "malware:x", label, kind: "malware", source_provider: label } }
+    ], edges: [{ data: { id: "e", source: "ioc:198.51.100.9", target: "malware:x", label: '"><script>alert(1)</script>', confidence: 0.9 } }] }
+  });
+  document.querySelector("#wb-graph .wb-node.ent").dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
+  await new Promise((r) => setTimeout(r, 100));
+  return {
+    injected: Boolean(document.querySelector("#graph-injected")) || document.querySelectorAll("#wb-graph script").length > 0,
+    shown: document.querySelector("#wb-graph .wb-gread").textContent.includes(label)
+  };
+});
+check("provider names in the graph and its readout stay text", !hostileGraph.injected && hostileGraph.shown,
+  JSON.stringify(hostileGraph));
+
+/* The entrance plays once for a case. A theme flip remounts the view, and
+   replaying it for a picture already read is noise. */
+await starter(page, "firewall");
+const entered = await page.evaluate(() => Boolean(document.querySelector("#wb-graph .wb-gstage.enter")));
+await page.evaluate(() => document.querySelector("#theme-btn").click());
+await page.waitForTimeout(900);
+const replayed = await page.evaluate(() => Boolean(document.querySelector("#wb-graph .wb-gstage.enter")));
+await page.evaluate(() => document.querySelector("#theme-btn").click());
+await page.waitForTimeout(900);
+check("a new case animates in, a theme flip does not replay it", entered && !replayed,
+  "first " + entered + ", after the flip " + replayed);
 
 // ————————————————————————————— 8. accessibility & layout
 const a11y = await page.evaluate(() => ({
@@ -276,6 +370,8 @@ await still.click('.wb-starter[data-scenario="firewall"]');
 await still.waitForTimeout(250);
 check("reduced motion is honoured (the hero figure is final, not tweening)",
   (await still.evaluate(() => document.querySelector("#wb-hero").textContent)) === "95");
+check("reduced motion draws the graph still", await still.evaluate(() =>
+  Boolean(document.querySelector("#wb-graph .wb-gstage")) && !document.querySelector("#wb-graph .wb-gstage.enter")));
 await still.close();
 
 for (const width of [390, 768, 1024, 1440]) {
@@ -413,7 +509,7 @@ const targets = () => touch.evaluate(() => {
     .filter((el) => !el.closest("[hidden]") && el.getClientRects().length)
     .map((el) => ({ what: (el.getAttribute("aria-label") || el.textContent || el.id || el.tagName).trim().slice(0, 24),
       h: Math.round(el.getBoundingClientRect().height), w: Math.round(el.getBoundingClientRect().width) }));
-  const nodes = ".wb-node.ioc, .cg-node[tabindex]";
+  const nodes = ".wb-node.root .wb-hit, .cg-node[tabindex]";
   return {
     controls: sized("#console-panels button, #console-panels input:not([type=file]), #console-panels select")
       .filter((el) => el.h < 44),
