@@ -272,5 +272,5 @@ node web/tests/security.spec.mjs        # hostile API, poisoned storage, CSP, ta
 
 ## Reporting
 
-This is a portfolio project, not a hosted service. If you find something wrong
-with it, open an issue on the repository.
+Please report vulnerabilities privately, not as a public issue: the policy, the
+scope and the private reporting link are in [`SECURITY.md`](../SECURITY.md).

@@ -1,0 +1,37 @@
+name: Bug report
+description: A crash, a broken view, an API error, a Docker or install problem
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the steps, the command or request you ran, and the full error output or browser console message.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Where it happened
+      options:
+        - Demo build in the browser (GitHub Pages)
+        - Live API, Docker Compose
+        - Live API, local (make dev)
+        - Command line (python -m app.cli)
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: "Commit or version, browser and OS. For the backend, paste the output of `GET /api/health` (it lists which sources are configured, not the keys)."
+      render: text
+    validations:
+      required: true
