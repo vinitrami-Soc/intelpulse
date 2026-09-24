@@ -7,6 +7,15 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+### Security
+
+- The console's view table is a `Map`, and only a function found in it is
+  called, so no route (`#/console/constructor`, `__proto__`) can reach an
+  object prototype. Routes were already checked with `hasOwnProperty`; this
+  makes the table itself safe too. Resolves CodeQL alert 7.
+- Tests check link hosts by parsing the URL instead of matching substrings,
+  and strip markup until none is left. Resolves CodeQL alerts 1 to 6, 8 and 9.
+
 ## [1.0.0] - 2026-09-24
 
 The first release as a standalone repository. IntelPulse was built inside the

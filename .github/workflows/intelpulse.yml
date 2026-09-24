@@ -75,7 +75,7 @@ jobs:
       matrix:
         spec:
           - { file: ui.spec.mjs,     name: "workbench + campaign graph · 96 checks" }
-          - { file: suite.spec.mjs,  name: "site + console · 85 checks" }
+          - { file: suite.spec.mjs,  name: "site + console · 87 checks" }
           - { file: mobile.spec.mjs, name: "phone, tablet, assistant · 99 checks" }
           - { file: security.spec.mjs, name: "security: hostile API, storage, CSP · 27 checks" }
     steps:

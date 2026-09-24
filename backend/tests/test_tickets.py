@@ -203,7 +203,7 @@ async def test_the_report_body_is_truncated_rather_than_rejected(monkeypatch, ji
 async def test_a_configured_sink_host_is_allowed_through_the_egress_policy(jira):
     from app import net
 
-    assert "example.atlassian.net" in net.ticket_sink_hosts()
+    assert {"example.atlassian.net"} <= net.ticket_sink_hosts()
 
 
 @pytest.mark.anyio

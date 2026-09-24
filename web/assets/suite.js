@@ -455,7 +455,9 @@
     return { title: pane.title, sub: pane.sub, body: pane.body(), mount: pane.mount };
   }
 
-  const PANES = {
+  /* A Map, not an object literal: the key comes from the URL, and a Map has no
+     prototype for "#/console/constructor" or "__proto__" to reach. */
+  const PANES = new Map(Object.entries({
     dashboard: () => ({ title: "Welcome back, analyst", sub: "Remediation efficacy and the attack surface, as of this morning.", body: kpiCards() + panelsMarkup(false) }),
     surface:   () => ({ title: "Attack surface", sub: "What is reachable, and how much of it is scored.", body: panelsMarkup(false) }),
     activity:  () => ({ title: "Triage history", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) }),
@@ -466,7 +468,7 @@
     narratives:() => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() }),
     sources:   () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() }),
     tickets:   () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })
-  };
+  }));
 
   /* Grey bars standing in for the panels that are about to land. The console
      renders from bundled data, so on a fast machine this is one frame and
@@ -491,7 +493,8 @@
 
   function renderConsole(pane) {
     leavePane();
-    const spec = (PANES[pane] || PANES.dashboard)();
+    const build = PANES.get(pane);
+    const spec = (typeof build === "function" ? build : PANES.get("dashboard"))();
     const host = $("#console-body");
     host.innerHTML =
       '<header class="console-head route">' +
@@ -600,10 +603,10 @@
 
   function paneFromHash() {
     if (!routeIsConsole()) return null;
-    /* Own properties only: "#/console/__proto__" is a URL anyone can type, and a
-       bare lookup hands back Object.prototype rather than falling back. */
+    /* Known panes only: "#/console/__proto__" is a URL anyone can type, and it
+       falls back to the dashboard rather than reaching anything else. */
     const name = hashParts()[1];
-    return Object.prototype.hasOwnProperty.call(PANES, name) ? name : "dashboard";
+    return PANES.has(name) ? name : "dashboard";
   }
 
   /* Assigning the hash it already holds fires no hashchange, so the router would
