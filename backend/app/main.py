@@ -43,7 +43,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=f"{settings.app_name} API",
         description=DESCRIPTION,
-        version="1.0.0",
+        version="1.0.1",
         docs_url="/docs",
         openapi_url="/openapi.json",
     )

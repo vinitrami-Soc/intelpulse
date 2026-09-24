@@ -7,6 +7,8 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-24
+
 ### Security
 
 - The console's view table is a `Map`, and only a function found in it is
@@ -59,5 +61,6 @@ author's portfolio repository, and its full history moved here with it.
   workbench, the site and console, phones and tablets, and hostile input.
   `pip-audit` runs weekly.
 
-[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.0
