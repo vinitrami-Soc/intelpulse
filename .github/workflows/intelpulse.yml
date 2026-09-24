@@ -1,0 +1,114 @@
+# IntelPulse — the checks a contributor runs locally, run on every change.
+#
+# Until this existed, 262 assertions passed on one machine and nothing enforced
+# them on a push. The three jobs below are exactly `make test`, `make test-web`
+# and `make test-ui`, so a green run here means the same thing as a green run
+# in a terminal.
+#
+# pip-audit is deliberately NOT here: a new advisory against a pinned dependency
+# would turn an unrelated pull request red, which teaches people to ignore red.
+# It runs on a schedule instead — see audit.yml.
+
+name: IntelPulse
+
+# Branches are covered by pull_request and main by push. Listing every branch
+# under push as well ran all five jobs twice on the same commit — same result,
+# double the minutes, and two of each check on the pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A second push supersedes the first: nobody reads the older run.
+concurrency:
+  group: intelpulse-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend · 200 tests + ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+      - name: Lint
+        working-directory: backend
+        run: ruff check app tests
+      - name: Test
+        working-directory: backend
+        # No network, no API keys, no Redis: the providers are stubbed, so a
+        # failure here is the pipeline's own behaviour and not a vendor's.
+        run: pytest -q
+
+  engine:
+    name: engine parity + model + design guards · 56 tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Test
+        # These pin the JavaScript engine to the Python scoring rules and hold
+        # the design system's static guards, so demo mode cannot drift.
+        run: node --test web/tests/*.test.mjs
+
+  browser:
+    name: browser · ${{ matrix.spec.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        spec:
+          - { file: ui.spec.mjs,     name: "workbench + campaign graph · 96 checks" }
+          - { file: suite.spec.mjs,  name: "site + console · 85 checks" }
+          - { file: mobile.spec.mjs, name: "phone, tablet, assistant · 99 checks" }
+          - { file: security.spec.mjs, name: "security: hostile API, storage, CSP · 27 checks" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The project has no package.json on purpose — no build step, no
+      # node_modules, a reviewer opens the file. Playwright is installed out of
+      # tree and handed to the specs through PLAYWRIGHT_MODULE, which they
+      # already support, so that stays true.
+      - name: Install Playwright
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+
+      - name: Serve web/
+        run: |
+          # nohup + a log file: a background process still holding the step's
+          # stdout can keep the step from ever finishing.
+          nohup python3 -m http.server 8123 --bind 127.0.0.1 --directory web \
+            > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:8123/; then exit 0; fi
+            sleep 1
+          done
+          echo "the static server never came up"
+          cat "$RUNNER_TEMP/serve.log"
+          exit 1
+
+      - name: Test
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+          INTELPULSE_URL: http://127.0.0.1:8123/
+        run: node web/tests/${{ matrix.spec.file }}

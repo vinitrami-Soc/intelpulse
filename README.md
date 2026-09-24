@@ -85,6 +85,7 @@ from GitHub Pages, nginx or `python -m http.server`. [Design system →](docs/DE
 ### Docker (everything, one command)
 
 ```bash
+git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse
 cp .env.example .env        # optional: paste any free API keys you have
 docker compose up --build
 # API       → http://localhost:8000/docs
@@ -258,7 +259,7 @@ make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```
 
-All of it runs on every push and pull request that touches `intelpulse/`
+All of it runs on every push to `main` and every pull request
 (`.github/workflows/intelpulse.yml`) — the same commands, so a green run there
 means what a green run in a terminal means. The three browser suites are a
 matrix, so a failure names which surface broke rather than "browser tests".
@@ -347,3 +348,7 @@ in [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md). The short version:
 
 Built by [Vinit Rami](https://vinitrami-soc.github.io/) — offensive-security background, defensive
 engineering focus.
+
+## Licence
+
+MIT, see [LICENSE](LICENSE).

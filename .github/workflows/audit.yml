@@ -1,0 +1,32 @@
+# Dependency audit, on a schedule rather than on every pull request.
+#
+# A new advisory against a pinned dependency is real and worth knowing about,
+# but it has nothing to do with whoever opened the pull request that happened
+# to run next. Blocking their change on it teaches people that red is noise.
+# This runs weekly instead, and fails loudly on its own.
+
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit · pinned requirements
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pip-audit
+        run: pip install pip-audit==2.10.1
+      - name: Audit
+        working-directory: backend
+        run: pip-audit -r requirements.txt

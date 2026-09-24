@@ -383,7 +383,7 @@ or a trade-off made deliberately.
 ## Reproducing it
 
 ```bash
-cd intelpulse/backend
+cd backend
 pytest -q tests/test_security_audit.py tests/test_security.py
 pip-audit -r requirements.txt
 ruff check --select S app

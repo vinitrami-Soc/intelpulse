@@ -1351,9 +1351,9 @@
       { id: "code",
         keys: ["where is the code", "source code", "github", "repo", "repository", "git",
           "can i see the code", "where can i find the code", "show me the source"],
-        html: "<p>On GitHub, in the same repository as this site: " +
-              "<code>vinitrami-Soc/vinitrami-Soc.github.io</code>, under <code>intelpulse/</code>.</p>" +
-              "<p>The backend is FastAPI with 166 tests, the dashboard is static files with no " +
+        html: "<p>On GitHub, in its own repository: " +
+              "<code>vinitrami-Soc/intelpulse</code>.</p>" +
+              "<p>The backend is FastAPI with 200 tests, the dashboard is static files with no " +
               "build step, and <code>docs/</code> carries the scoring model, the API reference, " +
               "the security posture and the extraction benchmark.</p>",
         acts: ["how", "scoring"] },
@@ -1362,7 +1362,7 @@
         keys: ["self host", "selfhost", "host it myself", "run it locally", "run my own",
           "can i deploy this", "deploy it", "docker", "docker compose", "on my machine",
           "set it up", "how do i set this up"],
-        html: "<p><code>cd intelpulse &amp;&amp; cp .env.example .env &amp;&amp; docker compose " +
+        html: "<p><code>git clone https://github.com/vinitrami-Soc/intelpulse &amp;&amp; cd intelpulse &amp;&amp; cp .env.example .env &amp;&amp; docker compose " +
               "up --build</code> brings the API up on <code>:8000/docs</code> and the dashboard on <code>:8080</code>.</p>" +
               "<p>That brings up the API, a worker, Redis, Postgres and nginx. It runs without a " +
               "single API key: every source that has no key reports <code>skipped</code> rather " +

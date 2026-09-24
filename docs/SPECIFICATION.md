@@ -20,7 +20,7 @@ IntelPulse collapses that pass into one request: parse the indicators out of wha
 query every applicable source concurrently, score them into a single auditable verdict, map how they
 relate, and write the ticket.
 
-**Live:** https://vinitrami-soc.github.io/intelpulse/ — `intelpulse/index.html` redirects to
+**Live:** https://vinitrami-soc.github.io/intelpulse/ — the root `index.html` redirects to
 `web/`, which serves the site and the console.
 
 ---

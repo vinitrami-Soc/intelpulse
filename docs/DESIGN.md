@@ -129,7 +129,7 @@ mid-shift.
 ## The rules are machine-readable, and enforced
 
 The design system is not only written down for people — it ships as an agent
-skill at [`.claude/skills/design-system-intelpulse/SKILL.md`](../../.claude/skills/design-system-intelpulse/SKILL.md),
+skill at [`.claude/skills/design-system-intelpulse/SKILL.md`](../.claude/skills/design-system-intelpulse/SKILL.md),
 authored to the [TypeUI](https://github.com/rodgersgitau/type-ui) skill
 blueprint with the `enterprise` skill from
 [awesome-design-skills](https://github.com/bergside/awesome-design-skills) (MIT)

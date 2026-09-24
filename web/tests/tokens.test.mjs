@@ -437,7 +437,7 @@ test("no form claims to subscribe anyone", () => {
 
 test("the skill file and the implementation agree on the token names", () => {
   const skill = readFileSync(
-    join(here, "..", "..", "..", ".claude", "skills", "design-system-intelpulse", "SKILL.md"), "utf8");
+    join(here, "..", "..", ".claude", "skills", "design-system-intelpulse", "SKILL.md"), "utf8");
   for (const token of ["--surface-0", "--ink-3", "--accent", "--ramp-1", "--sev-critical"]) {
     assert.ok(skill.includes(token), "SKILL.md does not document " + token);
     assert.ok(TOKENS_CSS.includes(token), "tokens.css does not define " + token);
