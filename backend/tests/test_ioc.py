@@ -60,4 +60,4 @@ def test_deduplication_and_limit():
 
 def test_url_host_is_extracted_as_its_own_indicator():
     values = {i.value for i in extract("https://cdn.bad-host.io/payload?id=1")}
-    assert "cdn.bad-host.io" in values
+    assert {"cdn.bad-host.io"} <= values

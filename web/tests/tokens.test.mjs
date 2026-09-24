@@ -14,6 +14,19 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+/* Remove every match, repeating until nothing changes: one pass over
+   "<scr<b>ipt>" or "<!<!-- -->-- x -->" leaves the very thing it removed. */
+function removeAll(text, pattern) {
+  let before;
+  do { before = text; text = text.replace(pattern, ""); } while (text !== before);
+  return text;
+}
+/* The host a link really points at. A substring test would also accept
+   github.com.evil.example, or vinitrami-soc.github.io.evil.example. */
+function hostOf(href) {
+  try { return new URL(href).hostname; } catch { return ""; }
+}
 const assets = join(here, "..", "assets");
 const read = (name) => readFileSync(join(assets, name), "utf8");
 
@@ -179,7 +192,7 @@ test("every icon-only control has an accessible name", () => {
       const open = tag.slice(0, tag.indexOf(">") + 1);
       const inner = tag.slice(open.length, tag.lastIndexOf("<"));
       // text left once markup and entities are stripped
-      const words = inner.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/g, "").trim();
+      const words = removeAll(inner, /<[^>]*>/g).replace(/&[a-z]+;/g, "").trim();
       if (words.length > 0) continue;
       assert.match(open, /aria-label=/,
         name + " has an icon-only control with no aria-label: " + open.slice(0, 70));
@@ -393,7 +406,7 @@ function footerOf(html) {
 }
 const footerLinks = (html) =>
   [...footerOf(html).matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)]
-    .map((m) => ({ href: m[1], text: m[2].replace(/<[^>]+>/g, "").trim() }));
+    .map((m) => ({ href: m[1], text: removeAll(m[2], /<[^>]+>/g).trim() }));
 
 test("every footer link goes somewhere different", () => {
   const index = PAGES.find(([n]) => n === "index.html")[1];
@@ -419,8 +432,8 @@ test("the footer does not scroll the page it is already on", () => {
 test("the footer carries what a visitor actually looks for there", () => {
   const index = PAGES.find(([n]) => n === "index.html")[1];
   const hrefs = footerLinks(index).map((l) => l.href);
-  assert.ok(hrefs.some((h) => h.includes("github.com")), "no link to the source code");
-  assert.ok(hrefs.some((h) => h.startsWith("https://vinitrami-soc.github.io")), "no link back to the author");
+  assert.ok(hrefs.some((h) => hostOf(h) === "github.com"), "no link to the source code");
+  assert.ok(hrefs.some((h) => hostOf(h) === "vinitrami-soc.github.io"), "no link back to the author");
   assert.ok(hrefs.includes("#/console/workbench"), "no link to the workbench, the thing the page is selling");
 });
 
@@ -429,7 +442,7 @@ test("no form claims to subscribe anyone", () => {
   // Comments are stripped first: the one explaining why the form went would
   // otherwise trip the check, and a visitor never reads a comment.
   for (const [name, html] of PAGES) {
-    const visible = html.replace(/<!--[\s\S]*?-->/g, "");
+    const visible = removeAll(html, /<!--[\s\S]*?-->/g);
     assert.ok(!/on the list|Notify me|subscribed/i.test(visible),
       name + " still offers a subscription it cannot honour");
   }

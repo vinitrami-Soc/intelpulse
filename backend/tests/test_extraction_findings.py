@@ -51,7 +51,7 @@ def test_a_username_is_not_a_domain(name):
 def test_the_domain_in_an_address_is_still_extracted():
     """The fix must not cost the sending domain, which a SOC does want."""
     found = values("From: j.doe@example.com", "domain")
-    assert "example.com" in found
+    assert {"example.com"} <= found
     assert "j.doe" not in found
 
 

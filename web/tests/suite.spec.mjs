@@ -573,8 +573,9 @@ await page.reload({ waitUntil: "domcontentloaded" });
 await page.waitForTimeout(1100);
 
 /* A hash is user input. "#/console/__proto__" is a URL anyone can type, and a
-   bare PANES[name] lookup answers it with Object.prototype. */
-for (const junk of ["__proto__", "toString", "nope"]) {
+   bare object lookup answers it with Object.prototype, or with a function
+   ("constructor", "hasOwnProperty") that is then called. */
+for (const junk of ["__proto__", "constructor", "hasOwnProperty", "toString", "nope"]) {
   await page.evaluate((h) => { location.hash = "#/console/" + h; }, junk);
   await page.waitForTimeout(500);
   const heading = await page.$eval("#console-body h3", (h) => h.textContent.trim()).catch(() => "");
