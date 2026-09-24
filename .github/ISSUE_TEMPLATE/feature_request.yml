@@ -1,0 +1,21 @@
+name: Feature request
+description: An intelligence source, output format, integration or view you would like
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The triage problem
+      description: What do you do by hand today that IntelPulse could do for you?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like IntelPulse to do
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Related source, ATT&CK technique or report (optional)

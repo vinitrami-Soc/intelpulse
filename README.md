@@ -1,5 +1,13 @@
 # IntelPulse — Automated Threat Intelligence & Triage Workbench
 
+[![CI](https://github.com/vinitrami-Soc/intelpulse/actions/workflows/intelpulse.yml/badge.svg)](https://github.com/vinitrami-Soc/intelpulse/actions/workflows/intelpulse.yml)
+[![Version](https://img.shields.io/github/v/tag/vinitrami-Soc/intelpulse?label=version&color=f08c00)](CHANGELOG.md)
+[![MIT licence](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+![Python 3.11 and 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776ab)
+![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)
+![Mapped to MITRE ATT&CK](https://img.shields.io/badge/mapped%20to-MITRE%20ATT%26CK-c00)
+[![Live demo](https://img.shields.io/badge/demo-live-4cc9f0)](https://vinitrami-soc.github.io/intelpulse/)
+
 **Live demo:** https://vinitrami-soc.github.io/intelpulse/ · **API docs:** `/docs` once the backend is running
 
 A SOC analyst opens six tabs for one alert: AbuseIPDB for the reputation, OTX for the campaign,
@@ -333,6 +341,15 @@ in [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md). The short version:
   `skipped`/`error`, never as "clean", and every report states its source coverage.
 * Secrets live in `.env` only; the API container runs as an unprivileged user with a healthcheck.
 * Containment guidance is defensive only: block, hunt, isolate, revoke, patch.
+
+---
+
+## Contributing
+
+Wrong verdicts, missed indicators, new sources and fixes are welcome: see
+[CONTRIBUTING.md](CONTRIBUTING.md). Please report vulnerabilities privately, as
+[SECURITY.md](SECURITY.md) describes, not as a public issue. Changes are recorded in
+[CHANGELOG.md](CHANGELOG.md).
 
 ---
 

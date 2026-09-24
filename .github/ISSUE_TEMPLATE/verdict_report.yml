@@ -1,0 +1,45 @@
+name: Wrong verdict or missed indicator
+description: IntelPulse scored an indicator wrongly, or failed to extract one
+labels: [scoring]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping tune the scoring. **Do not paste real alerts or logs.** They name your
+        organisation's hosts, users and internal addresses. Rebuild the line with synthetic values
+        (RFC 5737 addresses such as `203.0.113.7`, RFC 2606 domains such as `example.com`) that
+        still show the problem. If a maintainer needs more, they will ask.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong
+      options:
+        - A malicious indicator scored too low
+        - A benign indicator scored too high (false positive)
+        - An indicator in the input was not extracted
+        - Something was extracted that is not an indicator
+        - The verdict is right but a source's evidence or rationale is wrong
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input (synthetic)
+      description: The smallest input that reproduces it.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What IntelPulse returned
+      description: The verdict, the score and the per-source evidence, or the JSON report with anything identifying removed.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What it should have returned, and why
+    validations:
+      required: true
