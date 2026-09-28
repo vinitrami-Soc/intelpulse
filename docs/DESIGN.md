@@ -179,6 +179,74 @@ the ticket to the clipboard and says so, and the graph export opens in a new
 tab. A button that silently does nothing is worse than one that tells you where
 the file went.
 
+## The pages at a glance
+
+*Moved here from the README, which now leads with what a reviewer needs.*
+
+One console, dense, in the shape analysts already know: the workbench, the
+campaign graph and the posture views share one sidebar, every view has its own
+address (`#/console/workbench`), the rail collapses and stays with you down a
+long page, and the dark and light themes were each designed against their own
+surface. The data-viz colours are computed, not chosen: the evidence ramp passes
+the full ordinal gate on both surfaces, and severity is encoded three times over
+(hue, glyph and text) because SOC semantics force red, orange and amber to sit
+next to each other. No framework and no build step: three static files serve
+identically from GitHub Pages, nginx or `python -m http.server`.
+
+![The landing page](screenshots/site-hero.png)
+
+<p align="center">
+  <img src="screenshots/site-console.png" width="49%" alt="Operator console">
+  <img src="screenshots/site-console-dark.png" width="49%" alt="Operator console, dark">
+</p>
+
+| Page | What it is |
+| --- | --- |
+| `web/index.html` | The site and the operator console, which is what a visitor lands on: a light, sky-gradient landing page that explains the correlation model, and a console route (`#/console`) with the posture metrics, severity split and attack-surface gauge. |
+| `#/console/workbench` | The analyst tool, as a console view. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket, switch between demo data and the live API. |
+| `#/console/campaigns` | The campaign graph: one synthetic investigation drawn as a radial map, with a first-seen timeline and a severity filter. |
+
+The workbench and the graph used to be separate pages, `web/workbench.html` and
+`web/explorer.html`, with a look of their own. They are console views now, so
+they share the console's sidebar, header, theme and type; the old addresses
+redirect. Everything shares the demo dataset and the scoring engine, so a number
+shown on the landing page is the same number the workbench computes.
+
+<p align="center">
+  <img src="screenshots/workbench-dark.png" width="70%" alt="The workbench in the dark theme">
+</p>
+
+The landing page is deliberately a *page*, not an app shell: it has one accent
+colour, one typeface pair, glass panels over a sky gradient, reveal-on-scroll
+for every section, a sources rail that scrolls sideways on its own (and can be
+dragged, wheeled or arrow-keyed), and a theme button that wipes the new theme in
+as a circle growing out of the button. All of it degrades to plain, still,
+readable layout under `prefers-reduced-motion`.
+
+**On a phone or tablet** the site nav becomes a drawer and the console rail
+slides in from the left, both closing on a tap outside, on `Escape` and after
+you pick something. Every control clears the 44px touch target on a coarse
+pointer, the severity bar stacks so its labels stay whole, and the headline
+sizes against viewport height so a phone held sideways does not get one word per
+screen. The detail is under [Phones and tablets](#phones-and-tablets).
+
+<p align="center">
+  <img src="screenshots/site-phone-console.png" width="24%" alt="Console on a phone">
+  <img src="screenshots/site-phone-drawer.png" width="24%" alt="The console rail as a drawer">
+  <img src="screenshots/site-phone-assistant.png" width="24%" alt="The assistant on a phone">
+  <img src="screenshots/site-tablet-console.png" width="24%" alt="Console on a tablet">
+</p>
+
+**The help assistant** behind the button in the corner is not a chat bot: there
+is no model behind it and no network call. It matches your question against
+topics compiled into the page and computes the rest from the dataset already
+loaded, so it can explain the scoring formula, the authority values, the verdict
+bands or the security controls, and tell you what is critical in the current
+sample. Below its match threshold it says it does not know rather than inventing
+something. See [The assistant, and what it is not](#the-assistant-and-what-it-is-not).
+
+![The assistant](screenshots/site-assistant.png)
+
 ## The site and the console
 
 `web/index.html` is the page a visitor lands on: a light, sky-gradient marketing
@@ -452,6 +520,42 @@ Notes from building it:
 * **Labels are drawn last, on their own layer**, with a halo in the page's
   ground colour and `pointer-events: none`, so a later node never paints over
   an earlier label and a label never steals a click from a node.
+
+## How the interface is tested
+
+*Moved here from the README.*
+
+`web/tests/ui.spec.mjs` drives the workbench and both graphs in a real Chromium.
+Beyond the hostile-input checks the README lists, it drives the evidence charts,
+the scoring dialog (focus in, `Escape`, focus back), both graphs by keyboard and
+by pointer (pan, zoom, hover, the member dots), the triage diff and the view's own
+lifecycle (leave it and come back, and the draft is still there), and asserts
+zero horizontal overflow at 390, 768, 1024 and 1440px.
+
+`web/tests/suite.spec.mjs` covers the site and console in front of it, and the
+rule it exists to enforce is that **every control a visitor can see does
+something**: it enumerates every visible button and link on both routes, clicks
+each one, and fails on any that leaves the page unchanged. It also pins the side
+rail (auto-advance, pause under the cursor, drag both ways, seamless wrap), the
+routing, the theme wipe and its persistence, the sign-up validation, the source
+guides and the scaled hero mock, each of which broke at least once while the
+page was being built.
+
+`web/tests/mobile.spec.mjs` covers phones and tablets across six viewports and
+the assistant panel. It exists because the page reported zero horizontal
+overflow on a phone while the console's entire main column was being laid out
+off-screen and clipped away, so it asserts the body actually covers the screen
+rather than just checking for overflow. It measures every control against the
+44px touch target, checks both drawers open and close by tap, `Escape` and
+selection, and puts eighteen questions to the assistant whose expected answers
+are facts that live in `backend/app`, so the panel cannot drift away from the
+code without a test going red. It also pastes an `<img onerror>` into the
+question box and asserts nothing becomes DOM.
+
+`web/tests/security.spec.mjs` is the browser half of the security audit: a
+render fuzz over every field of a result, a hostile API, poisoned storage, live
+CSP probes and tabnabbing. [docs/SECURITY-AUDIT.md](SECURITY-AUDIT.md) has the
+findings it pins.
 
 ## Why no framework
 
