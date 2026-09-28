@@ -13,7 +13,7 @@ from .config import settings
 from .db import init_db
 from .enrichment import PROVIDERS
 from .logging_config import configure_logging
-from .routers import cases, health, intel, lists, triage
+from .routers import alerts, cases, health, intel, lists, triage
 from .security import (
     BodySizeLimitMiddleware,
     OriginGuardMiddleware,
@@ -32,6 +32,7 @@ sources in one request, so an analyst stops opening six browser tabs per IOC.
 * `POST /api/extract` — pull indicators out of raw syslog / JSON / a paste
 * `POST /api/triage` — enrich every indicator in parallel and score it
 * `POST /api/triage/report` — the same, returned as a ready-to-paste SOC ticket
+* `POST /api/alerts` — a SIEM pushes an alert; it is triaged into a case and its ticket
 * `GET  /api/scoring/model` — the exact weights behind every verdict
 
 Sources: AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus, plus offline
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     }
     app.include_router(health.router, prefix="/api", responses=refusals)
     app.include_router(triage.router, prefix="/api", responses=refusals)
+    app.include_router(alerts.router, prefix="/api", responses=refusals)
     app.include_router(cases.router, prefix="/api", responses=refusals)
     app.include_router(lists.router, prefix="/api", responses=refusals)
     app.include_router(intel.router, prefix="/api", responses=refusals)

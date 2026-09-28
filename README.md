@@ -276,7 +276,7 @@ Wrong verdicts, missed indicators, new sources and fixes are welcome: see
 
 - [ ] VirusTotal and Shodan providers (keys already read from config)
 - [ ] STIX 2.1 / MISP export alongside Markdown and JSON
-- [ ] Webhook ingestion so a SIEM can push alerts directly
+- [x] Webhook ingestion so a SIEM can push alerts directly (`POST /api/alerts`, see [docs/API.md](docs/API.md))
 - [ ] Per-analyst identity (OIDC) and roles for multi-user deployments; today it is one shared token
 - [ ] Redis-backed rate limiting for multi-replica deployments (the interface is already one method)
 

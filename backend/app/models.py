@@ -47,6 +47,27 @@ class Case(Base):
     )
 
 
+class PushedAlert(Base):
+    """An alert a SIEM pushed to /api/alerts, kept beside the case its triage produced.
+
+    A table of its own rather than columns on `cases`: tables are created on
+    start-up but existing ones are never altered, so a new column would break
+    every database created before it.
+    """
+
+    __tablename__ = "pushed_alerts"
+    # The sender's own id makes a retried push the same alert, not a second case.
+    __table_args__ = (UniqueConstraint("source", "alert_id", name="uq_pushed_alert_source_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(40))
+    alert_id: Mapped[str] = mapped_column(String(200))
+    severity: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class IndicatorResult(Base):
     """Per-indicator verdict plus the full provider payload that produced it."""
 
