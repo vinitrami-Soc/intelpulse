@@ -7,6 +7,15 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+### Changed
+
+- The README opens with a five-line block for reviewers: the problem, what
+  IntelPulse does, one metric, a demo GIF (`docs/screenshots/demo.gif`) and how
+  to run it. The frontend design prose (the pages, the landing page, phones and
+  tablets, the assistant, and how the interface is tested) moved to
+  [docs/DESIGN.md](docs/DESIGN.md), and the README no longer uses dashes as
+  punctuation.
+
 ## [1.0.1] - 2026-09-24
 
 ### Security
