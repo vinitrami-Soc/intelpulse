@@ -25,7 +25,7 @@ this on load so it can state honestly how many sources are configured.
 
 ## `GET /api/scoring/model`
 
-Returns the live weights, authority values, thresholds and modifiers — the audit trail behind any
+Returns the live weights, authority values, thresholds and modifiers: the audit trail behind any
 verdict. See [SCORING.md](SCORING.md).
 
 ---
@@ -60,8 +60,8 @@ The core endpoint. Accepts either a raw blob or an explicit indicator list.
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `text` | string | — | Raw paste: IOC list, syslog, JSON alert export |
-| `indicators` | string[] | — | Explicit list; unparseable entries fall back to the extractor |
+| `text` | string | *none* | Raw paste: IOC list, syslog, JSON alert export |
+| `indicators` | string[] | *none* | Explicit list; unparseable entries fall back to the extractor |
 | `title` | string | `"Ad-hoc triage"` | Shown on the case and the ticket |
 | `analyst` | string | `null` | Recorded in the audit log and the report header |
 | `use_cache` | bool | `true` | `false` forces fresh vendor lookups (spends quota) |
@@ -135,7 +135,7 @@ curl -s -X POST localhost:8000/api/lists -H 'Content-Type: application/json' \
 ```
 
 An allowlist entry forces a score of 0 and the verdict `allowlisted`; a blocklist entry forces ≥ 90.
-Both record the reason, which is printed in the report's modifier list — local knowledge beats vendor
+Both record the reason, which is printed in the report's modifier list. Local knowledge beats vendor
 opinion, but it has to be justified in writing.
 
 ## Offline datasets
@@ -159,12 +159,12 @@ address and sized by what the endpoint costs:
 
 | Bucket | Default | Endpoints |
 | --- | --- | --- |
-| `triage` | 30/min | `/api/triage*`, `/api/intel/feeds*` — these spend vendor quota |
+| `triage` | 30/min | `/api/triage*`, `/api/intel/feeds*`, which spend vendor quota |
 | `write` | 60/min | other `POST` / `DELETE`, including `/api/extract` |
 | `read` | 240/min | `GET`, so dashboard health polling is never starved by a triage burst |
 
 Exceeding a bucket returns `429` with `Retry-After`. `X-Forwarded-For` is ignored unless
-`TRUST_FORWARDED_FOR=true` — see [SECURITY.md](SECURITY.md).
+`TRUST_FORWARDED_FOR=true` (see [SECURITY.md](SECURITY.md)).
 
 ## Security headers
 
@@ -179,7 +179,7 @@ DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross
 | --- | --- |
 | `422` | No usable indicators, neither `text` nor `indicators` supplied, or input over `MAX_INPUT_CHARS` |
 | `413` | Body over `MAX_REQUEST_BYTES` (1 MiB) or upload over `MAX_UPLOAD_BYTES` (5 MiB) |
-| `429` | Rate limit exceeded — honour `Retry-After` |
+| `429` | Rate limit exceeded; honour `Retry-After` |
 | `404` | Unknown case, list entry, feed or CVE |
 | `409` | List entry already exists |
 

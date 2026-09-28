@@ -31,9 +31,12 @@ left alone, and why, is under [Residual risk](#residual-risk).
 | F8 | Catastrophic backtracking in indicator extraction (ReDoS) | Medium | A10 | API4 | V2 |
 | F9 | Three result fields reached `innerHTML` unescaped | Medium | A05 | API10 | V1, V3 |
 | F10 | A wrongly typed field crashed the workbench, in 89 places | Low | A10 | API10 | V2 |
-| F11 | Poisoned `localStorage` crashed the workbench | Low | A08 | — | V3 |
-| F12 | GeoIP swallowed every exception silently | Low | A09, A10 | — | V16 |
-| F13 | Log masking did not know the newer secrets | Low | A09 | — | V14, V16 |
+| F11 | Poisoned `localStorage` crashed the workbench | Low | A08 | none | V3 |
+| F12 | GeoIP swallowed every exception silently | Low | A09, A10 | none | V16 |
+| F13 | Log masking did not know the newer secrets | Low | A09 | none | V14, V16 |
+
+*none* in the API 2023 column means the finding has no counterpart in the
+OWASP API Security Top 10.
 
 Severity is judged for the deployment this is built for: one analyst or team,
 a backend on `localhost` or inside the SOC network, and a browser that is open

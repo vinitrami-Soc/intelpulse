@@ -18,6 +18,11 @@ JSON report are the public interface.
 - `docs/DESIGN.md` no longer uses dashes as punctuation either: each one is now
   a colon, a comma, brackets or a full stop, whichever the sentence needed, and
   the empty *Was* cell in the renamed-sections table reads *none*.
+- The rest of the documentation follows: `API.md`, `SCORING.md`, `SECURITY.md`,
+  `SECURITY-AUDIT.md`, `SPECIFICATION.md`, `EXTRACTION-BENCHMARK.md` and the
+  design-system skill. Numeric ranges read "85 to 100", empty table cells read
+  *none*, and the benchmark generator (`tests/corpus/report.py`) writes the
+  same wording, so a regeneration does not bring the dashes back.
 
 ## [1.0.1] - 2026-09-24
 
