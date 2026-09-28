@@ -15,6 +15,9 @@ JSON report are the public interface.
   tablets, the assistant, and how the interface is tested) moved to
   [docs/DESIGN.md](docs/DESIGN.md), and the README no longer uses dashes as
   punctuation.
+- `docs/DESIGN.md` no longer uses dashes as punctuation either: each one is now
+  a colon, a comma, brackets or a full stop, whichever the sentence needed, and
+  the empty *Was* cell in the renamed-sections table reads *none*.
 
 ## [1.0.1] - 2026-09-24
 

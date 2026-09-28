@@ -4,9 +4,9 @@ IntelPulse is a tool people stare at for eight hours. The interface is built
 for that: dense, keyboard-first, quiet by default, and loud only where the data
 is actually alarming.
 
-Reference points are the tools analysts already keep open — Linear and Raycast
+The reference points are the tools analysts already keep open: Linear and Raycast
 for the command surface, Sentinel and Datadog for severity semantics and data
-density — implemented with no framework and no build step, because the whole
+density. The interface uses no framework and no build step, because the whole
 dashboard has to serve identically from GitHub Pages, nginx or
 `python -m http.server`.
 
@@ -15,7 +15,7 @@ dashboard has to serve identically from GitHub Pages, nginx or
 ## Colour, computed rather than chosen
 
 The data-visualisation colours are validated with a script, not an eye. The
-evidence ramp passes the full ordinal gate on **both** surfaces — monotone
+evidence ramp passes the full ordinal gate on **both** surfaces: monotone
 lightness, ≥0.06 step gaps, light end ≥2:1 against its surface, single hue:
 
 ```
@@ -60,16 +60,16 @@ evidence contribution bar, uses the validated single-hue ramp.
 | --- | --- | --- |
 | The one number the case turns on | **Hero figure**, 52px, same sans as everything else | A gauge or donut |
 | Why that number | **Horizontal bars**, one hue, sorted by weighted contribution, direct-labelled | A radar chart |
-| How much to trust it | **Meter** — fill carries state, track is a lighter step of the same ramp | A second number pretending to be a score |
+| How much to trust it | **Meter**: fill carries state, track is a lighter step of the same ramp | A second number pretending to be a score |
 | Which sources answered | **One cell per provider**, labelled on hover | A donut of "coverage %" |
 | The relationships | **Node graph**, SVG drawn in the page: indicators as score gauges, entities as pills, the pairs listed underneath | A table of pairs on its own |
 
-Every chart ships a table view (`Show table`) — the WCAG-clean equivalent, not
+Every chart ships a table view (`Show table`): the WCAG-clean equivalent, not
 an afterthought.
 
 ## Type
 
-Inter for the interface; **JetBrains Mono only for machine data** — indicators,
+Inter for the interface; **JetBrains Mono only for machine data**: indicators,
 hashes, log lines, numbers in columns. That split is what lets an analyst find
 the evidence without reading it: if it is monospaced, a machine said it.
 `tabular-nums` on columns, proportional figures on the hero.
@@ -77,7 +77,7 @@ the evidence without reading it: if it is monospaced, a machine said it.
 ## Space and elevation
 
 A dense scale (4 / 8 / 12 / 16 / 24 / 32). Depth comes from a hairline border
-plus a 1px inset highlight — not a drop shadow. The only real shadow in the
+plus a 1px inset highlight, not a drop shadow. The only real shadow in the
 system belongs to things that genuinely float: the scoring dialog, the graph
 readout, the toast, the assistant.
 
@@ -91,8 +91,9 @@ readout, the toast, the assistant.
 
 Entrances use `cubic-bezier(.16, 1, .3, 1)`; exits leave faster. Only
 `transform` and `opacity` are animated. The hero figure counts up because the
-eye follows a rise and lands on the number — and it does not, at all, under
-`prefers-reduced-motion`, which the whole system honours in one rule.
+eye follows a rise and lands on the number. Under
+`prefers-reduced-motion`, which the whole system honours in one rule, it does
+not count at all.
 
 ## Interaction model
 
@@ -104,7 +105,7 @@ a ticket, bookmarked or reloaded.
 | Key | Action |
 | --- | --- |
 | `Ctrl ↵` / `⌘ ↵` | Run triage, from anywhere in the workbench |
-| `Tab`, then `Enter` | Reach a graph node and open it — an indicator's evidence, or a cluster's readout |
+| `Tab`, then `Enter` | Reach a graph node and open it: an indicator's evidence, or a cluster's readout |
 | `Esc` | Close the scoring dialog or the graph readout; focus goes back where it was |
 
 The workbench's own page used to carry a command palette, `g`-key sequences
@@ -128,7 +129,7 @@ mid-shift.
 
 ## The rules are machine-readable, and enforced
 
-The design system is not only written down for people — it ships as an agent
+The design system is not only written down for people. It also ships as an agent
 skill at [`.claude/skills/design-system-intelpulse/SKILL.md`](../.claude/skills/design-system-intelpulse/SKILL.md),
 authored to the [TypeUI](https://github.com/rodgersgitau/type-ui) skill
 blueprint with the `enterprise` skill from
@@ -140,7 +141,7 @@ project's own and are validated here, not inherited.
 That format matters because the next change to this UI will probably be made by
 an agent. `SKILL.md` states each rule as **must** or **should**, anchors every
 one to a token or a threshold, and pairs each do-rule with a concrete
-don't-example — so "use semantic tokens" is not advice, it is a constraint.
+don't-example, so "use semantic tokens" is not advice, it is a constraint.
 
 A rule nothing can fail is decoration, so the checkable ones have guards in
 `web/tests/tokens.test.mjs`:
@@ -160,15 +161,15 @@ The browser suite covers what only a browser can answer: 44px touch targets on
 a coarse pointer, meaning surviving `forced-colors: active`, inline field
 errors taking focus, `aria-busy` during a run.
 
-Writing those guards immediately caught three of my own violations — `#fff` on
+Writing those guards immediately caught three of my own violations (`#fff` on
 the wordmark, hard-coded hexes in the console banner and the `theme-color`
-meta — and one bug in the guard itself, where a newline-anchored regex swallowed
+meta) and one bug in the guard itself, where a newline-anchored regex swallowed
 the rules after a single-line `@keyframes` and reported a violation that did
 not exist.
 
 ## The shareable demo build
 
-`make artifact` (`scripts/build-artifact.mjs`) emits `dist/artifact/` — the same
+`make artifact` (`scripts/build-artifact.mjs`) emits `dist/artifact/`: the same
 app with the outer document removed and the meta CSP dropped, for hosts that
 supply their own. The assets ship unchanged, so what a reviewer clicks is this
 repo's code rather than a mock-up of it.
@@ -251,7 +252,7 @@ something. See [The assistant, and what it is not](#the-assistant-and-what-it-is
 
 `web/index.html` is the page a visitor lands on: a light, sky-gradient marketing
 page with a console route behind it. It was built to a set of reference shots of
-a light cybersecurity SaaS — the brief was the *composition*, not the company.
+a light cybersecurity SaaS. The brief was the *composition*, not the company.
 
 What was taken: the light sky gradient with soft cloud shapes, the floating pill
 navigation, a single hot accent (`--flame`, `#fe5729`) against near-black text,
@@ -267,25 +268,25 @@ The page reported zero horizontal overflow on a phone for days while being
 unusable on one. Below 900px the console kept its two-column grid, so the whole
 main column was laid out off-screen and quietly clipped by the shell's own
 `overflow: hidden`. Nothing scrolled sideways because there was nothing left to
-scroll — the content was simply gone.
+scroll: the content was simply gone.
 
 That is the reason `web/tests/mobile.spec.mjs` exists, and why it asserts the
 console body covers at least 80% of the viewport rather than just checking for
 overflow. What the pass turned up:
 
 * **Two drawers.** Below 900px the site nav becomes a burger drawer (it carries
-  every section, both sibling pages and the route button — not a subset), and
+  every section, both sibling pages and the route button, not a subset), and
   the console rail slides in from the left. Both close on a tap outside, on
   `Escape`, and after you pick something. Widening the window closes them, so a
   rotation cannot strand one open with the page scroll still locked.
 * **44px, everywhere, on coarse pointers only.** A `@media (pointer: coarse)`
-  block floors every control — including the ones that look like text, such as
+  block floors every control, including the ones that look like text, such as
   the footer columns and the desktop nav links on a touch tablet.
 * **The severity bar stacks below 560px.** Proportional widths printed
   "6 Mediu". Since severity is never carried by colour alone here, the labels
   could not be dropped, so the bar becomes a column of full-width rows instead.
 * **The headline answers to viewport height.** `clamp(34px, 5.6vw, 62px)` reads
-  the width, and a phone on its side is 844×390 — so the hero filled the entire
+  the width, and a phone on its side is 844×390, so the hero filled the entire
   screen. A `max-height` query caps it.
 * **The pill drops its call to action under 560px.** Brand, theme, burger and a
   button do not fit, and the button wrapped onto two lines. The drawer carries
@@ -298,7 +299,7 @@ the argument for writing the test before trusting the fix:
   rail, pulled it out of the scaled mock and pinned it to the viewport. The
   rule is `#console-side` now.
 * `.route { animation: … both }` leaves the animation's transform applied for
-  good, and Chromium keeps a containing block with it — so `position: fixed`
+  good, and Chromium keeps a containing block with it, so `position: fixed`
   children stopped being fixed to the viewport and the closed drawer sat 10px
   on screen. `backwards` gives the same entrance and lets go afterwards.
 
@@ -308,7 +309,7 @@ The panel behind the button in the corner is a **help assistant, not a chat
 bot**. There is no model behind it and no network call: it matches the question
 against a list of topics compiled into the page, and computes the rest from the
 dataset already loaded. The panel says exactly that, in the panel, where it can
-be read — not in a tooltip.
+be read, not in a tooltip.
 
 Three rules hold it honest:
 
@@ -317,7 +318,7 @@ Three rules hold it honest:
   tool scores an indicator is worse than no answer.
 * **Its facts are the repository's facts.** The weights, the authority values
   and the verdict bands in the answers are the numbers `backend/app` ships, and
-  `mobile.spec.mjs` asserts each one — so the panel and the code cannot drift
+  `mobile.spec.mjs` asserts each one, so the panel and the code cannot drift
   apart without a test going red.
 * **It encodes what you type.** The panel echoes the question back, which makes
   it an injection surface like any other; the test pastes an `<img onerror>`
@@ -329,14 +330,14 @@ is a way through the product rather than a place to read about it.
 ### One palette, finally
 
 For a while the site and console ran a light, flame-accented palette while the
-analyst workbench and the campaign graph ran their own dark ones — violet in
+analyst workbench and the campaign graph ran their own dark ones: violet in
 one, teal in the other. Three palettes in one product is a thing a reviewer
 notices before anything else, and the caveat that used to sit here said as much.
 
 All four surfaces now speak the same language: light first, paper surfaces, one
 hot accent, Outfit for interface and JetBrains Mono reserved for machine data.
 Dark is a first-class alternative on the workbench and the site, not an
-inversion — an analyst on a night shift gets a room built for it, with the same
+inversion: an analyst on a night shift gets a room built for it, with the same
 accent.
 
 Bringing them over meant recomputing, not recolouring:
@@ -344,19 +345,19 @@ Bringing them over meant recomputing, not recolouring:
 * **The evidence ramp changed hue.** Flame owns the accent and the severity end
   of the scale, so a warm ramp would read as "this is bad" at every step. The
   ramp is a single azure hue instead, and it passes the full ordinal gate on
-  both themes and against both its card and its page — the numbers are written
+  both themes and against both its card and its page. The numbers are written
   into the top of `web/assets/tokens.css`.
 * **There are two flames.** `--accent` `#fe5729` is the brand colour and carries
   fills, rules and glows; white on it is 3.18:1, which is fine for a 4px bar and
   not fine for a label. Anything that puts text on the accent, or sets accent
   text on paper, uses `--accent-strong` `#d93d15` (4.54:1).
 * **Every severity was re-derived** so it clears 4.5:1 against its card, its
-  page *and* its own tinted wash — the last of those is the one usually missed,
+  page *and* its own tinted wash. The last of those is the one usually missed,
   because a colour that passes on white can fail on its own 10% background.
 * **The graph's four categories were computed against the sky**, not picked to
   look nice on it: each mark clears 3:1 against the brightest and the deepest
   part of the field, and the closest pair is 0.129 apart in OKLab against a
-  0.12 floor. Colour still is not the only channel — every cluster is labelled.
+  0.12 floor. Colour still is not the only channel: every cluster is labelled.
 
 ### Naming, and what was cut
 
@@ -375,17 +376,17 @@ now a view this console actually renders:
 | All findings | **All indicators** | The product's own noun |
 | All attacks | **Campaigns** | Matches the graph and the ATT&CK mapping |
 | Projects, pentests, password audits, Active attack | *removed* | Not features of this product |
-| — | **Intelligence sources** | New, and real: every source with its weight and authority |
+| *none* | **Intelligence sources** | New, and real: every source with its weight and authority |
 
 The landing page had the same problem in miniature. `#platform`, `#pricing`
-and `#resources` are section names from a SaaS template — and there is no
+and `#resources` are section names from a SaaS template, and there is no
 pricing, because there is no product to buy. They are `#how`, `#scoring`,
 `#evidence` and `#sources` now, which is what the sections contain.
 
 Three things went from the console header for the same reason: a notification
 bell that reported a number nobody counted, an avatar for an account that does
 not exist, and a "Testing status: Active" pill that reported on nothing. The
-search button used to answer "Search is a demo control" — it opens the
+search button used to answer "Search is a demo control". It opens the
 assistant now, which is the thing on the page that answers questions.
 
 ### The relationship graph
@@ -395,32 +396,32 @@ colour: every edge carried a rotated label, node labels had no background so
 they sat on whatever line ran underneath, and the repulsion was low enough that
 disconnected components stranded in a corner while the rest overlapped.
 
-Edge labels are a hover and selection detail now — `attributed to` and
+Edge labels are a hover and selection detail now: `attributed to` and
 `announced by` belong under the cursor, not on screen all at once. Every label
 draws a small card behind it, so crossing an edge costs nothing. Nodes carry a
 ring of their own colour at low opacity, which reads as depth without an image.
 
 The layout needed tuning in both directions. Raising `nodeRepulsion` far enough
 to separate the labels made the graph so large that the fit shrank everything
-to unreadable — a graph that fits the box but needs a magnifier has not been
+to unreadable. A graph that fits the box but needs a magnifier has not been
 laid out, it has been hidden. The layout is now sized to keep edges a little
 longer than a label is wide, and a `layoutstop` handler refuses to zoom below
 0.85 and lets you pan instead.
 
 ### Every control does something
 
-The page has a lot of surface — two routes, a sidebar with collapsible groups,
+The page has a lot of surface: two routes, a sidebar with collapsible groups,
 segment filters, panel menus, a sign-up form, four footer columns. It would be
 easy to leave half of it as decoration. So the rule is stated and then enforced:
 `web/tests/suite.spec.mjs` enumerates every visible `button`, `a[href]` and
 `[role="button"]` on both routes, clicks each one, and fails the suite if any
-click leaves the page unchanged. The first run found fifteen dead controls —
+click leaves the page unchanged. The first run found fifteen dead controls:
 three footer icons pointing at `#/home`, two unwired panel menus, and a brand
 mark that did nothing when you were already at the top. They are wired now, and
 the test is what keeps them wired.
 
 The hero's device mock went the other way. It is a real render of the console
-scaled down, so its buttons were real buttons — a second, tiny, confusing set of
+scaled down, so its buttons were real buttons: a second, tiny, confusing set of
 controls. It is now `inert` with `pointer-events: none`: a picture of the
 product, which is what it was always meant to be.
 
@@ -437,7 +438,7 @@ be dragged, wheeled or arrow-keyed. Two things about it are worth writing down.
 * **Three runs, not two.** With two copies you can loop forwards seamlessly, but
   dragging backwards hits `scrollLeft: 0` and stops dead. With three identical
   runs the rail parks in the middle one and wraps by exactly one run width in
-  either direction — a shift that is invisible because the runs are identical.
+  either direction, a shift that is invisible because the runs are identical.
 
 ### The theme button
 
@@ -452,7 +453,7 @@ swap is instant and nothing else changes.
 The mock renders at its true 1180px width and is then scaled to whatever the
 frame is, so the internals keep their real proportions instead of being
 re-laid-out at 390px. That only works from `transform-origin: top left`. With
-`top center` — the value that looks more natural — the fixed point is the middle
+`top center`, the value that looks more natural, the fixed point is the middle
 of the *1180px scaler*, not the middle of the frame, so on a phone the whole
 mock lands outside the frame and the hero shows an empty white box. It did,
 until a responsive screenshot caught it.
@@ -491,7 +492,7 @@ first-seen timeline, a legend and a stats dock. It began as its own page,
 `web/explorer.html`, on a dark teal ground; it is a console view now, on the
 console's own surfaces, and the old address redirects.
 
-What was taken from the reference is the *composition and treatment* — panel
+What was taken from the reference is the *composition and treatment*: panel
 language, node materiality, the way labels radiate outward from the hub, the
 timeline rail. What was not taken is anyone's identity: no borrowed wordmark,
 no third-party logos, and the data is IntelPulse's own synthetic dataset
@@ -511,12 +512,12 @@ Notes from building it:
   the dashed violet edges between clusters are what show two families sharing
   infrastructure, which is the reason to look at a graph at all.
 * **The year filter is cumulative**, and the page opens on the full graph
-  rather than an empty slice — a view that starts empty shows nothing.
+  rather than an empty slice, because a view that starts empty shows nothing.
 * **Every figure beside it is counted.** The standalone page showed "98%",
   "57%" and "32% unenriched" that no data produced, a severity button that
   only re-sorted, and an ask box wired to nothing. The console view counts its
   KPIs from the clusters in view, its severity control filters, and the ask
-  box is gone — the site's assistant is one button away.
+  box is gone. The site's assistant is one button away.
 * **Labels are drawn last, on their own layer**, with a halo in the page's
   ground colour and `pointer-events: none`, so a later node never paints over
   an earlier label and a label never steals a click from a node.
@@ -561,5 +562,5 @@ findings it pins.
 
 Three static files, no build step, no `node_modules`, no supply chain. A
 reviewer clones the repo and opens `web/index.html`. The trade-off is that
-demo-mode scoring is implemented twice (Python and JavaScript) — which is why
+demo-mode scoring is implemented twice (Python and JavaScript), which is why
 `web/tests/engine.test.mjs` pins the JS engine to the Python rules.
