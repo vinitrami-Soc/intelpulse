@@ -5,7 +5,7 @@ intelligence, which is public by design. The things worth protecting are the
 SOC's API quota, the box it runs on, the analyst's browser, and the internal
 network the backend can see. Every control below exists for one of those four.
 
-Each control names the test that proves it works — `backend/tests/test_security.py`
+Each control names the test that proves it works: `backend/tests/test_security.py`
 and `backend/tests/test_security_audit.py` for the service; `web/tests/ui.spec.mjs`,
 `web/tests/suite.spec.mjs`, `web/tests/mobile.spec.mjs` and
 `web/tests/security.spec.mjs` for the browser. The OWASP-mapped audit that
@@ -36,7 +36,7 @@ roles first.
 
 ## Backend controls
 
-### Who may write — `app/security.py`
+### Who may write (`app/security.py`)
 
 * **Cross-origin write guard.** CORS decides whether a page may *read* a
   response; it never stops a simple `POST` from being sent. Before this guard,
@@ -63,7 +63,7 @@ the dashboard and a script without an `Origin` can still write; token missing,
 wrong, wrong scheme and correct; health and preflight stay open; a `401` is
 readable by the dashboard; a typed `created_by` does not become the actor.
 
-### Outbound egress policy — `app/net.py`
+### Outbound egress policy (`app/net.py`)
 
 IntelPulse never fetches a URL an analyst supplies; indicators go to fixed
 vendor endpoints as path or body parameters, so there is no classic SSRF sink.
@@ -75,8 +75,8 @@ The controls exist anyway, because "no sink today" is not a control:
 * **HTTPS only.** Plain HTTP is refused before a socket is opened.
 * **Resolution check.** The resolved addresses are tested against private,
   loopback, link-local (including `169.254.169.254`), CGNAT, benchmarking and
-  documentation space. An allowlisted host whose DNS answer points inward —
-  rebinding, a poisoned resolver, a hijacked domain — is refused.
+  documentation space. An allowlisted host whose DNS answer points inward
+  (rebinding, a poisoned resolver, a hijacked domain) is refused.
 * **Redirects are re-validated.** httpx re-enters the transport for every hop,
   so a vendor redirecting to an internal host is blocked at the hop that tries
   it.
@@ -92,22 +92,22 @@ DNS check is defence in depth.
 IP, an allowlisted host resolving to `127.0.0.1`, and a test that fails if any
 feed URL in the codebase is missing from the allowlist.
 
-### Indicator filtering — `app/ioc.py`
+### Indicator filtering (`app/ioc.py`)
 
 Private, loopback, link-local, CGNAT and documentation addresses are dropped
 during extraction, so internal addresses pasted from a firewall log are never
 sent to a third party. This is a data-leakage control, not an SSRF one, and it
 runs before any provider is called.
 
-### Rate limiting — `app/security.py`
+### Rate limiting (`app/security.py`)
 
 Per-client sliding windows, sized by what an endpoint actually costs:
 
 | Bucket | Default | Covers |
 | --- | --- | --- |
-| `triage` | 30/min | `/api/triage*`, feed refreshes — these spend vendor quota |
+| `triage` | 30/min | `/api/triage*`, feed refreshes, which spend vendor quota |
 | `write` | 60/min | other `POST`/`DELETE` |
-| `read` | 240/min | `GET` — the dashboard polls health |
+| `read` | 240/min | `GET` (the dashboard polls health) |
 
 Exceeding a bucket returns `429` with `Retry-After` and `X-RateLimit-*`.
 `X-Forwarded-For` is **ignored unless `TRUST_FORWARDED_FOR=true`**: trusting it
@@ -139,7 +139,7 @@ identities.
 malformed JSON, binary/RTL-override garbage, a 10 000-indicator paste, four
 backtracking shapes at the full input limit, and a binary upload.
 
-### Input that is stored or written into tickets — `app/text.py`
+### Input that is stored or written into tickets (`app/text.py`)
 
 * **List entries must be indicators.** A value is refanged and classified; if
   it is not a single routable IP, domain, URL, hash, email or CVE it is `422`.
@@ -148,8 +148,8 @@ backtracking shapes at the full input limit, and a binary upload.
   names lose control characters, zero-width characters and bidi overrides
   ("Trojan Source"), and are truncated.
 * **Tickets are escaped.** Everything that reaches the Markdown report from a
-  paste, an upload name or a vendor — title, analyst, family names, technique
-  names, tags, rationales — is flattened to one line, has its URL schemes
+  paste, an upload name or a vendor (title, analyst, family names, technique
+  names, tags, rationales) is flattened to one line, has its URL schemes
   defanged to `hxxp(s)://`, and has `[ ] < > | \` and backticks escaped.
   Before, a title could open a fake "Recommended containment" section, and a
   vendor's family name could embed a tracking image in a Jira ticket.
@@ -171,7 +171,7 @@ a newline, and the escaping of links, images, HTML and table cells.
 * GeoIP lookups no longer swallow every exception silently: a missing address
   is expected, anything else is logged.
 
-### Response headers — `app/security.py`
+### Response headers (`app/security.py`)
 
 `Content-Security-Policy` (`default-src 'none'` for API routes, a narrower
 Swagger-compatible policy for `/docs`), `X-Content-Type-Options`,
@@ -184,13 +184,13 @@ the local dashboards and the published site, not `*`. With `*` any page in any
 browser may call the API and the write guard is off, so the app logs a warning
 whenever it sees it.
 
-### Logging — `app/logging_config.py`
+### Logging (`app/logging_config.py`)
 
 JSON lines with request id, client address, method, path, status and duration,
 so the output ships into the SIEM this tool feeds. A masking filter redacts
 configured secret values (including `API_TOKEN` and the Jira and ServiceNow
-credentials) and anything shaped like a credential — `key=`,
-`api_key:`, `Authorization: Bearer`, a password inside a Postgres URL — in the
+credentials) and anything shaped like a credential (`key=`,
+`api_key:`, `Authorization: Bearer`, a password inside a Postgres URL) in the
 message, the arguments and the exception text.
 
 The filter masks string arguments only. Coercing every argument would corrupt
@@ -220,7 +220,7 @@ never from the image.
   `"><svg onload>` and a `javascript:` URL into the ingest field and asserts
   nothing executes and no element is injected.
 * **Toasts are text.** The console's toast took markup until the workbench
-  moved into the console, where it announces indicator values — which come out
+  moved into the console, where it announces indicator values, which come out
   of pasted logs. It sets `textContent` now, and a test hands it an `<img>`.
 * **URL scheme validation.** Escaping makes a URL safe to sit in an attribute;
   it does not make it safe to follow. `safeUrl()` rejects everything that is not
@@ -228,11 +228,11 @@ never from the image.
   text instead of a link. Tested with a hostile result payload and a scheme
   matrix.
 * **CSP.** A `<meta>` policy blocks inline script, `eval`, objects and form
-  submission, and limits script to this origin — no CDN, now that neither graph
+  submission, and limits script to this origin: no CDN, now that neither graph
   loads a library. The two redirect stubs (`workbench.html`, `explorer.html`)
   run no script at all: `default-src 'none'`.
   `frame-ancestors` cannot be set from a meta tag, so the nginx service sends
-  it as a real header (`web/nginx.conf`) — GitHub Pages cannot send headers,
+  it as a real header (`web/nginx.conf`). GitHub Pages cannot send headers,
   which is why the app never depends on them for correctness.
 * **Nothing from outside is trusted as a shape.** Every result the API returns
   goes through `normalizeResult()` before anything renders it: numbers become finite numbers, lists become arrays,
@@ -240,8 +240,8 @@ never from the image.
   expected went into `innerHTML` unescaped (`cache_hits`, `providers_queried`,
   the contribution chart's weights), and a wrong type crashed the pane in 89
   places.
-  The browser test mutates a real result one field at a time — markup, `null`,
-  a number, a boolean, an object, an array — and asserts no script, no injected
+  The browser test mutates a real result one field at a time (markup, `null`,
+  a number, a boolean, an object, an array) and asserts no script, no injected
   element and no uncaught error.
 * **Stored state is validated.** The mode must be `live` or `demo`, the backend
   URL must pass `safeUrl()`, lists and history must be arrays of objects, and

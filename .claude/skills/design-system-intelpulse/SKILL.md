@@ -1,6 +1,6 @@
 ---
 name: design-system-intelpulse
-description: Implementation-ready design rules for the IntelPulse triage workbench — tokens, component states, chart forms, and accessibility gates. Use when creating or changing any UI in web/.
+description: Implementation-ready design rules for the IntelPulse triage workbench (tokens, component states, chart forms, and accessibility gates). Use when creating or changing any UI in web/.
 ---
 
 <!-- Authored to the TypeUI skill blueprint (github.com/rodgersgitau/type-ui,
@@ -18,7 +18,7 @@ whole shift. The interface must make the evidence behind a verdict findable in
 seconds, stay readable at 03:00, and never let decoration compete with data.
 
 ## Brand
-- Product: IntelPulse — threat intelligence & triage workbench
+- Product: IntelPulse, a threat intelligence & triage workbench
 - Audience: SOC analysts and blue-team engineers, keyboard-first, high alert volume
 - Surface: dense single-page web dashboard (demo build on GitHub Pages, live build against a FastAPI service)
 
@@ -50,9 +50,9 @@ seconds, stay readable at 03:00, and never let decoration compete with data.
 
 ## One palette, one stylesheet
 
-The site and the console (`web/index.html`) — including the analyst workbench
+The site and the console (`web/index.html`), including the analyst workbench
 and the campaign graph, which are console views (`#/console/workbench`,
-`#/console/campaigns`, built in `assets/console-panes.js`) — load one
+`#/console/campaigns`, built in `assets/console-panes.js`), load one
 stylesheet, `assets/suite.css`. `assets/tokens.css` is the validated reference:
 the severity and ramp values in `suite.css` **must** equal it, and a guard fails
 the build when they drift. Workbench and graph rules are scoped under `.wb` /
@@ -61,7 +61,7 @@ interface, JetBrains Mono for machine data only.
 
 - **Two flames, and they are not interchangeable.** `--accent` carries fills,
   rules and glows. Anything with text on it, and any accent-coloured text, uses
-  `--accent-strong` `#d93d15` — white on `--accent` is 3.18:1.
+  `--accent-strong` `#d93d15`, because white on `--accent` is 3.18:1.
 - **The evidence ramp is azure, not warm.** Flame owns the accent and the
   severity end of the scale; a warm ramp reads as "this is bad" at every step.
 - **Recompute, never recolour.** A palette change means re-running the ordinal
@@ -92,7 +92,7 @@ Say what a number means, not how impressive it is. No exclamation marks.
 
 ## Rules: Do
 - Use semantic tokens.
-  *Don't:* `color: #f43f5e` in a component — use `var(--sev-critical)`.
+  *Don't:* `color: #f43f5e` in a component; use `var(--sev-critical)`.
 - Define every state a control can be in: default, hover, focus-visible, active,
   disabled, loading, error.
   *Don't:* an input that only styles `:focus` and shows failures in a toast.
@@ -104,7 +104,7 @@ Say what a number means, not how impressive it is. No exclamation marks.
 - Ship a table view beside any chart.
   *Don't:* a canvas an assistive-tech user cannot read.
 - Make destructive actions reversible.
-  *Don't:* a confirm dialog for clearing a text box — offer undo instead.
+  *Don't:* a confirm dialog for clearing a text box; offer undo instead.
 - Reserve monospace for machine data.
   *Don't:* monospaced body copy because it "looks technical".
 - State the data's provenance on screen (demo vs live) wherever a verdict shows.
@@ -117,7 +117,7 @@ Say what a number means, not how impressive it is. No exclamation marks.
 - Do not introduce a spacing or type value outside the scale.
 - Do not render provider- or log-derived text without escaping it, or a
   provider-supplied URL without an `http(s)` scheme check.
-- Do not let a sticky bar cover a scroll target — set `scroll-margin-top`.
+- Do not let a sticky bar cover a scroll target; set `scroll-margin-top`.
 - Do not add a dependency to the dashboard; it ships as static files.
 
 ## Expected Behavior
@@ -148,8 +148,8 @@ content and tone with examples · anti-patterns · QA checklist.
 
 ## Quality Gates
 Run before calling any UI change done:
-- [ ] `make test-web` — engine parity plus the static design guards.
-- [ ] `make test-ui` — 307 Chromium checks, all green.
+- [ ] `make test-web`: engine parity plus the static design guards.
+- [ ] `make test-ui`: 307 Chromium checks, all green.
 - [ ] Every new rule anchors to a token, a threshold or an example.
 - [ ] Every new control has all seven states.
 - [ ] Keyboard-only pass: reach every action, escape every overlay.

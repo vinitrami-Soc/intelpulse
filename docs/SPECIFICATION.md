@@ -9,7 +9,7 @@
 
 ## 1. Project title
 
-**IntelPulse — Automated Threat Intelligence & Triage Workbench**
+**IntelPulse: Automated Threat Intelligence & Triage Workbench**
 
 A SOC analyst opens roughly six browser tabs to triage one alert: AbuseIPDB for reputation, OTX for
 campaign context, GreyNoise to rule out internet-wide scanning, ThreatFox and URLhaus for the
@@ -20,8 +20,8 @@ IntelPulse collapses that pass into one request: parse the indicators out of wha
 query every applicable source concurrently, score them into a single auditable verdict, map how they
 relate, and write the ticket.
 
-**Live:** https://vinitrami-soc.github.io/intelpulse/ — the root `index.html` redirects to
-`web/`, which serves the site and the console.
+**Live:** https://vinitrami-soc.github.io/intelpulse/ (the root `index.html` redirects to
+`web/`, which serves the site and the console).
 
 ---
 
@@ -40,8 +40,8 @@ relate, and write the ticket.
 ### Feature set
 
 **Ingestion.** Plain indicator lists, firewall and proxy syslog, Windows EVTX-as-JSON, SIEM alert
-exports, and file upload (`.log` `.txt` `.csv` `.json`) up to 5 MB. Defanged notation — `1.2.3[.]4`,
-`hxxp://` — is refanged automatically. RFC 1918, loopback and CGNAT space are dropped before
+exports, and file upload (`.log` `.txt` `.csv` `.json`) up to 5 MB. Defanged notation (`1.2.3[.]4`,
+`hxxp://`) is refanged automatically. RFC 1918, loopback and CGNAT space are dropped before
 anything leaves the building, as are filenames that look like indicators (`svchost.exe`).
 
 **Enrichment.** Seven providers: AbuseIPDB, AlienVault OTX, ThreatFox, URLhaus, GreyNoise, GeoIP,
@@ -64,8 +64,8 @@ score, because "80/100 from one source" and "80/100 from five" are different cla
 
 | Provider | Weight | Authority | Role |
 | --- | --- | --- | --- |
-| ThreatFox | 1.2 | 0.95 | abuse.ch — confirmed command and control |
-| URLhaus | 1.1 | 0.95 | abuse.ch — malware distribution URLs |
+| ThreatFox | 1.2 | 0.95 | abuse.ch: confirmed command and control |
+| URLhaus | 1.1 | 0.95 | abuse.ch: malware distribution URLs |
 | AbuseIPDB | 1.0 | 0.80 | Address reputation, corroboration-weighted |
 | Local blocklist | 1.0 | 0.90 | Feodo Tracker and FireHOL, imported offline |
 | AlienVault OTX | 0.9 | 0.70 | Community pulses, prone to syndication |
@@ -76,7 +76,7 @@ Verdict bands: **critical** ≥ 85, **high** ≥ 70, **medium** ≥ 40, **low** 
 A GreyNoise benign classification applies a 0.45 multiplier; analyst allow and block lists override.
 
 **Output.** A SOC ticket with executive summary, per-indicator evidence, MITRE ATT&CK technique
-mapping and containment actions, exportable as Markdown or JSON — or raised directly in **Jira**
+mapping and containment actions, exportable as Markdown or JSON, or raised directly in **Jira**
 (REST v3) or **ServiceNow** (Table API) in one request. A sink is configured by an operator through
 the environment, never by a request, and the egress allowlist is widened for exactly those hosts.
 The dashboard offers the button only when the backend reports a sink it can actually deliver to.
@@ -98,7 +98,7 @@ configured and which ticket sinks are reachable.
 Quota discipline is enforced rather than assumed: `triage()` de-duplicates its input, and
 `Provider.lookup` single-flights per (provider, indicator), so concurrent callers for the same pair
 collapse to one upstream fetch instead of each spending a unit. Nine tests count real fetches
-against a provider whose network is a counter — including one that proves distinct lookups are still
+against a provider whose network is a counter, including one that proves distinct lookups are still
 concurrent, because collapsing duplicates must not turn a fan-out into a queue.
 
 ---
@@ -109,30 +109,30 @@ One page, one palette, no framework and no build step: the landing site, and a c
 the posture views, the analyst workbench and the campaign graph. Everything serves identically from
 GitHub Pages, nginx or `python -m http.server`.
 
-### 3.1 Landing site — `web/index.html`
+### 3.1 Landing site (`web/index.html`)
 
 Four sections, named for their subject rather than for the shape of a SaaS template:
 
-- **How it works** (`#how`) — the correlation pass, end to end.
-- **Scoring** (`#scoring`) — the formula above, stated rather than asserted.
-- **Evidence** (`#evidence`) — what a verdict looks like when you open it up.
-- **Sources** (`#sources`) — every provider with the weight and authority behind its word.
+- **How it works** (`#how`): the correlation pass, end to end.
+- **Scoring** (`#scoring`): the formula above, stated rather than asserted.
+- **Evidence** (`#evidence`): what a verdict looks like when you open it up.
+- **Sources** (`#sources`): every provider with the weight and authority behind its word.
 
 It also carries a scaled, inert preview of the console, a newsletter field, and the assistant.
 
-### 3.2 Operator console — `web/index.html#/console/…`
+### 3.2 Operator console (`web/index.html#/console/…`)
 
 The console over the same synthetic dataset. Ten views, each deep-linkable:
 
 `Workbench` · `Overview` · `Attack surface` · `Triage history` · `Triage queue` · `All indicators` ·
 `Campaign graph` · `Attack narratives` · `Intelligence sources` · `SOC tickets`
 
-Every view has a real URL — `#/console/sources` — so it can be shared, bookmarked and reloaded.
+Every view has a real URL (`#/console/sources`), so it can be shared, bookmarked and reloaded.
 Findings are summarised as four KPI cards, a five-band severity bar (Critical, High, Medium, Low,
 Informational) and a state row (Awaiting triage, In progress, Closed) that reconciles with it under
 every filter.
 
-### 3.3 Analyst workbench — `#/console/workbench`
+### 3.3 Analyst workbench (`#/console/workbench`)
 
 The tool itself, as a console view. Paste an alert, run it, read the evidence behind every verdict,
 take the ticket.
@@ -152,7 +152,7 @@ take the ticket.
   selecting an indicator opens its evidence. It shows the 25 highest-scoring indicators, like the list.
 - It keeps its draft while you look at another view and come back.
 
-### 3.4 Campaign graph — `#/console/campaigns`
+### 3.4 Campaign graph (`#/console/campaigns`)
 
 An SVG relationship graph over a synthetic campaign: the hub, malware families, infrastructure and
 indicators as four computed colour categories. Radial and by-share layouts, zoom and fit, a
@@ -165,7 +165,7 @@ and `explorer.html` now redirect to these views.
 ### 3.5 The assistant
 
 A panel on the landing site and console that answers from the project's own documentation and the
-dataset already loaded on the page. It runs entirely in the browser — **no model is called and
+dataset already loaded on the page. It runs entirely in the browser: **no model is called and
 nothing leaves the tab**. It covers the scoring model, the sources, what you can paste, the graph,
 the ticket, the security controls, the loaded findings, and navigation between the site and the
 console's views.
@@ -184,11 +184,11 @@ record, including the parts that were wrong.
 block sized as "30 minus whatever is on screen". Filtering to Closed therefore claimed 21
 unclassified findings that did not exist, and the number lived only in a `title` attribute where
 nobody could see it. The state row summed to 21 against a severity total of 26. Three tables were
-maintained by hand, with every count written twice — once as a number, once inside its own label.
+maintained by hand, with every count written twice: once as a number, once inside its own label.
 
 The model is now one table of fifteen numbers (five bands × awaiting/in progress/closed) in
 `web/assets/console-model.js`. Everything else is derived, so *open + closed = all* is not a rule
-anyone has to remember — open **is** awaiting plus in progress. It sits outside `suite.js` so the
+anyone has to remember: open **is** awaiting plus in progress. It sits outside `suite.js` so the
 arithmetic is unit-tested in Node rather than only through a browser at three filter settings.
 
 **The sidebar described a product this is not.** Projects, external pentest, internal pentest,
@@ -196,7 +196,7 @@ password audits and active attack came from a reference composition. IntelPulse 
 it does not run engagements. Those entries are gone, the rest are named for their subject, and a real
 view replaced them: Intelligence sources, listing every provider with its weight and authority.
 
-**Three controls reported on nothing** — a notification bell with no notifications, an avatar for an
+**Three controls reported on nothing:** a notification bell with no notifications, an avatar for an
 account that does not exist, a "Testing status: Active" pill. Removed.
 
 ### 4.2 Navigation and routing
@@ -207,26 +207,26 @@ ever had. Making views deep-linkable was a fix in itself and exposed four more b
 - `PANES[name]` was a bare lookup on user input. `#/console/__proto__` returned `Object.prototype`
   and rendered nothing; `#/console/toString` drew a heading reading literally `undefined`.
 - Re-selecting the view already open assigned the hash it already held, which fires no `hashchange`,
-  so the router never ran. On a phone that left the drawer open over a page with `overflow: hidden`
-   — a dead end with no way out but reload.
+  so the router never ran. On a phone that left the drawer open over a page with `overflow: hidden`,
+  a dead end with no way out but reload.
 - A theme flip redrew the console as the dashboard whatever was open, while the URL and the sidebar
   went on claiming the old view.
 - The "already there, so scroll to the top" branch compared `#/console` against `#/console/dashboard`
   and was therefore dead code.
 
-The workbench and campaign graph were also one-way doors — once in, nothing led back to the site.
+The workbench and campaign graph were also one-way doors: once in, nothing led back to the site.
 Both now link home and carry a labelled "Back to site".
 
 ### 4.3 Mobile and tablet
 
 Below 900px a two-column grid laid the console's main column off-screen, clipped by
 `overflow: hidden`, while reporting zero horizontal overflow. Both the console sidebar and the
-workbench rail are drawers now — scrim, tap-outside, Escape, and dismissal on selection.
+workbench rail are drawers now: scrim, tap-outside, Escape, and dismissal on selection.
 
 Two bugs found later on a real phone, after the first merge:
 
 - **Capsules wrapped their own labels.** `.chip` had no `white-space: nowrap`, so "9% up" broke
-  across two lines and the pill rendered 39px tall — which reads as a rendering fault, not a badge.
+  across two lines and the pill rendered 39px tall, which reads as a rendering fault, not a badge.
   It did this at every phone and tablet width. All four capsule classes are covered by one rule now.
 - **The case-verdict badge was clipped off its card.** `.hero` is a flex row with a 42px number,
   `/100` and the badge, with `flex-wrap: nowrap` and a `&nbsp;` gluing `/100` to the badge as one
@@ -237,7 +237,7 @@ Two bugs found later on a real phone, after the first merge:
 
 It declined seven of the ten plainest things a visitor could type, including "take me to the main
 page" and "about". The knowledge base answered questions *about* the product and had no idea what to
-do with a request to *go* somewhere — which is most of what people ask an assistant embedded in a
+do with a request to *go* somewhere, which is most of what people ask an assistant embedded in a
 page. Five entries closed that gap, each offering the button that performs the action.
 
 Widening keywords carried a cost that showed up immediately: a bare `about` key made "tell me about
@@ -247,7 +247,7 @@ matched against the full text now.
 
 ### 4.5 Accessibility and contrast
 
-- Two AA failures in the severity component (3.18:1 and 3.63:1 on bold 10–11px labels) fixed with
+- Two AA failures in the severity component (3.18:1 and 3.63:1 on bold 10 to 11px labels) fixed with
   dedicated text-on-accent tokens.
 - `--ink-3` was 2.98:1 on `--ground-2` against a 3:1 floor, and 2.75:1 on `--surface-3`. Now
   `#7b8490`, which clears 3:1 on all four light surfaces. The value was solved for, not picked.
@@ -256,11 +256,11 @@ matched against the full text now.
   `LEGEND` into the DOM where a screen reader reads it.
 - Nine icon-only buttons on the graph had a `title` and no accessible name. A `title` is not one.
 - The campaign graph's search box removed its focus ring with nothing in its place.
-- Light-mode modal scrim was 34%, under the 40–60% band and weaker than the site's own 42%.
+- Light-mode modal scrim was 34%, under the 40 to 60% band and weaker than the site's own 42%.
 
 ### 4.6 Testing and CI
 
-262 assertions passed on one machine and nothing enforced them on a push. There is a workflow now —
+262 assertions passed on one machine and nothing enforced them on a push. There is a workflow now:
 three browser jobs plus backend and static guards, paths-filtered and concurrency-cancelled.
 
 Three testing problems were worth more than the tests they fixed:
@@ -270,10 +270,10 @@ Three testing problems were worth more than the tests they fixed:
   tested. Since 4.8 neither graph uses Cytoscape, so there is one rendering path and it is the one
   the tests drive.
 - **Contrast was recomputed by hand every time a colour moved.** It is a standing guard now: every
-  ink tier against every surface, both themes, both stylesheets — 42 pairs, with dark mode never
+  ink tier against every surface, both themes, both stylesheets: 42 pairs, with dark mode never
   inferred from light-mode values.
 - **The extractor had eight tests over about five sample lines.** Regexes that survive five lines
-  routinely die on five thousand, and these did — see 4.7.
+  routinely die on five thousand, and these did (see 4.7).
 
 Current totals: **200** backend (pytest + ruff, 34 of them the 2026 security audit's regressions)
 · **56** Node (engine parity, findings model, triage-diff parity, design guards) · **96** workbench
@@ -282,15 +282,15 @@ security (hostile API, poisoned storage, CSP).
 
 ### 4.7 Measuring extraction instead of asserting it
 
-Extraction is the front door: everything downstream — scoring, enrichment, the graph, the ticket —
+Extraction is the front door: everything downstream (scoring, enrichment, the graph, the ticket)
 acts on whatever comes out of it. It was covered by eight hand-written tests over roughly five
 sample lines, which is enough to demonstrate the happy path and not enough to find anything.
 
 A generated corpus replaced that: **3,400 lines across 15 log formats** (Cisco ASA, PAN-OS traffic
 and threat, FortiGate, Suricata EVE, Zeek conn, Windows EVTX-as-JSON, Sysmon, CloudTrail, Squid,
 nginx, mail headers, UFW, defanged reports, IOC lists and mixed pastes), each line carrying the exact
-set of indicators the extractor is contracted to return. Every value is synthetic — RFC 5737
-documentation addresses and RFC 2606 reserved names — so nothing in the corpus can be resolved or
+set of indicators the extractor is contracted to return. Every value is synthetic (RFC 5737
+documentation addresses and RFC 2606 reserved names), so nothing in the corpus can be resolved or
 contacted. The framing is what those products actually emit, and the framing is the part under test.
 
 76% of the lines carry a trap: a value that looks extractable and must not be. Precision measured
@@ -298,26 +298,26 @@ without traps means nothing, so the trap density is asserted alongside the score
 
 Ground truth is the documented contract, not the extractor's own output. A corpus built from the
 implementation's own results would measure nothing. Where the two disagreed, the disagreement was
-reported — and it found five bugs, three of which had shipped:
+reported, and it found five bugs, three of which had shipped:
 
 1. **Carrier-grade NAT was queried as public space.** The README promised CGNAT was dropped; Python's
    `ipaddress` does not flag `100.64.0.0/10`, so it never was. The documentation described behaviour
    the code did not have.
-2. **Usernames were read as domains** — 318 times in 3,400 lines. `j.doe` matched the domain pattern
+2. **Usernames were read as domains:** 318 times in 3,400 lines. `j.doe` matched the domain pattern
    and `doe` was not on the file-extension denylist, so an employee's username was being sent to a
    third-party threat-intel vendor.
 3. **File extensions were read as TLDs.** `x.php`, `index.html`, `core.dmp`, `web.config`. One cause
    sits under 2 and 3: a denylist of things that are *not* TLDs can never be complete. The check now
    tests membership of the published TLD list, refreshable from IANA with
    `python -m app.cli refresh-tlds`.
-4. **The allowlist then swallowed real TLDs** — a bug introduced by the fix for 3 and found by
+4. **The allowlist then swallowed real TLDs:** a bug introduced by the fix for 3 and found by
    probing that fix with real-world hostnames the corpus does not contain. `.zip`, `.mov` and `.sh`
    are live TLDs *and* file extensions, and attackers register them for exactly that reason.
    Position resolves it: a label in a URL host or after an `@` is declared to be a hostname; a bare
    token in a log line is not.
 5. **A 5 MB upload took 14.1 seconds and blocked the event loop.** Found by the benchmark rather than
    the corpus. Masking URLs with one `str.replace` per URL, and re-finding each indicator's offset
-   with `str.find`, each rescanned the whole input once per match — quadratic, inside a synchronous
+   with `str.find`, each rescanned the whole input once per match: quadratic, inside a synchronous
    call in an async handler, so one upload stalled every other request on the worker. Both are
    single-pass now and the same upload takes **1.4 seconds**.
 
@@ -330,7 +330,7 @@ test enforces cannot drift apart.
 Three of these numbers are worth reading sceptically, so they are qualified here rather than quoted
 bare. 100%/100% is a score against a corpus this project generates, not against the world; it means
 the extractor satisfies its own contract on the shapes it was shown, which is exactly as strong as
-the corpus is varied. The corpus scored 100% before the traps for findings 4 and 5 were added — a
+the corpus is varied. The corpus scored 100% before the traps for findings 4 and 5 were added. A
 perfect score is a prompt to go looking for what the corpus is not testing. And the first throughput
 figures were wrong by roughly 7x because `tracemalloc` was running around the timing loop; time and
 memory are measured in separate passes now.
@@ -406,14 +406,14 @@ Nothing below is implemented. Ordered by what would earn its place soonest.
 
 IntelPulse is a tool people stare at for eight hours. The interface is built for that: dense,
 keyboard-first, quiet by default, and loud only where the data is actually alarming. Reference points
-are the tools analysts already keep open — Linear and Raycast for the command surface, Sentinel and
+are the tools analysts already keep open: Linear and Raycast for the command surface, Sentinel and
 Datadog for severity semantics and data density.
 
 ### Colour, computed rather than chosen
 
 Data-visualisation colour is validated by a script, not by eye. The evidence ramp passes a full
 ordinal gate on both surfaces: monotone OKLab lightness, step gaps ≥ 0.06, light end ≥ 2:1 against
-its surface, single hue (≤ 12° spread). Categorical colours hold an OKLab ΔE floor of 0.12 — the
+its surface, single hue (≤ 12° spread). Categorical colours hold an OKLab ΔE floor of 0.12, and the
 campaign graph's four categories sit at a closest pair of 0.129.
 
 One light-first palette spans the site and the console. `--flame` (`#fe5729`) is for fills only; anything
@@ -429,7 +429,7 @@ These are enforced by the 40 static guards, not by intention:
 - No focus outline removed without a visible replacement; `:focus-visible` preferred over `:focus`.
 - Every icon-only control has an accessible name.
 - Every page has exactly one `h1` and heading levels never skip a rank.
-- Colour is never the only channel — severity carries a label, a glyph and a lightness rank.
+- Colour is never the only channel: severity carries a label, a glyph and a lightness rank.
 - Only `transform` and `opacity` are animated; `transition: all` is forbidden.
 - `prefers-reduced-motion`, `forced-colors` and `pointer: coarse` are all handled.
 - The brand wordmark is marked `translate="no"` so auto-translation leaves it alone.
@@ -443,7 +443,7 @@ against another copy of the same guess. Safe-area insets are respected on fixed 
 
 ### Motion
 
-Micro-interactions sit in the 110–280ms range with a single shared easing curve. The theme change is
+Micro-interactions sit in the 110 to 280ms range with a single shared easing curve. The theme change is
 a View Transition wiping from the button itself. Route entrances replay only on an actual route
 change, and every one of them is skipped entirely under `prefers-reduced-motion`.
 
@@ -451,7 +451,7 @@ change, and every one of them is skipped entirely under `prefers-reduced-motion`
 
 - No control that looks pressable and answers nothing. A test sweeps every visible control on both
   routes, clicks it, and fails on any that leaves the page unchanged.
-- No number shown that the data cannot justify — the invented remainder is the cautionary tale.
+- No number shown that the data cannot justify: the invented remainder is the cautionary tale.
 - No emoji used as a structural icon.
 - No question suggested by the assistant that the assistant cannot answer.
 
@@ -459,15 +459,15 @@ change, and every one of them is skipped entirely under `prefers-reduced-motion`
 
 Icons are drawn in a 24-unit viewBox, so the stroke a reader actually sees is
 `stroke-width × rendered-size / 24`. Holding that near 1.2px keeps every icon the same visual weight
-whatever its box — which is why the scale runs the opposite way to the sizes:
+whatever its box, which is why the scale runs the opposite way to the sizes:
 
 | Icon size | Stroke | What the reader sees |
 | --- | --- | --- |
-| ≤ 9px | 3.0 | 1.00–1.13px |
-| 10–12px | 2.4 | 1.00–1.20px |
-| 13–14px | 2.1 | 1.14–1.23px |
-| 15–17px | 1.8 | 1.13–1.28px |
-| ≥ 18px | 1.3 | heavier, and meant to be — these are outline illustrations |
+| ≤ 9px | 3.0 | 1.00 to 1.13px |
+| 10 to 12px | 2.4 | 1.00 to 1.20px |
+| 13 to 14px | 2.1 | 1.14 to 1.23px |
+| 15 to 17px | 1.8 | 1.13 to 1.28px |
+| ≥ 18px | 1.3 | heavier, and meant to be: these are outline illustrations |
 
 This was previously recorded as a known gap on the grounds that it was a perceptual judgement. That
 was half right: 15px icons shipped with five different stroke widths (1.8, 1.9, 2.0, 2.1 and 2.3),
