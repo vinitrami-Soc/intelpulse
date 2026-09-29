@@ -7,6 +7,7 @@ as an offensive step.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from .ioc import defang
 from .scoring import IndicatorVerdict
@@ -66,6 +67,25 @@ _NO_ACTION = [
 ]
 
 
+_CONFIRM = "Confirm the activity in the alert above on the hosts it names, from the sender's evidence, before closing anything."
+_ISOLATE = "Isolate the hosts the alert names from the network and capture volatile memory before any reimage."
+_RESET = ("Reset the passwords of the accounts the alert names, revoke their sessions and tokens, and review "
+          "recent MFA and help-desk changes to them.")
+_HUNT = "Hunt for the alert's ATT&CK techniques across the estate, starting with the hosts its accounts logged on to."
+_BRIDGE = "Raise a major-incident bridge and notify the on-call incident manager."
+# What to do about a pushed alert itself. Its indicators may be unknown to every source (a
+# ransomware binary built for one victim is), and that must not read as "nothing to do".
+_ALERT_ACTIONS = {
+    "medium": [_CONFIRM, _HUNT],
+    "high": [_CONFIRM, _ISOLATE, _RESET, _HUNT],
+    "critical": [_CONFIRM, _ISOLATE, _RESET, _HUNT, _BRIDGE],
+}
+
+
+def alert_actions(alert: dict[str, Any] | None) -> list[str]:
+    return list(_ALERT_ACTIONS.get(str((alert or {}).get("severity")), []))
+
+
 def containment_actions(verdict: IndicatorVerdict) -> list[str]:
     if verdict.verdict in ("informational", "allowlisted", "low"):
         return _NO_ACTION
@@ -76,8 +96,72 @@ def containment_actions(verdict: IndicatorVerdict) -> list[str]:
             "across endpoints and identity logs."
         )
     if verdict.verdict == "critical":
-        actions.append("Raise a major-incident bridge and notify the on-call incident manager.")
+        actions.append(_BRIDGE)
     return actions
+
+
+# Low to high, for the one place a sender's severity meets a verdict: the ticket's priority.
+_LEVELS = ("allowlisted", "informational", "low", "medium", "high", "critical")
+
+
+def ticket_level(case_level: str, alert: dict[str, Any] | None) -> str:
+    """The level a ticket is filed at: the case's verdict, or a pushed alert's
+    severity when that is higher. Threat intelligence judges the indicators;
+    the sender judged the behaviour, and a detection whose indicators no source
+    has seen before is no less urgent for it."""
+    sent = str((alert or {}).get("severity", ""))
+    if sent not in _LEVELS:
+        return case_level
+    rank = {level: i for i, level in enumerate(_LEVELS)}
+    return sent if rank[sent] > rank.get(case_level, -1) else case_level
+
+
+def _when(value: object) -> str:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return md_text(value, 40)
+
+
+def _alert_lines(alert: dict[str, Any]) -> list[str]:
+    """What the sender saw, before what threat intelligence says about it.
+
+    Everything here came from the sender, so every field goes through md_text:
+    one line, escaped, schemes defanged.
+    """
+    lines = [f"## Alert from {md_text(alert.get('source'), 40)}", ""]
+    if alert.get("description"):
+        lines += [md_text(alert["description"], 2000), ""]
+    lines += [
+        "| Field | Value |",
+        "| --- | --- |",
+        f"| Alert ID | {md_text(alert.get('alert_id'), 200)} |",
+        f"| Severity (sender) | **{md_text(alert.get('severity'), 20).upper()}** |",
+    ]
+    entities = alert.get("entities") or []
+    if entities:
+        named = ", ".join(f"{md_text(e.get('kind'), 20)} {md_text(e.get('name'), 200)}" for e in entities[:20])
+        lines.append(f"| Entities | {named} |")
+    techniques = alert.get("attack_techniques") or []
+    if techniques:
+        lines.append(f"| MITRE ATT&CK | {', '.join(md_text(t, 20) for t in techniques[:20])} |")
+    for key, name in (("first_seen", "First seen"), ("last_seen", "Last seen")):
+        if alert.get(key):
+            lines.append(f"| {name} | {_when(alert[key])} UTC |")
+    lines.append("")
+    evidence = alert.get("evidence") or []
+    if evidence:
+        lines += ["| Time (UTC) | What | Detail |", "| --- | --- | --- |"]
+        for item in evidence[:_EVIDENCE_ROWS]:
+            when = _when(item["time"]) if item.get("time") else ""
+            lines.append(f"| {when} | {md_text(item.get('label'), 200)} | {md_text(item.get('text'), 400)} |")
+        lines.append("")
+        if len(evidence) > _EVIDENCE_ROWS:
+            lines += [f"{len(evidence) - _EVIDENCE_ROWS} more evidence item(s) are stored with the case.", ""]
+    return lines
+
+
+_EVIDENCE_ROWS = 50
 
 
 def _score_bar(score: int) -> str:
@@ -92,13 +176,23 @@ def executive_summary(
     score: int,
     *,
     markdown: bool = False,
+    alert: dict[str, Any] | None = None,
 ) -> str:
     actionable = [v for v in verdicts if v.is_actionable]
     families = sorted({f for v in verdicts for f in v.malware_families})
     # Family names are the vendors' words: one clean line each, and escaped
     # when the summary is going into Markdown.
     label = md_text if markdown else clean_label
+    # A pushed alert the sender rated medium or above keeps its priority when threat intelligence
+    # finds nothing actionable, and the summary must not tell the analyst otherwise.
+    raised = bool(alert_actions(alert))
+    if raised:
+        severity = label(alert.get("severity"), 20).upper()
+        source = label(alert.get("source"), 40)
     if not verdicts:
+        if raised:
+            return (f"The alert carried no indicator threat intelligence could look up; its {severity} "
+                    f"severity from {source} sets the priority.")
         return "No indicators were extracted from the supplied input."
     lead = (
         f"{len(verdicts)} indicator(s) were triaged across the configured intelligence sources. "
@@ -111,6 +205,9 @@ def executive_summary(
             f"{_code(worst.indicator.value)} ({worst.verdict.upper()}, {worst.score}/100, "
             f"confidence {worst.confidence:.0%})."
         )
+    elif raised:
+        lead += (f" No indicator reached the actionable threshold on its own; the alert's {severity} "
+                 f"severity from {source} sets the priority.")
     else:
         lead += " No indicator reached the actionable threshold; treat this as informational."
     if families:
@@ -127,7 +224,10 @@ def to_markdown(
     *,
     analyst: str | None = None,
     duration_ms: int = 0,
+    alert: dict[str, Any] | None = None,
 ) -> str:
+    """The ticket. `alert` is what a SIEM pushed, for a case that came in through
+    /api/alerts: it opens the report, and its severity can raise the priority."""
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines: list[str] = [
         f"# SOC Triage Report: {md_text(case_title, 200)}",
@@ -138,13 +238,19 @@ def to_markdown(
         f"| Generated | {now} |",
         f"| Analyst | {md_text(analyst, 120) if analyst else 'IntelPulse (automated)'} |",
         f"| Severity | **{case_level.upper()}** ({case_score}/100) |",
-        f"| Priority | {SEVERITY_SLA.get(case_level, 'P4')} |",
+        f"| Priority | {SEVERITY_SLA.get(ticket_level(case_level, alert), 'P4')} |",
         f"| Indicators | {len(verdicts)} |",
         f"| Enrichment time | {duration_ms} ms |",
         "",
+    ]
+    if alert:
+        # After the table, so a report's first lines read the same for every case.
+        lines[-1:-1] = [f"| Alert | {md_text(alert.get('source'), 40)}, {md_text(alert.get('severity'), 20).upper()} |"]
+        lines += _alert_lines(alert)
+    lines += [
         "## 1. Executive summary",
         "",
-        executive_summary(case_title, verdicts, case_level, case_score, markdown=True),
+        executive_summary(case_title, verdicts, case_level, case_score, markdown=True, alert=alert),
         "",
         "## 2. Indicators observed",
         "",
@@ -185,6 +291,12 @@ def to_markdown(
 
     lines += ["## 4. Recommended containment actions", ""]
     seen: set[str] = set()
+    if alert_actions(alert):
+        lines.append(f"**The alert ({md_text(alert.get('severity'), 20).upper()})**")
+        for action in alert_actions(alert):
+            seen.add(action)
+            lines.append(f"- [ ] {action}")
+        lines.append("")
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
         if v.verdict in ("informational", "allowlisted"):
             continue
@@ -224,16 +336,17 @@ def to_ticket_json(
     case_score: int,
     *,
     analyst: str | None = None,
+    alert: dict[str, Any] | None = None,
 ) -> dict:
-    return {
+    ticket = {
         "case_id": case_id,
         "title": case_title,
         "generated_at": datetime.now(UTC).isoformat(),
         "analyst": analyst or "IntelPulse (automated)",
         "severity": case_level,
-        "priority": SEVERITY_SLA.get(case_level, "P4"),
+        "priority": SEVERITY_SLA.get(ticket_level(case_level, alert), "P4"),
         "score": case_score,
-        "summary": executive_summary(case_title, verdicts, case_level, case_score),
+        "summary": executive_summary(case_title, verdicts, case_level, case_score, alert=alert),
         "indicators": [
             {
                 "value": v.indicator.value,
@@ -260,3 +373,7 @@ def to_ticket_json(
             for v in sorted(verdicts, key=lambda x: x.score, reverse=True)
         ],
     }
+    if alert:
+        ticket["alert"] = alert
+        ticket["alert_containment"] = alert_actions(alert)
+    return ticket

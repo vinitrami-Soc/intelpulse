@@ -7,48 +7,13 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..ioc import Indicator
-from ..models import AuditLog, Case, IndicatorResult
-from ..reporting import to_markdown, to_ticket_json
+from ..models import AuditLog, Case, IndicatorResult, PushedAlert
 from ..schemas import CaseSummary
-from ..scoring import Contribution, IndicatorVerdict
 from ..security import principal
+from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
 
 router = APIRouter(tags=["cases"])
-
-
-def _rehydrate(results: list[IndicatorResult]) -> list[IndicatorVerdict]:
-    """Rebuild verdict objects from stored JSON so reports stay reproducible."""
-    verdicts: list[IndicatorVerdict] = []
-    for row in results:
-        payload = row.payload or {}
-        verdicts.append(
-            IndicatorVerdict(
-                indicator=Indicator(value=row.value, type=row.ioc_type),
-                score=row.score,
-                verdict=row.verdict,
-                confidence=row.confidence,
-                contributions=[
-                    Contribution(
-                        provider=e.get("provider", "?"),
-                        signal=float(e.get("signal", 0)),
-                        weight=float(e.get("weight", 0)),
-                        weighted=float(e.get("weighted", 0)),
-                        authority=0.0,
-                        rationale=e.get("rationale", ""),
-                    )
-                    for e in payload.get("evidence", [])
-                ],
-                modifiers=payload.get("modifiers", []),
-                tags=payload.get("tags", []),
-                malware_families=row.malware_families or [],
-                attack_techniques=payload.get("attack_techniques", []),
-                providers_queried=payload.get("providers_queried", 0),
-                providers_answered=payload.get("providers_answered", 0),
-            )
-        )
-    return verdicts
 
 
 @router.get("/cases", response_model=list[CaseSummary])
@@ -103,6 +68,8 @@ async def get_case(case_id: str, session: AsyncSession = Depends(get_session)) -
         "raw_input": case.raw_input,
         "indicator_count": case.indicator_count,
         "indicators": [row.payload for row in rows],
+        # What a SIEM pushed, when the case came in through /api/alerts; otherwise null.
+        "alert": await alert_for(session, case.id),
     }
 
 
@@ -115,22 +82,9 @@ async def case_report(
     case = await session.get(Case, case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="case not found")
-    rows = (
-        await session.execute(select(IndicatorResult).where(IndicatorResult.case_id == case_id))
-    ).scalars().all()
-    verdicts = _rehydrate(list(rows))
-
     if fmt == "json":
-        return to_ticket_json(case.id, case.title, verdicts, case.verdict, case.max_score, analyst=case.analyst)
-    markdown = to_markdown(
-        case.id,
-        case.title,
-        verdicts,
-        case.verdict,
-        case.max_score,
-        analyst=case.analyst,
-        duration_ms=case.duration_ms,
-    )
+        return await case_json(session, case)
+    markdown, _ = await case_markdown(session, case)
     return PlainTextResponse(markdown, media_type="text/markdown")
 
 
@@ -150,26 +104,7 @@ async def raise_ticket(
     case = await session.get(Case, case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="case not found")
-    rows = (
-        await session.execute(select(IndicatorResult).where(IndicatorResult.case_id == case_id))
-    ).scalars().all()
-    verdicts = _rehydrate(list(rows))
-    body = to_markdown(
-        case.id,
-        case.title,
-        verdicts,
-        case.verdict,
-        case.max_score,
-        analyst=case.analyst,
-        duration_ms=case.duration_ms,
-    )
-    meta = {
-        "case_id": case.id,
-        "title": case.title,
-        "verdict": case.verdict,
-        "score": case.max_score,
-        "indicators": [{"value": r.value} for r in rows],
-    }
+    body, meta = await case_markdown(session, case)
     try:
         ticket = await create_ticket(meta, body, sink)
     except TicketError as exc:
@@ -193,6 +128,9 @@ async def delete_case(case_id: str, request: Request, session: AsyncSession = De
     case = await session.get(Case, case_id)
     if case is None:
         raise HTTPException(status_code=404, detail="case not found")
+    # SQLite does not enforce the foreign keys here, so the pushed alert goes by hand: left
+    # behind, it would make a re-push of the same alert point at a case that is gone.
+    await session.execute(delete(PushedAlert).where(PushedAlert.case_id == case_id))
     await session.execute(delete(Case).where(Case.id == case_id))
     session.add(AuditLog(action="case.deleted", actor=principal(request), target=case_id, detail={}))
 

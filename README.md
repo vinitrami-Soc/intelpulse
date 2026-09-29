@@ -99,7 +99,7 @@ console's **API token** field when you connect; list your dashboard's address in
 
 ```bash
 make install                 # venv + dependencies
-make test                    # 200 tests, no network required
+make test                    # 228 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -197,7 +197,7 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 200 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 228 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 56 node tests: engine parity, console model, design-system guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and
@@ -276,7 +276,7 @@ Wrong verdicts, missed indicators, new sources and fixes are welcome: see
 
 - [ ] VirusTotal and Shodan providers (keys already read from config)
 - [ ] STIX 2.1 / MISP export alongside Markdown and JSON
-- [ ] Webhook ingestion so a SIEM can push alerts directly
+- [x] Webhook ingestion so a SIEM can push alerts directly (`POST /api/alerts`, see [docs/API.md](docs/API.md))
 - [ ] Per-analyst identity (OIDC) and roles for multi-user deployments; today it is one shared token
 - [ ] Redis-backed rate limiting for multi-replica deployments (the interface is already one method)
 

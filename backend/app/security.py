@@ -25,7 +25,8 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 # Endpoints that spend quota or CPU get their own, much smaller budget.
-EXPENSIVE_PREFIXES = ("/api/triage", "/api/intel/feeds")
+# A pushed alert is triaged, so it spends quota like a triage does.
+EXPENSIVE_PREFIXES = ("/api/triage", "/api/intel/feeds", "/api/alerts")
 WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 

@@ -114,6 +114,66 @@ curl -s -X POST 'localhost:8000/api/triage/report?fmt=markdown' \
   -d '{"indicators":["185.220.101.34"],"title":"IR-2026-114"}' > ticket.md
 ```
 
+## `POST /api/alerts`
+
+Webhook ingestion: a SIEM or a detection pipeline pushes an alert, and IntelPulse triages it into a
+case and a ticket. The alert's own account of what happened (the host, the account, the techniques,
+the events behind it) opens the ticket; its indicators go through the same extraction and scoring
+as a paste. [DwellWatch](https://github.com/vinitrami-Soc/dwellwatch) sends its correlated
+ransomware incidents here.
+
+| Field | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `source` | string | required | Who sent it: letters, digits, `.`, `_`, `-` |
+| `alert_id` | string | required | The sender's id. With `source`, it makes a retried push the same alert |
+| `title` | string | required | One line; shown on the case and the ticket |
+| `severity` | string | `"medium"` | `informational`, `low`, `medium`, `high` or `critical`, as the sender judged it |
+| `description` | string | `""` | Why the sender raised it (up to 4,000 characters) |
+| `entities` | object[] | `[]` | `{"kind": "host", "name": "fs01"}`: what the alert is about |
+| `attack_techniques` | string[] | `[]` | ATT&CK ids such as `T1490` |
+| `first_seen`, `last_seen` | datetime | `null` | ISO 8601 |
+| `indicators` | string[] | `[]` | Explicit indicators, defanged or not |
+| `evidence` | object[] | `[]` | `{"time", "label", "text"}` per event, up to 200. Indicators are also extracted from `text` |
+| `ticket` | string | `null` | `jira` or `servicenow`: also file the case there, if this deployment has it configured |
+
+```json
+{
+  "case_id": "8f2c…",
+  "duplicate": false,
+  "alert_severity": "critical",
+  "verdict": "informational",
+  "score": 0,
+  "indicator_count": 2,
+  "ticket_level": "critical",
+  "report": "/api/cases/8f2c…/report",
+  "ticket": null,
+  "ticket_error": null
+}
+```
+
+* A new alert is `201`. The same `source` and `alert_id` again is `200` with `duplicate: true` and
+  the first case: nothing is triaged twice, so a sender's retries cost no vendor quota. Two pushes of
+  one alert at the same moment make one case; the other gets `409` and can retry.
+* An alert with no enrichable indicator is still a case: the detection is what the SOC needs to see.
+* `ticket_level` is the level the ticket is filed at, the higher of the threat-intelligence verdict
+  and the sender's severity. A critical detection whose indicators no source has seen is a P1, and
+  its ticket's summary and containment actions follow the alert (confirm the activity, isolate the
+  hosts, reset the accounts, hunt the techniques) rather than calling it informational. The JSON
+  ticket lists those actions as `alert_containment`.
+* A tracker that is not configured, or that refuses the issue, does not lose the case: the answer is
+  still `201`, with the reason in `ticket_error`.
+* Pushes share the `triage` rate-limit bucket, and need the API token when `API_TOKEN` is set.
+
+```bash
+curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d '{
+  "source": "dwellwatch", "alert_id": "dw-3f9a1c", "severity": "critical",
+  "title": "DwellWatch: CRITICAL incident on host fs01",
+  "entities": [{"kind": "host", "name": "fs01"}], "attack_techniques": ["T1490", "T1486"],
+  "evidence": [{"time": "2026-09-20T14:30:41Z", "label": "stage 5: shadow copies deleted",
+                "text": "vssadmin delete shadows /all /quiet"}]
+}'
+```
+
 ---
 
 ## Cases
@@ -121,7 +181,7 @@ curl -s -X POST 'localhost:8000/api/triage/report?fmt=markdown' \
 | Method | Path | Notes |
 | --- | --- | --- |
 | `GET` | `/api/cases?limit=25&offset=0&verdict=high` | Newest first |
-| `GET` | `/api/cases/{id}` | Full stored result including every provider payload |
+| `GET` | `/api/cases/{id}` | Full stored result including every provider payload, and `alert` for a pushed alert |
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
 | `DELETE` | `/api/cases/{id}` | Removes the case and its indicators |
 | `GET` | `/api/stats` | Counts by verdict and the most frequent malware families |
@@ -159,7 +219,7 @@ address and sized by what the endpoint costs:
 
 | Bucket | Default | Endpoints |
 | --- | --- | --- |
-| `triage` | 30/min | `/api/triage*`, `/api/intel/feeds*`, which spend vendor quota |
+| `triage` | 30/min | `/api/triage*`, `/api/alerts`, `/api/intel/feeds*`, which spend vendor quota |
 | `write` | 60/min | other `POST` / `DELETE`, including `/api/extract` |
 | `read` | 240/min | `GET`, so dashboard health polling is never starved by a triage burst |
 
@@ -181,7 +241,7 @@ DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross
 | `413` | Body over `MAX_REQUEST_BYTES` (1 MiB) or upload over `MAX_UPLOAD_BYTES` (5 MiB) |
 | `429` | Rate limit exceeded; honour `Retry-After` |
 | `404` | Unknown case, list entry, feed or CVE |
-| `409` | List entry already exists |
+| `409` | List entry already exists, or the same alert is being pushed by another request at that moment |
 
 Provider-level failures are **not** request failures: they appear as `status: "error"` on that source
 with the reason, and the remaining sources still produce a scored verdict.

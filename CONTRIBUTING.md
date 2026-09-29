@@ -23,7 +23,7 @@ sources, UI fixes, docs fixes and bug reports are all welcome.
 ```bash
 git clone https://github.com/vinitrami-Soc/intelpulse.git && cd intelpulse
 make install      # backend venv + dependencies
-make test         # 200 backend tests, no network, no API keys, no Redis
+make test         # 228 backend tests, no network, no API keys, no Redis
 make lint         # ruff
 make test-web     # 56 node tests: engine parity, console model, design guards
 ```
