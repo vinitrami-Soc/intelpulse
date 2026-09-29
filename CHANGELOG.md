@@ -12,7 +12,9 @@ JSON report are the public interface.
 - `POST /api/alerts`: webhook ingestion, so a SIEM can push an alert and get back a triaged case. The
   alert's own account (source, severity, entities, ATT&CK techniques, the events behind it) is stored
   beside the case in a new `pushed_alerts` table and opens its ticket, and its severity can raise the
-  ticket's priority. Its indicators are extracted from the evidence like a paste. A retried push
+  ticket's priority. When threat intelligence finds nothing actionable, a medium, high or critical
+  alert's ticket says what to do about the alert (confirm, isolate, reset, hunt) instead of "no
+  action required". Its indicators are extracted from the evidence like a paste. A retried push
   (same `source` and `alert_id`) returns the first case without spending vendor quota, and an
   optional `ticket` field files the case in Jira or ServiceNow. Built for DwellWatch's correlated
   ransomware incidents; `GET /api/cases/{id}` now includes `alert`.

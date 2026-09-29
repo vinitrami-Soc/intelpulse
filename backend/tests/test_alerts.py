@@ -130,6 +130,50 @@ async def test_a_critical_alert_whose_indicators_nobody_knows_is_still_filed_as_
 
 
 @pytest.mark.asyncio
+async def test_the_ticket_never_tells_the_analyst_to_close_a_serious_alert(client):
+    # The indicator is unknown to every source; the detection is still a ransomware incident.
+    body = (await client.post("/api/alerts", json=incident(indicators=[], evidence=[
+        {"label": "stage 3", "text": "SHA256=" + "ab" * 32}]))).json()
+    assert body["verdict"] == "informational"
+    report = (await client.get(body["report"])).text
+    summary = report.split("## 1. Executive summary")[1].split("## 2.")[0]
+    assert "treat this as informational" not in summary
+    assert "the alert's CRITICAL severity from dwellwatch sets the priority" in summary
+    actions = report.split("## 4. Recommended containment actions")[1].split("## 5.")[0]
+    assert actions.lstrip().startswith("**The alert (CRITICAL)**")
+    assert "No containment action required" not in actions
+    for verb in ("Confirm the activity", "Isolate the hosts", "Reset the passwords", "Hunt for", "major-incident"):
+        assert verb in actions
+    ticket = (await client.get(body["report"] + "?fmt=json")).json()
+    assert len(ticket["alert_containment"]) == 5 and "sets the priority" in ticket["summary"]
+
+
+@pytest.mark.asyncio
+async def test_with_no_indicator_at_all_the_summary_says_the_alert_sets_the_priority(client):
+    body = (await client.post("/api/alerts", json=incident(indicators=[], evidence=[]))).json()
+    report = (await client.get(body["report"])).text
+    assert "The alert carried no indicator threat intelligence could look up; its CRITICAL severity" in report
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("severity, actions", [
+    ("critical", ["Confirm the activity", "Isolate the hosts", "Reset the passwords", "Hunt for", "major-incident"]),
+    ("high", ["Confirm the activity", "Isolate the hosts", "Reset the passwords", "Hunt for"]),
+    ("medium", ["Confirm the activity", "Hunt for"]),
+    ("low", []),
+    ("informational", []),
+])
+async def test_what_to_do_about_the_alert_scales_with_its_severity(client, severity, actions):
+    body = (await client.post("/api/alerts", json=incident(severity=severity, indicators=[], evidence=[]))).json()
+    section = (await client.get(body["report"])).text.split("## 4. Recommended containment actions")[1]
+    todo = [line for line in section.split("## 5.")[0].splitlines() if line.startswith("- [ ]")]
+    assert len(todo) == len(actions) and all(action in line for action, line in zip(actions, todo, strict=True))
+    if not actions:
+        # A low alert with nothing known about its indicators is what the verdict says: record it.
+        assert "**The alert" not in section and "No containment action required" in section
+
+
+@pytest.mark.asyncio
 async def test_a_retried_push_returns_the_first_case_without_triaging_again(client):
     first = (await client.post("/api/alerts", json=incident())).json()
     calls = len(StubThreatFox.calls)

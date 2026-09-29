@@ -156,7 +156,10 @@ ransomware incidents here.
   one alert at the same moment make one case; the other gets `409` and can retry.
 * An alert with no enrichable indicator is still a case: the detection is what the SOC needs to see.
 * `ticket_level` is the level the ticket is filed at, the higher of the threat-intelligence verdict
-  and the sender's severity. A critical detection whose indicators no source has seen is a P1.
+  and the sender's severity. A critical detection whose indicators no source has seen is a P1, and
+  its ticket's summary and containment actions follow the alert (confirm the activity, isolate the
+  hosts, reset the accounts, hunt the techniques) rather than calling it informational. The JSON
+  ticket lists those actions as `alert_containment`.
 * A tracker that is not configured, or that refuses the issue, does not lose the case: the answer is
   still `201`, with the reason in `ticket_error`.
 * Pushes share the `triage` rate-limit bucket, and need the API token when `API_TOKEN` is set.

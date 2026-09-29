@@ -67,6 +67,25 @@ _NO_ACTION = [
 ]
 
 
+_CONFIRM = "Confirm the activity in the alert above on the hosts it names, from the sender's evidence, before closing anything."
+_ISOLATE = "Isolate the hosts the alert names from the network and capture volatile memory before any reimage."
+_RESET = ("Reset the passwords of the accounts the alert names, revoke their sessions and tokens, and review "
+          "recent MFA and help-desk changes to them.")
+_HUNT = "Hunt for the alert's ATT&CK techniques across the estate, starting with the hosts its accounts logged on to."
+_BRIDGE = "Raise a major-incident bridge and notify the on-call incident manager."
+# What to do about a pushed alert itself. Its indicators may be unknown to every source (a
+# ransomware binary built for one victim is), and that must not read as "nothing to do".
+_ALERT_ACTIONS = {
+    "medium": [_CONFIRM, _HUNT],
+    "high": [_CONFIRM, _ISOLATE, _RESET, _HUNT],
+    "critical": [_CONFIRM, _ISOLATE, _RESET, _HUNT, _BRIDGE],
+}
+
+
+def alert_actions(alert: dict[str, Any] | None) -> list[str]:
+    return list(_ALERT_ACTIONS.get(str((alert or {}).get("severity")), []))
+
+
 def containment_actions(verdict: IndicatorVerdict) -> list[str]:
     if verdict.verdict in ("informational", "allowlisted", "low"):
         return _NO_ACTION
@@ -77,7 +96,7 @@ def containment_actions(verdict: IndicatorVerdict) -> list[str]:
             "across endpoints and identity logs."
         )
     if verdict.verdict == "critical":
-        actions.append("Raise a major-incident bridge and notify the on-call incident manager.")
+        actions.append(_BRIDGE)
     return actions
 
 
@@ -157,13 +176,23 @@ def executive_summary(
     score: int,
     *,
     markdown: bool = False,
+    alert: dict[str, Any] | None = None,
 ) -> str:
     actionable = [v for v in verdicts if v.is_actionable]
     families = sorted({f for v in verdicts for f in v.malware_families})
     # Family names are the vendors' words: one clean line each, and escaped
     # when the summary is going into Markdown.
     label = md_text if markdown else clean_label
+    # A pushed alert the sender rated medium or above keeps its priority when threat intelligence
+    # finds nothing actionable, and the summary must not tell the analyst otherwise.
+    raised = bool(alert_actions(alert))
+    if raised:
+        severity = label(alert.get("severity"), 20).upper()
+        source = label(alert.get("source"), 40)
     if not verdicts:
+        if raised:
+            return (f"The alert carried no indicator threat intelligence could look up; its {severity} "
+                    f"severity from {source} sets the priority.")
         return "No indicators were extracted from the supplied input."
     lead = (
         f"{len(verdicts)} indicator(s) were triaged across the configured intelligence sources. "
@@ -176,6 +205,9 @@ def executive_summary(
             f"{_code(worst.indicator.value)} ({worst.verdict.upper()}, {worst.score}/100, "
             f"confidence {worst.confidence:.0%})."
         )
+    elif raised:
+        lead += (f" No indicator reached the actionable threshold on its own; the alert's {severity} "
+                 f"severity from {source} sets the priority.")
     else:
         lead += " No indicator reached the actionable threshold; treat this as informational."
     if families:
@@ -218,7 +250,7 @@ def to_markdown(
     lines += [
         "## 1. Executive summary",
         "",
-        executive_summary(case_title, verdicts, case_level, case_score, markdown=True),
+        executive_summary(case_title, verdicts, case_level, case_score, markdown=True, alert=alert),
         "",
         "## 2. Indicators observed",
         "",
@@ -259,6 +291,12 @@ def to_markdown(
 
     lines += ["## 4. Recommended containment actions", ""]
     seen: set[str] = set()
+    if alert_actions(alert):
+        lines.append(f"**The alert ({md_text(alert.get('severity'), 20).upper()})**")
+        for action in alert_actions(alert):
+            seen.add(action)
+            lines.append(f"- [ ] {action}")
+        lines.append("")
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
         if v.verdict in ("informational", "allowlisted"):
             continue
@@ -308,7 +346,7 @@ def to_ticket_json(
         "severity": case_level,
         "priority": SEVERITY_SLA.get(ticket_level(case_level, alert), "P4"),
         "score": case_score,
-        "summary": executive_summary(case_title, verdicts, case_level, case_score),
+        "summary": executive_summary(case_title, verdicts, case_level, case_score, alert=alert),
         "indicators": [
             {
                 "value": v.indicator.value,
@@ -337,4 +375,5 @@ def to_ticket_json(
     }
     if alert:
         ticket["alert"] = alert
+        ticket["alert_containment"] = alert_actions(alert)
     return ticket
