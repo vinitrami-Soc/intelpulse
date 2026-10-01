@@ -4,7 +4,7 @@
 # --- API ---
 fastapi==0.141.1
 starlette==1.6.0           # pinned explicitly: several 2026 advisories below 1.3.1
-uvicorn[standard]==0.53.0
+uvicorn[standard]==0.54.0
 python-multipart==0.0.32   # multipart parser advisories fixed in 0.0.31+
 pydantic==2.13.5
 pydantic-settings==2.15.0
