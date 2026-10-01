@@ -13,7 +13,7 @@ pydantic-settings==2.15.0
 httpx==0.28.1
 
 # --- storage ---
-SQLAlchemy[asyncio]==2.0.54
+SQLAlchemy[asyncio]==2.1.1
 aiosqlite==0.22.1
 asyncpg==0.31.0
 redis==8.1.0
