@@ -9,13 +9,13 @@
 <meta name="theme-color" content="#a9d3f2">
 <!-- A SOC tool renders attacker-controlled text (log lines, vendor responses).
      The CSP is the backstop behind output encoding: no inline script, no eval,
-     scripts only from this origin. frame-ancestors cannot be set from a meta
-     tag, so nginx.conf sends it as a real header. -->
+     scripts and fonts only from this origin. frame-ancestors cannot be set
+     from a meta tag, so the server (and nginx.conf) send it as a header. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src 'self';
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' https://fonts.gstatic.com;
+  style-src 'self' 'unsafe-inline';
+  font-src 'self';
   img-src 'self' data:;
   connect-src 'self' https: http://localhost:* http://127.0.0.1:*;
   form-action 'none';
@@ -25,9 +25,8 @@
 <meta property="og:title" content="IntelPulse · Unified Threat Intelligence &amp; Alert Correlation">
 <meta property="og:description" content="One pass across every source, one auditable verdict, one ready-to-paste SOC ticket.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
 <link rel="stylesheet" href="assets/suite.css">
 </head>
 <body>

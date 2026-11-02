@@ -14,7 +14,7 @@
 - **What it does:** paste an alert and IntelPulse extracts the indicators, queries AbuseIPDB, OTX, GreyNoise, ThreatFox, URLhaus and offline feeds at once, and returns one auditable score per indicator, a relationship graph and a ticket ready for Jira or ServiceNow.
 - **One metric:** 100% precision and 100% recall extracting 9,325 indicators from a 3,400 line, 15 format test corpus that the project generates ([method and caveats](docs/EXTRACTION-BENCHMARK.md)).
 - **Demo** ([live, nothing to install](https://vinitrami-soc.github.io/intelpulse/web/#/console/workbench)): ![A sample EDR alert triaged in the workbench: the verdict, the evidence per source, the scoring math, the relationship graph and the generated ticket](docs/screenshots/demo.gif)
-- **Run it:** `git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse && make keys && docker compose up --build`, then open http://localhost:8080 (no API keys needed; sources without one report `skipped`).
+- **Run it:** `git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse && make keys && docker compose up --build`, then open http://localhost:8000 (no API keys needed; sources without one report `skipped`).
 
 ---
 
@@ -72,7 +72,8 @@
 Redis · Celery + beat · vanilla JS dashboard · Docker Compose.
 
 The dashboard is static HTML, CSS and JavaScript with no framework and no build step, so it serves the
-same from GitHub Pages, nginx or `python -m http.server`. How it is designed, and why, is in
+same from GitHub Pages, nginx or `python -m http.server`, and the IntelPulse server serves it itself,
+on the API's own origin. Its fonts are bundled (SIL OFL), so no page asks a third party for anything. How it is designed, and why, is in
 [docs/DESIGN.md](docs/DESIGN.md).
 
 ---
@@ -86,8 +87,8 @@ git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse
 cp .env.example .env        # optional: paste any free API keys you have
 make keys                   # once: the key that seals alert text and secrets
 docker compose up --build
-# API       → http://localhost:8000/docs
-# Dashboard → http://localhost:8080   (switch to "Live API" → http://localhost:8000)
+# Console   → http://localhost:8000        (the pages and the API on one origin)
+# API docs  → http://localhost:8000/docs
 ```
 
 No API keys? It still runs. Unconfigured providers report themselves as `skipped` in `/api/health`
@@ -103,12 +104,13 @@ the endpoints 1.x had, and is deprecated. Details: [docs/API.md](docs/API.md#sig
 ```bash
 make install                 # venv + dependencies
 make keys                    # once: ENCRYPTION_KEY in .env
-make test                    # 345 tests, no network required
+make test                    # 371 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
 make feeds                   # optional: import the real offline datasets (needs internet)
-python -m http.server 8080 --directory web   # the dashboard
+# make dev also serves the console at http://localhost:8000; the static demo alone:
+python -m http.server 8080 --directory web
 ```
 
 ### Terminal triage
@@ -201,9 +203,9 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 345 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 371 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
-make test-web    # 56 node tests: engine parity, console model, design-system guards
+make test-web    # 59 node tests: engine parity, console model, design and asset guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and
                  # tablets, and a hostile-input security suite
 make lint        # ruff

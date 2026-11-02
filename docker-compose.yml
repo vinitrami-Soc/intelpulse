@@ -1,6 +1,6 @@
 # One command for a reviewer: `docker compose up --build`
-#   API      -> http://localhost:8000/docs
-#   Dashboard-> http://localhost:8080
+#   Console -> http://localhost:8000      (the pages and the API on one origin)
+#   API docs -> http://localhost:8000/docs
 # No API keys? It still runs: live providers report themselves as unconfigured
 # and the offline feeds (Feodo, FireHOL, KEV, GeoLite2) do the work.
 services:
@@ -30,7 +30,7 @@ services:
       - pg-data:/var/lib/postgresql/data
 
   api:
-    build: ./backend
+    build: .
     env_file: [.env]
     environment:
       DATABASE_URL: postgresql+asyncpg://intelpulse:${POSTGRES_PASSWORD:-intelpulse}@db:5432/intelpulse
@@ -43,7 +43,7 @@ services:
       - ./backend/data:/srv/data
 
   worker:
-    build: ./backend
+    build: .
     command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
     env_file: [.env]
     environment:
@@ -56,7 +56,7 @@ services:
       - ./backend/data:/srv/data
 
   beat:
-    build: ./backend
+    build: .
     command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info"]
     env_file: [.env]
     environment:
@@ -64,15 +64,6 @@ services:
       REDIS_URL: redis://redis:6379/0
     depends_on:
       redis: {condition: service_healthy}
-
-  web:
-    image: nginx:1.27-alpine
-    ports: ["8080:80"]
-    volumes:
-      - ./web:/usr/share/nginx/html:ro
-      - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      api: {condition: service_started}
 
 volumes:
   pg-data:

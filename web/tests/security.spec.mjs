@@ -48,8 +48,9 @@ async function openPage(options = {}) {
     const url = r.url();
     /* the CSP probe's image is aimed at evil.example on purpose; CSP must stop it */
     if (/^https:\/\/evil\.example\/pixel\.png/.test(url)) return;
-    /* this site, the mocked API, the documented default API address, fonts */
-    if (!/^(https?:\/\/127\.0\.0\.1|http:\/\/localhost:8000\/api\/|data:|blob:|https:\/\/fonts\.(googleapis|gstatic)\.com)/.test(url)) { seen.outside.push(url); outsideAll.push(url); }
+    /* this site, the mocked API, the documented default API address. Nothing else:
+       the fonts are bundled, so a page that asks Google (or anyone) for one fails here. */
+    if (!/^(https?:\/\/127\.0\.0\.1|http:\/\/localhost:8000\/api\/|data:|blob:)/.test(url)) { seen.outside.push(url); outsideAll.push(url); }
   });
   await page.goto(options.url || WB, { waitUntil: "domcontentloaded" });
   if (!options.noWait) await page.waitForSelector("#wb-input", { timeout: 8000 });

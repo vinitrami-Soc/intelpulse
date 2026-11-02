@@ -44,12 +44,21 @@ JSON report are the public interface.
     the allow and block lists behind a verdict are filtered the same way. Admins change lists and
     delete cases; only the owner refreshes the shared feeds. Refusals carry a stable `error` code
     beside `detail`.
+  - **One origin.** The server serves the console itself (`web/`, at `/`), with the page policy as
+    a real header: everything from this origin, no inline script, `frame-ancestors 'none'`. Only the
+    pages and `assets/` are served, never the browser test suites beside them.
 
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
   `make keys` writes one to `.env` once, and `python -m app.cli new-key` prints one. A backup of the
   database cannot be read without the key it was made with.
+- **One port.** `docker compose up` answers on http://localhost:8000 for the console and the API;
+  the separate nginx container on 8080 is gone (`web/nginx.conf` stays for hosting the static demo
+  yourself). The image is built from the repository root (`Dockerfile`) and carries `web/`.
+- **No Google Fonts.** Outfit and JetBrains Mono are bundled under `web/assets/fonts/` (SIL OFL
+  1.1, Latin and Latin Extended), so neither the server nor the GitHub Pages demo asks a third party
+  for anything when a page opens.
 - **The API needs a caller.** Without a session or a token every route but health, the scoring
   model, sign-in and setup answers `401`; there is no anonymous access any more. The 1.x `API_TOKEN`
   keeps its access to the endpoints 1.x had, in the original organization, and is deprecated (it

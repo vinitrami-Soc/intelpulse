@@ -15,6 +15,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = BACKEND_ROOT / "data"
+# The console's pages: web/ beside backend/ in the repository, /srv/web in the image.
+DEFAULT_WEB_DIR = BACKEND_ROOT.parent / "web"
 
 
 class Settings(BaseSettings):
@@ -44,6 +46,8 @@ class Settings(BaseSettings):
     # localhost; set false only to test on another plain-HTTP address.
     cookie_secure: bool = True
     data_dir: Path = DEFAULT_DATA_DIR
+    # Served at / when the folder exists, so the console and the API share one origin.
+    web_dir: Path | None = DEFAULT_WEB_DIR
     # 32 random bytes in base64, or a file holding them. It seals raw alert
     # text, provider keys and ticket credentials; the server will not start
     # without one (`make keys` prints a fresh key).
