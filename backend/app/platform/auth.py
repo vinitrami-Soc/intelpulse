@@ -55,6 +55,7 @@ class Actor:
     owner: bool = False
     csrf: str = ""       # the session's CSRF token, when via is "session"
     session_id: str = ""
+    must_change_password: bool = False   # an admin set it: only the profile is open until it changes
 
     @property
     def is_admin(self) -> bool:
@@ -155,7 +156,7 @@ async def find_session(db: AsyncSession, cookie: str) -> Actor | None:
     return Actor(
         workspace_id=user.workspace_id, via="session", scope="full", label=user.username,
         user_id=user.id, username=user.username, role=user.role, owner=user.owner,
-        csrf=row.csrf_token, session_id=row.id,
+        csrf=row.csrf_token, session_id=row.id, must_change_password=user.must_change_password,
     )
 
 

@@ -31,7 +31,8 @@
         username: text(user.username, 64),
         displayName: text(user.display_name, 120) || text(user.username, 64),
         role: user.role === "admin" ? "admin" : "analyst",
-        owner: user.owner === true
+        owner: user.owner === true,
+        mustChangePassword: user.must_change_password === true
       } : null,
       workspace: workspace ? { name: text(workspace.name, 120), kind: workspace.kind === "individual" ? "individual" : "organization" } : null,
       csrf: text(body.csrf, 200)
@@ -110,6 +111,13 @@
       const body = await this.request("/api/setup", { method: "POST", body: JSON.stringify(fields) });
       this.session = cleanSession(body || {});
       return this.session;
+    },
+
+    async changePassword(current, next) {
+      await this.request("/api/profile", {
+        method: "PATCH", body: JSON.stringify({ current_password: current, new_password: next })
+      });
+      return this.refresh();
     },
 
     async signOut() {
