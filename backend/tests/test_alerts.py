@@ -18,7 +18,7 @@ from app.config import settings
 from app.db import SessionFactory
 from app.enrichment.base import STATUS_CLEAN, STATUS_OK, Provider, ProviderResult, Signal
 from app.ioc import Indicator
-from app.models import PushedAlert
+from app.models import DEFAULT_WORKSPACE_ID, PushedAlert
 from app.security import limiter
 from app.services import tickets
 
@@ -207,7 +207,7 @@ async def test_deleting_a_case_deletes_its_pushed_alert(client):
 async def test_a_pushed_alert_left_without_its_case_does_not_block_a_new_push(client):
     # However it came about (a database restored from before a case was deleted, say).
     async with SessionFactory() as session:
-        session.add(PushedAlert(case_id="gone", source="dwellwatch", alert_id="dw-3f9a1c", severity="high"))
+        session.add(PushedAlert(workspace_id=DEFAULT_WORKSPACE_ID, case_id="gone", source="dwellwatch", alert_id="dw-3f9a1c", severity="high"))
         await session.commit()
     response = await client.post("/api/alerts", json=incident())
     assert response.status_code == 201 and response.json()["duplicate"] is False

@@ -79,13 +79,14 @@ def bulk_triage_task(text: str, title: str = "Scheduled bulk triage") -> dict:
     """Used for large pastes an analyst does not want to wait on."""
     from .db import session_scope
     from .ioc import extract
+    from .models import DEFAULT_WORKSPACE_ID
     from .services.triage import persist_case, triage
 
     async def _job() -> dict:
         indicators = extract(text, limit=settings.max_iocs_per_request)
-        outcome = await triage(indicators, title=title)
+        outcome = await triage(indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=title)
         async with session_scope() as session:
-            await persist_case(session, outcome, raw_input=text, source="celery")
+            await persist_case(session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=text, source="celery")
         return {"case_id": outcome.case_id, "verdict": outcome.verdict, "score": outcome.score}
 
     return _run(_job())

@@ -23,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..ioc import Indicator, classify, extract, refang
-from ..models import AuditLog, Case, PushedAlert
+from ..models import DEFAULT_WORKSPACE_ID, Case, PushedAlert
+from ..platform import audit
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
 from ..security import principal
@@ -88,7 +89,11 @@ async def receive_alert(
     """Triage a pushed alert into a case (201), or return the case an earlier push made (200)."""
     earlier = (
         await session.execute(
-            select(PushedAlert).where(PushedAlert.source == alert.source, PushedAlert.alert_id == alert.alert_id)
+            select(PushedAlert).where(
+                PushedAlert.workspace_id == DEFAULT_WORKSPACE_ID,
+                PushedAlert.source == alert.source,
+                PushedAlert.alert_id == alert.alert_id,
+            )
         )
     ).scalar_one_or_none()
     if earlier is not None:
@@ -100,30 +105,31 @@ async def receive_alert(
         await session.flush()
 
     stored = alert.model_dump(mode="json", exclude={"ticket"})
-    outcome = await triage(_indicators(alert), title=alert.title)
+    outcome = await triage(_indicators(alert), workspace_id=DEFAULT_WORKSPACE_ID, title=alert.title)
     case = await persist_case(
         session,
         outcome,
+        workspace_id=DEFAULT_WORKSPACE_ID,
         raw_input=_evidence_text(alert),
         source="webhook",
         actor=principal(request),
     )
-    session.add(PushedAlert(case_id=case.id, source=alert.source, alert_id=alert.alert_id,
-                            severity=alert.severity, payload=stored))
-    session.add(
-        AuditLog(
-            action="alert.received",
-            actor=principal(request),
-            target=case.id,
-            detail={"source": alert.source, "alert_id": alert.alert_id, "severity": alert.severity,
-                    "indicator_count": len(outcome.verdicts)},
-        )
-    )
+    session.add(PushedAlert(case_id=case.id, workspace_id=DEFAULT_WORKSPACE_ID, source=alert.source,
+                            alert_id=alert.alert_id, severity=alert.severity, payload=stored))
     try:
         await session.flush()
     except IntegrityError as exc:
         # The same alert arrived twice at once, and the other push stored it first.
         raise HTTPException(status_code=409, detail="this alert is already being received; retry to get its case") from exc
+    await audit.record(
+        session,
+        action="alert.received",
+        actor=principal(request),
+        workspace_id=DEFAULT_WORKSPACE_ID,
+        target=case.id,
+        detail={"source": alert.source, "alert_id": alert.alert_id, "severity": alert.severity,
+                "indicator_count": len(outcome.verdicts)},
+    )
 
     ticket = ticket_error = None
     if alert.ticket:
@@ -135,6 +141,7 @@ async def receive_alert(
             ticket_error = str(exc)
         else:
             ticket = filed.as_dict()
-            session.add(AuditLog(action="ticket.created", actor=principal(request), target=case.id, detail=ticket))
+            await audit.record(session, action="ticket.created", actor=principal(request),
+                               workspace_id=DEFAULT_WORKSPACE_ID, target=case.id, detail=ticket)
     logger.info("alert received", extra={"source": alert.source, "case": case.id, "severity": alert.severity})
     return _answer(case, stored, duplicate=False, ticket=ticket, ticket_error=ticket_error)

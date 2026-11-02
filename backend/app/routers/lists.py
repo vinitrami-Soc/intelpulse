@@ -7,7 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..ioc import classify, refang
-from ..models import AuditLog, ListEntry
+from ..models import DEFAULT_WORKSPACE_ID, ListEntry
+from ..platform import audit
 from ..schemas import ListEntryIn, ListEntryOut
 from ..security import principal
 from ..text import clean_label
@@ -65,7 +66,9 @@ async def add_list_entry(
     existing = (
         await session.execute(
             select(ListEntry).where(
-                ListEntry.value == value, ListEntry.list_type == payload.list_type
+                ListEntry.workspace_id == DEFAULT_WORKSPACE_ID,
+                ListEntry.value == value,
+                ListEntry.list_type == payload.list_type,
             )
         )
     ).scalars().first()
@@ -73,6 +76,7 @@ async def add_list_entry(
         raise HTTPException(status_code=409, detail="entry already exists")
 
     entry = ListEntry(
+        workspace_id=DEFAULT_WORKSPACE_ID,
         value=value,
         ioc_type=ioc_type,
         list_type=payload.list_type,
@@ -80,13 +84,13 @@ async def add_list_entry(
         created_by=claimed,
     )
     session.add(entry)
-    session.add(
-        AuditLog(
-            action=f"list.{payload.list_type}.added",
-            actor=principal(request),
-            target=value,
-            detail={"reason": reason, "claimed_by": claimed},
-        )
+    await audit.record(
+        session,
+        action=f"list.{payload.list_type}.added",
+        actor=principal(request),
+        workspace_id=DEFAULT_WORKSPACE_ID,
+        target=value,
+        detail={"reason": reason, "claimed_by": claimed},
     )
     await session.flush()
     return ListEntryOut(
@@ -111,6 +115,5 @@ async def delete_list_entry(
     if entry is None:
         raise HTTPException(status_code=404, detail="entry not found")
     await session.execute(delete(ListEntry).where(ListEntry.id == entry_id))
-    session.add(
-        AuditLog(action="list.removed", actor=principal(request), target=entry.value, detail={})
-    )
+    await audit.record(session, action="list.removed", actor=principal(request),
+                       workspace_id=DEFAULT_WORKSPACE_ID, target=entry.value)

@@ -13,6 +13,7 @@ from .config import settings
 from .db import init_db
 from .enrichment import PROVIDERS
 from .logging_config import configure_logging
+from .platform.box import server_box
 from .routers import alerts, cases, health, intel, lists, triage
 from .security import (
     BodySizeLimitMiddleware,
@@ -104,6 +105,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
+        # Before anything touches the database: a server that cannot seal
+        # alert text and secrets must not start at all.
+        server_box()
         await init_db()
         await cache.connect()
         configured = [p.name for p in PROVIDERS if p.configured()]

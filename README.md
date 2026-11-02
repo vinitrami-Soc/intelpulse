@@ -14,7 +14,7 @@
 - **What it does:** paste an alert and IntelPulse extracts the indicators, queries AbuseIPDB, OTX, GreyNoise, ThreatFox, URLhaus and offline feeds at once, and returns one auditable score per indicator, a relationship graph and a ticket ready for Jira or ServiceNow.
 - **One metric:** 100% precision and 100% recall extracting 9,325 indicators from a 3,400 line, 15 format test corpus that the project generates ([method and caveats](docs/EXTRACTION-BENCHMARK.md)).
 - **Demo** ([live, nothing to install](https://vinitrami-soc.github.io/intelpulse/web/#/console/workbench)): ![A sample EDR alert triaged in the workbench: the verdict, the evidence per source, the scoring math, the relationship graph and the generated ticket](docs/screenshots/demo.gif)
-- **Run it:** `git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse && docker compose up --build`, then open http://localhost:8080 (no API keys needed; sources without one report `skipped`).
+- **Run it:** `git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse && make keys && docker compose up --build`, then open http://localhost:8080 (no API keys needed; sources without one report `skipped`).
 
 ---
 
@@ -84,6 +84,7 @@ same from GitHub Pages, nginx or `python -m http.server`. How it is designed, an
 ```bash
 git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse
 cp .env.example .env        # optional: paste any free API keys you have
+make keys                   # once: the key that seals alert text and secrets
 docker compose up --build
 # API       → http://localhost:8000/docs
 # Dashboard → http://localhost:8080   (switch to "Live API" → http://localhost:8000)
@@ -99,6 +100,7 @@ console's **API token** field when you connect; list your dashboard's address in
 
 ```bash
 make install                 # venv + dependencies
+make keys                    # once: ENCRYPTION_KEY in .env
 make test                    # 228 tests, no network required
 make dev                     # http://localhost:8000/docs
 

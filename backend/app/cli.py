@@ -4,6 +4,8 @@
     python -m app.cli triage 185.220.101.34 --report
     python -m app.cli seed          # demo rows so the UI is not empty
     python -m app.cli refresh-tlds  # update the hostname allowlist from IANA
+    python -m app.cli audit verify  # exit 1 if any audit record was changed
+    python -m app.cli new-key       # a fresh ENCRYPTION_KEY
 """
 from __future__ import annotations
 
@@ -14,6 +16,9 @@ import sys
 
 from .db import init_db, session_scope
 from .ioc import extract
+from .models import DEFAULT_WORKSPACE_ID
+from .platform import audit
+from .platform.crypto import new_key
 from .reporting import to_markdown
 from .services import feeds
 from .services.triage import persist_case, triage
@@ -48,10 +53,10 @@ async def _triage(args: argparse.Namespace) -> None:
     if not indicators:
         print("no indicators found", file=sys.stderr)
         raise SystemExit(2)
-    outcome = await triage(indicators, title=args.title)
+    outcome = await triage(indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=args.title)
     if args.persist:
         async with session_scope() as session:
-            await persist_case(session, outcome, raw_input=text, source="cli")
+            await persist_case(session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=text, source="cli")
     if args.report:
         print(
             to_markdown(
@@ -102,6 +107,22 @@ async def _refresh_tlds(_: argparse.Namespace) -> None:
           + (f" (e.g. {', '.join(sorted(added)[:6])})" if added else ""))
 
 
+async def _audit(_args: argparse.Namespace) -> None:
+    await init_db()
+    async with session_scope() as session:
+        problems = await audit.verify(session)
+    if problems:
+        for problem in problems:
+            print(problem, file=sys.stderr)
+        raise SystemExit(1)
+    print("the audit log is intact")
+
+
+async def _new_key(_args: argparse.Namespace) -> None:
+    # Printed, never written anywhere: where it is kept is the operator's choice.
+    print(new_key())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="intelpulse")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -130,6 +151,15 @@ def main() -> None:
         "refresh-tlds", help="update the hostname allowlist from the IANA list"
     )
     tlds_parser.set_defaults(func=_refresh_tlds)
+
+    audit_parser = sub.add_parser("audit", help="check that the audit log has not been changed")
+    audit_parser.add_argument("action", choices=["verify"])
+    audit_parser.set_defaults(func=_audit)
+
+    key_parser = sub.add_parser(
+        "new-key", help="print a fresh ENCRYPTION_KEY (32 random bytes, base64)"
+    )
+    key_parser.set_defaults(func=_new_key)
 
     args = parser.parse_args()
     asyncio.run(args.func(args))

@@ -7,7 +7,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import AuditLog, Case, IndicatorResult, PushedAlert
+from ..models import DEFAULT_WORKSPACE_ID, AuditLog, Case, IndicatorResult, PushedAlert
+from ..platform import audit
 from ..schemas import CaseSummary
 from ..security import principal
 from ..services.reports import alert_for, case_json, case_markdown
@@ -111,13 +112,13 @@ async def raise_ticket(
         # 409 when the sink is simply not configured, 502 when it refused us.
         raise HTTPException(status_code=exc.status or 502, detail=str(exc)) from exc
 
-    session.add(
-        AuditLog(
-            action="ticket.created",
-            actor=principal(request),
-            target=case.id,
-            detail={"sink": ticket.sink, "key": ticket.key, "url": ticket.url},
-        )
+    await audit.record(
+        session,
+        action="ticket.created",
+        actor=principal(request),
+        workspace_id=DEFAULT_WORKSPACE_ID,
+        target=case.id,
+        detail={"sink": ticket.sink, "key": ticket.key, "url": ticket.url},
     )
     await session.commit()
     return ticket.as_dict()
@@ -132,7 +133,8 @@ async def delete_case(case_id: str, request: Request, session: AsyncSession = De
     # behind, it would make a re-push of the same alert point at a case that is gone.
     await session.execute(delete(PushedAlert).where(PushedAlert.case_id == case_id))
     await session.execute(delete(Case).where(Case.id == case_id))
-    session.add(AuditLog(action="case.deleted", actor=principal(request), target=case_id, detail={}))
+    await audit.record(session, action="case.deleted", actor=principal(request),
+                       workspace_id=DEFAULT_WORKSPACE_ID, target=case_id)
 
 
 @router.get("/stats")
@@ -161,11 +163,11 @@ async def stats(session: AsyncSession = Depends(get_session)) -> dict:
 
 
 @router.get("/audit")
-async def audit(
+async def audit_log(
     limit: int = Query(50, ge=1, le=500), session: AsyncSession = Depends(get_session)
 ) -> list[dict]:
     rows = (
-        await session.execute(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit))
+        await session.execute(select(AuditLog).order_by(AuditLog.id.desc()).limit(limit))
     ).scalars().all()
     return [
         {
