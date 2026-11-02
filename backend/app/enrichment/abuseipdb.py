@@ -25,12 +25,11 @@ CATEGORY_NAMES = {
 
 class AbuseIPDBProvider(Provider):
     name = "abuseipdb"
+    key_slot = "abuseipdb"
     label = "AbuseIPDB"
     supported_types = {"ip"}
     reference_url = "https://www.abuseipdb.com/check/{ioc}"
 
-    def configured(self) -> bool:
-        return bool(settings.abuseipdb_api_key)
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:
         response = await client.get(
@@ -40,7 +39,7 @@ class AbuseIPDBProvider(Provider):
                 "maxAgeInDays": settings.abuseipdb_max_age_days,
                 "verbose": "",
             },
-            headers={"Key": settings.abuseipdb_api_key or "", "Accept": "application/json"},
+            headers={"Key": self.key() or "", "Accept": "application/json"},
         )
         if response.status_code == 429:
             return self._result(indicator, status=STATUS_RATE_LIMITED, error="daily quota exhausted")

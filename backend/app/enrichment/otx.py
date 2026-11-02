@@ -12,7 +12,6 @@ from urllib.parse import quote
 
 import httpx
 
-from ..config import settings
 from ..ioc import Indicator, hash_algorithm, url_host
 from .base import STATUS_CLEAN, STATUS_OK, Provider, ProviderResult, Relation, Signal
 
@@ -23,11 +22,10 @@ _SECTION = {"ip": "IPv4", "domain": "domain", "url": "url", "hash": "file"}
 
 class OTXProvider(Provider):
     name = "otx"
+    key_slot = "otx"
     label = "AlienVault OTX"
     supported_types = {"ip", "domain", "url", "hash"}
 
-    def configured(self) -> bool:
-        return bool(settings.otx_api_key)
 
     def reference_for(self, indicator: Indicator) -> str | None:
         section = _SECTION.get(indicator.type, "IPv4")
@@ -40,7 +38,7 @@ class OTXProvider(Provider):
         section = _SECTION.get(indicator.type, "IPv4")
         if indicator.type == "ip" and ":" in indicator.value:
             section = "IPv6"
-        headers = {"X-OTX-API-KEY": settings.otx_api_key or ""}
+        headers = {"X-OTX-API-KEY": self.key() or ""}
 
         # The indicator is attacker-influenced text going into a URL path, so it
         # is percent-encoded with no safe characters: a value containing "/",

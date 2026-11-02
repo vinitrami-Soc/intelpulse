@@ -311,8 +311,15 @@
       try {
         /* the same boundary as a triage result: lists are lists of objects */
         const h = await api("/api/health");
+        /* Which sources answer is the workspace's (its own keys and switches);
+           /api/health only knows the server. */
+        let own = null;
+        try { own = await api("/api/workspace"); } catch (error) { if (error.name === "AbortError") throw error; }
+        const sources = own && typeof own === "object" && Array.isArray(own.providers)
+          ? objects(own.providers).map((p) => ({ name: p.name, configured: p.ready === true }))
+          : objects(h && h.providers);
         wb.health = Object.assign({}, h && typeof h === "object" ? h : {}, {
-          providers: objects(h && h.providers),
+          providers: sources,
           cache: h && h.cache && typeof h.cache === "object" ? h.cache : {}
         });
         if (!alive) return;

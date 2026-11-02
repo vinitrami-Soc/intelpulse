@@ -10,7 +10,6 @@ from urllib.parse import quote
 
 import httpx
 
-from ..config import settings
 from ..ioc import Indicator
 from .base import (
     STATUS_CLEAN,
@@ -26,17 +25,16 @@ API_URL = "https://api.greynoise.io/v3/community/{ip}"
 
 class GreyNoiseProvider(Provider):
     name = "greynoise"
+    key_slot = "greynoise"
     label = "GreyNoise"
     supported_types = {"ip"}
     reference_url = "https://viz.greynoise.io/ip/{ioc}"
 
-    def configured(self) -> bool:
-        return bool(settings.greynoise_api_key)
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:
         response = await client.get(
             API_URL.format(ip=quote(indicator.value, safe='')),
-            headers={"key": settings.greynoise_api_key or "", "Accept": "application/json"},
+            headers={"key": self.key() or "", "Accept": "application/json"},
         )
         if response.status_code == 429:
             return self._result(indicator, status=STATUS_RATE_LIMITED, error="daily quota exhausted")

@@ -18,15 +18,18 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
-from ..enrichment import PROVIDERS, list_entry_for
+from ..db import session_scope
+from ..enrichment import PROVIDERS, credentials, list_entry_for
 from ..enrichment.base import ProviderResult
 from ..graph import build_graph
 from ..ioc import Indicator
 from ..models import Case, IndicatorResult
 from ..net import build_client
 from ..platform import audit
+from ..platform.box import server_box
 from ..reporting import containment_actions, executive_summary
 from ..scoring import IndicatorVerdict, case_verdict, score_indicator
+from . import workspace_settings
 
 logger = logging.getLogger(__name__)
 
@@ -154,21 +157,26 @@ async def triage(
     targets = list(unique.values())
 
     limits = httpx.Limits(max_connections=MAX_CONCURRENT_LOOKUPS, max_keepalive_connections=8)
+    # Only this workspace's keys, switches and cache (spec 7, 6.6): every lookup
+    # below runs inside them, including the tasks gather() starts.
+    async with session_scope() as db:
+        creds = await workspace_settings.credentials_for(db, server_box(), workspace_id)
     # build_client applies the egress policy — HTTPS only, host allowlist, no
     # resolution into private or metadata space — to every hop, redirects
     # included.
-    async with build_client(
-        timeout=settings.provider_timeout_seconds,
-        limits=limits,
-        headers={"User-Agent": USER_AGENT},
-    ) as client:
-        enrichments = await asyncio.gather(
-            *[
-                enrich_indicator(client, indicator, semaphore=semaphore, use_cache=use_cache)
-                for indicator in targets
-            ],
-            return_exceptions=False,
-        )
+    with credentials.using(creds):
+        async with build_client(
+            timeout=settings.provider_timeout_seconds,
+            limits=limits,
+            headers={"User-Agent": USER_AGENT},
+        ) as client:
+            enrichments = await asyncio.gather(
+                *[
+                    enrich_indicator(client, indicator, semaphore=semaphore, use_cache=use_cache)
+                    for indicator in targets
+                ],
+                return_exceptions=False,
+            )
 
     for indicator, results in zip(targets, enrichments, strict=True):
         results_by_ioc[indicator.value] = results

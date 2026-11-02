@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import httpx
 
-from ..config import settings
 from ..ioc import Indicator
 from .base import STATUS_CLEAN, STATUS_OK, Provider, ProviderResult, Relation, Signal
 
@@ -12,6 +11,7 @@ API_URL = "https://threatfox-api.abuse.ch/api/v1/"
 
 class ThreatFoxProvider(Provider):
     name = "threatfox"
+    key_slot = "abusech"
     label = "ThreatFox (abuse.ch)"
     supported_types = {"ip", "domain", "url", "hash"}
     requires_key = False
@@ -19,8 +19,8 @@ class ThreatFoxProvider(Provider):
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json"}
-        if settings.abusech_auth_key:
-            headers["Auth-Key"] = settings.abusech_auth_key
+        if self.key():
+            headers["Auth-Key"] = self.key()
         return headers
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:

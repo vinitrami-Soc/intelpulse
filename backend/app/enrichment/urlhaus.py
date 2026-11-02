@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import httpx
 
-from ..config import settings
 from ..ioc import Indicator, url_host
 from .base import STATUS_CLEAN, STATUS_OK, Provider, ProviderResult, Relation, Signal
 
@@ -14,6 +13,7 @@ PAYLOAD_ENDPOINT = "https://urlhaus-api.abuse.ch/v1/payload/"
 
 class URLhausProvider(Provider):
     name = "urlhaus"
+    key_slot = "abusech"
     label = "URLhaus (abuse.ch)"
     supported_types = {"ip", "domain", "url", "hash"}
     requires_key = False
@@ -21,8 +21,8 @@ class URLhausProvider(Provider):
 
     def _headers(self) -> dict[str, str]:
         headers = {"Accept": "application/json"}
-        if settings.abusech_auth_key:
-            headers["Auth-Key"] = settings.abusech_auth_key
+        if self.key():
+            headers["Auth-Key"] = self.key()
         return headers
 
     async def fetch(self, client: httpx.AsyncClient, indicator: Indicator) -> ProviderResult:

@@ -273,6 +273,26 @@ curl -s -X PATCH localhost:8000/api/cases/$CASE -b cookies.txt -H "X-CSRF-Token:
 * A ticket raised for the case (`POST /api/cases/{id}/ticket`, or `ticket` on a pushed alert) is
   kept with it and listed under `tickets`.
 
+## Workspace settings
+
+Each workspace keeps its own provider keys and switches (spec 7), sealed, and its lookups spend
+only those keys: a cached answer belongs to the workspace that asked for it, so another workspace
+neither reads it nor learns from `cached` that someone looked. Scoring weights stay server
+configuration, so a verdict means the same thing everywhere.
+
+| Method | Path | Who | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/workspace` | any caller | Name, kind, retention days, and each provider's `enabled` and `ready` (no key material) |
+| `GET` | `/api/settings` | admin, signed in | Providers with their switch and key slot; each key slot's `set` and `hint` (the last four characters) |
+| `PATCH` | `/api/settings` | admin, signed in | `{"providers": {"threatfox": {"enabled": false}}, "keys": {"otx": "..."}, "retention_days": 30}`; a key of `""` removes it |
+| `POST` | `/api/settings/providers/{name}/test` | admin, signed in | One lookup of a harmless indicator (8.8.8.8, example.com, the EICAR hash) with the workspace's key, past the cache |
+
+Key slots: `abuseipdb`, `otx`, `greynoise`, and `abusech` (ThreatFox and URLhaus share it). A key is
+1 to 512 printable characters without spaces, since it travels in a request header. Every change is
+audited as `settings.updated` saying a key was set, replaced or removed, never its value. Keys left in
+the environment by 1.x move into the first organization once, on the first start of v2
+(`settings.keys_imported`).
+
 ## Allow / block lists
 
 ```bash
