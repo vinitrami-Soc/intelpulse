@@ -18,12 +18,25 @@ from ..models import DEFAULT_WORKSPACE_ID, SERVER
 from ..platform import audit
 from ..platform import settings_store as store
 from ..platform.crypto import Box
+from .tickets import JIRA, SERVICENOW, SinkConfig
 
 logger = logging.getLogger(__name__)
 
 RETENTION_DEFAULT = 30
 RETENTION_RANGE = (1, 365)
 IMPORTED = "provider_keys_imported"
+SINKS_IMPORTED = "ticket_sinks_imported"
+
+# Each tracker's plain fields and its one secret, as SinkConfig names them.
+SINK_FIELDS: dict[str, tuple[tuple[str, ...], str]] = {
+    JIRA: (("base_url", "email", "project_key", "issue_type"), "api_token"),
+    SERVICENOW: (("base_url", "user", "table"), "password"),
+}
+SINK_DEFAULTS = {"jira_issue_type": "Task", "servicenow_table": "incident"}
+
+
+def sink_setting(sink: str, field: str) -> str:
+    return f"sink:{sink}:{field}"
 
 
 def key_setting(slot: str) -> str:
@@ -47,6 +60,28 @@ async def credentials_for(db: AsyncSession, box: Box, workspace_id: int) -> Cred
     return Credentials(workspace_id=workspace_id, keys=keys, disabled=frozenset(disabled))
 
 
+async def sink_config(db: AsyncSession, box: Box, workspace_id: int) -> SinkConfig:
+    values: dict[str, str | None] = {}
+    for sink, (fields, secret) in SINK_FIELDS.items():
+        for field in fields:
+            value = await store.get_value(db, workspace_id, sink_setting(sink, field))
+            values[f"{sink}_{field}"] = value if isinstance(value, str) and value else None
+        values[f"{sink}_{secret}"] = await store.get_secret(db, box, workspace_id, sink_setting(sink, secret))
+    for name, default in SINK_DEFAULTS.items():
+        values[name] = values.get(name) or default
+    return SinkConfig(**values)
+
+
+async def describe_sinks(db: AsyncSession, box: Box, workspace_id: int) -> dict[str, Any]:
+    config = await sink_config(db, box, workspace_id)
+    out: dict[str, Any] = {"configured": config.sinks()}
+    for sink, (fields, secret) in SINK_FIELDS.items():
+        secret_value = getattr(config, f"{sink}_{secret}")
+        out[sink] = {field: getattr(config, f"{sink}_{field}") for field in fields}
+        out[sink][secret] = {"set": bool(secret_value), "hint": store.mask(secret_value)}
+    return out
+
+
 async def retention_days(db: AsyncSession, workspace_id: int) -> int:
     value = await store.get_value(db, workspace_id, "retention_days", RETENTION_DEFAULT)
     return value if isinstance(value, int) and RETENTION_RANGE[0] <= value <= RETENTION_RANGE[1] else RETENTION_DEFAULT
@@ -68,7 +103,8 @@ async def describe(db: AsyncSession, box: Box, workspace_id: int) -> dict[str, A
             "requires_key": provider.requires_key, "key_slot": slot, "enabled": enabled,
             "key_set": bool(slot and keys[slot]["set"]),
         })
-    return {"providers": providers, "keys": keys, "retention_days": await retention_days(db, workspace_id)}
+    return {"providers": providers, "keys": keys, "retention_days": await retention_days(db, workspace_id),
+            "tickets": await describe_sinks(db, box, workspace_id)}
 
 
 async def import_env_keys(db: AsyncSession, box: Box) -> list[str]:
@@ -91,3 +127,31 @@ async def import_env_keys(db: AsyncSession, box: Box) -> list[str]:
         logger.warning("provider keys moved from the environment into the default organization's settings: %s; "
                        "remove them from the environment", ", ".join(moved))
     return moved
+
+
+async def import_env_sinks(db: AsyncSession, box: Box) -> list[str]:
+    """Once, on the first start of this version: the Jira and ServiceNow settings 1.x read
+    from the environment move into the default organization, the secrets sealed."""
+    if await store.get_value(db, SERVER, SINKS_IMPORTED) is not None:
+        return []
+    env = SinkConfig.from_env()
+    moved = []
+    for sink, (fields, secret) in SINK_FIELDS.items():
+        if sink not in env.sinks():
+            continue
+        if await store.get_value(db, DEFAULT_WORKSPACE_ID, sink_setting(sink, "base_url")):
+            continue  # the organization set its own already
+        for field in fields:
+            value = getattr(env, f"{sink}_{field}")
+            if value:
+                await store.set_value(db, DEFAULT_WORKSPACE_ID, sink_setting(sink, field), value)
+        await store.set_secret(db, box, DEFAULT_WORKSPACE_ID, sink_setting(sink, secret), getattr(env, f"{sink}_{secret}"))
+        moved.append(sink)
+    await store.set_value(db, SERVER, SINKS_IMPORTED, True)
+    if moved:
+        await audit.record(db, action="settings.sinks_imported", actor="server", workspace_id=DEFAULT_WORKSPACE_ID,
+                           detail={"sinks": moved})
+        logger.warning("ticket settings moved from the environment into the default organization: %s",
+                       ", ".join(moved))
+    return moved
+

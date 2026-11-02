@@ -171,7 +171,7 @@ async def test_the_1x_list_still_answers_as_it_did(client):
 async def test_a_ticket_is_kept_with_its_case(team, monkeypatch):
     owner, _bea, _ = team
 
-    async def filed(meta, body, sink):
+    async def filed(meta, body, sink, config):
         return Ticket(sink=sink, key="SOC-42", url="https://jira.example.com/browse/SOC-42")
 
     monkeypatch.setattr("app.routers.cases.create_ticket", filed)

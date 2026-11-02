@@ -124,6 +124,7 @@ def create_app() -> FastAPI:
         # once: 1.x's provider keys move from the environment into the default organization
         async with session_scope() as db:
             await workspace_settings.import_env_keys(db, server_box())
+            await workspace_settings.import_env_sinks(db, server_box())
         await cache.connect()
         configured = [p.name for p in PROVIDERS if p.configured()]
         logger.info(

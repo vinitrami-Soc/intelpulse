@@ -112,6 +112,14 @@ The controls exist anyway, because "no sink today" is not a control:
 * **Redirects are re-validated.** httpx re-enters the transport for every hop,
   so a vendor redirecting to an internal host is blocked at the hop that tries
   it.
+* **Ticket sinks are per client and per workspace.** A workspace admin sets the
+  workspace's Jira or ServiceNow address (https only, no credentials, query or
+  fragment in it; a ServiceNow table is a plain name). The client that delivers
+  that workspace's ticket may reach exactly that host, and no other client may.
+  `TICKET_ALLOW_PRIVATE_HOST` opens private address space only to hosts the
+  operator named (`JIRA_BASE_URL`, `SERVICENOW_BASE_URL`,
+  `TICKET_PRIVATE_HOSTS`), never to one an admin typed into Settings, so the
+  setting cannot be used to reach an internal service.
 * **Path encoding.** Indicators interpolated into vendor URLs are
   percent-encoded with no safe characters, so a value containing `/`, `?`, `#`
   or `@` cannot reshape the request.
@@ -122,7 +130,9 @@ DNS check is defence in depth.
 
 *Tests:* reserved-range detection, non-allowlisted host, plain HTTP, metadata
 IP, an allowlisted host resolving to `127.0.0.1`, and a test that fails if any
-feed URL in the codebase is missing from the allowlist.
+feed URL in the codebase is missing from the allowlist; a workspace's sink host
+reachable only by its own ticket client, and a typed internal host refused
+even with the private opt-in on.
 
 ### Indicator filtering (`app/ioc.py`)
 
@@ -303,7 +313,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 419 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 440 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

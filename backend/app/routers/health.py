@@ -15,7 +15,6 @@ from ..db import engine, session_scope
 from ..enrichment import PROVIDERS
 from ..models import Case, CveRecord, FeedEntry
 from ..schemas import HealthResponse, ProviderStatus
-from ..services.tickets import configured_sinks
 
 router = APIRouter(tags=["system"])
 
@@ -56,7 +55,8 @@ async def health() -> HealthResponse:
             "geoip_city": settings.geoip_city_db.exists(),
             "geoip_asn": settings.geoip_asn_db.exists(),
         },
-        ticket_sinks=configured_sinks(),
+        # per workspace since v2: GET /api/workspace says which trackers a workspace has
+        ticket_sinks=[],
     )
 
 

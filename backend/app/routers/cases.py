@@ -13,10 +13,12 @@ from ..db import get_session
 from ..models import SERVER, AuditLog, Case, IndicatorResult, PushedAlert, User
 from ..platform import audit, scope
 from ..platform.auth import Actor
+from ..platform.box import server_box
 from ..platform.deps import require_actor, require_admin, require_member
 from ..platform.errors import ApiError
 from ..schemas import CaseSummary, CaseUpdate
 from ..services import workflow
+from ..services import workspace_settings as ws_settings
 from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
 
@@ -184,8 +186,9 @@ async def raise_ticket(
     """
     case = await scope.case_in(session, actor, case_id)
     body, meta = await case_markdown(session, case)
+    config = await ws_settings.sink_config(session, server_box(), actor.workspace_id)
     try:
-        ticket = await create_ticket(meta, body, sink)
+        ticket = await create_ticket(meta, body, sink, config)
     except TicketError as exc:
         # 409 when the sink is simply not configured, 502 when it refused us.
         raise HTTPException(status_code=exc.status or 502, detail=str(exc)) from exc

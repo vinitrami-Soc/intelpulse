@@ -320,7 +320,11 @@
           : objects(h && h.providers);
         wb.health = Object.assign({}, h && typeof h === "object" ? h : {}, {
           providers: sources,
-          cache: h && h.cache && typeof h.cache === "object" ? h.cache : {}
+          cache: h && h.cache && typeof h.cache === "object" ? h.cache : {},
+          /* the workspace's own trackers decide the "raise in" button */
+          ticket_sinks: own && Array.isArray(own.ticket_sinks)
+            ? own.ticket_sinks.filter((sink) => sink === "jira" || sink === "servicenow")
+            : []
         });
         if (!alive) return;
         renderProviders();

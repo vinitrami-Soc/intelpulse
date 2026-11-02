@@ -135,7 +135,8 @@ const injected = (page) => page.evaluate(() => {
         providers: [{ name: MARK("h.p.name"), configured: MARK("h.p.conf") }, { name: 7, configured: true }, null, "junk"] });
     }
     if (url.includes("/api/workspace")) {
-      return json({ name: MARK("ws.name"), providers: [{ name: MARK("ws.p.name"), ready: MARK("ws.p.ready") }, null, 7, "junk"] });
+      return json({ name: MARK("ws.name"), providers: [{ name: MARK("ws.p.name"), ready: MARK("ws.p.ready") }, null, 7, "junk"],
+        ticket_sinks: ["jira", MARK("ws.sink"), null] });
     }
     if (url.includes("/api/extract")) {
       return json({ indicators: [{ type: MARK("x.type"), value: MARK("x.value") }, null, 7], count: MARK("x.count") });

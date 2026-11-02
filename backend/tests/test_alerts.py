@@ -15,12 +15,13 @@ import pytest
 from sqlalchemy import select
 
 from app.config import settings
-from app.db import SessionFactory
+from app.db import SessionFactory, session_scope
 from app.enrichment.base import STATUS_CLEAN, STATUS_OK, Provider, ProviderResult, Signal
 from app.ioc import Indicator
 from app.models import DEFAULT_WORKSPACE_ID, PushedAlert
+from app.platform.box import server_box
 from app.security import limiter
-from app.services import tickets
+from app.services import tickets, workspace_settings
 
 KNOWN_BAD = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
@@ -267,9 +268,12 @@ async def test_a_pushed_alert_can_be_filed_in_the_tracker(client, monkeypatch):
     monkeypatch.setattr(settings, "jira_email", "soc@example.com")
     monkeypatch.setattr(settings, "jira_api_token", "not-a-real-token")
     monkeypatch.setattr(settings, "jira_project_key", "SOC")
+    # 1.x's environment settings move into the first organization, as on the first start of v2
+    async with session_scope() as db:
+        assert await workspace_settings.import_env_sinks(db, server_box()) == ["jira"]
     sent: dict = {}
 
-    async def fake_post(url, *, headers, json):
+    async def fake_post(url, *, headers, json, host=""):
         sent.update(url=url, json=json)
         return httpx.Response(201, json={"key": "SOC-42"}, request=httpx.Request("POST", url))
 
