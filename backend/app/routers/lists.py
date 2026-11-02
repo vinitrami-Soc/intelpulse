@@ -1,16 +1,17 @@
 """Analyst allow/block lists — local knowledge beats vendor opinion."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
 from ..ioc import classify, refang
-from ..models import DEFAULT_WORKSPACE_ID, ListEntry
-from ..platform import audit
+from ..models import ListEntry
+from ..platform import audit, scope
+from ..platform.auth import Actor
+from ..platform.deps import require_actor, require_admin
 from ..schemas import ListEntryIn, ListEntryOut
-from ..security import principal
 from ..text import clean_label
 
 router = APIRouter(tags=["lists"])
@@ -19,9 +20,10 @@ router = APIRouter(tags=["lists"])
 @router.get("/lists", response_model=list[ListEntryOut])
 async def get_lists(
     list_type: str | None = Query(None, pattern="^(allow|block)$"),
+    actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[ListEntryOut]:
-    query = select(ListEntry).order_by(ListEntry.created_at.desc())
+    query = select(ListEntry).where(ListEntry.workspace_id == actor.workspace_id).order_by(ListEntry.created_at.desc())
     if list_type:
         query = query.where(ListEntry.list_type == list_type)
     rows = (await session.execute(query)).scalars().all()
@@ -41,7 +43,7 @@ async def get_lists(
 
 @router.post("/lists", response_model=ListEntryOut, status_code=201)
 async def add_list_entry(
-    payload: ListEntryIn, request: Request, session: AsyncSession = Depends(get_session)
+    payload: ListEntryIn, actor: Actor = Depends(require_admin), session: AsyncSession = Depends(get_session)
 ) -> ListEntryOut:
     """An override that changes verdicts, so what goes in is checked.
 
@@ -66,7 +68,7 @@ async def add_list_entry(
     existing = (
         await session.execute(
             select(ListEntry).where(
-                ListEntry.workspace_id == DEFAULT_WORKSPACE_ID,
+                ListEntry.workspace_id == actor.workspace_id,
                 ListEntry.value == value,
                 ListEntry.list_type == payload.list_type,
             )
@@ -76,7 +78,7 @@ async def add_list_entry(
         raise HTTPException(status_code=409, detail="entry already exists")
 
     entry = ListEntry(
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        workspace_id=actor.workspace_id,
         value=value,
         ioc_type=ioc_type,
         list_type=payload.list_type,
@@ -87,8 +89,8 @@ async def add_list_entry(
     await audit.record(
         session,
         action=f"list.{payload.list_type}.added",
-        actor=principal(request),
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        actor=actor.label,
+        workspace_id=actor.workspace_id,
         target=value,
         detail={"reason": reason, "claimed_by": claimed},
     )
@@ -106,14 +108,12 @@ async def add_list_entry(
 
 @router.delete("/lists/{entry_id}", status_code=204)
 async def delete_list_entry(
-    request: Request,
     # bounded: a 26-digit id overflowed SQLite's integer and came back as a 500
     entry_id: int = Path(..., ge=1, le=2**63 - 1),
+    actor: Actor = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    entry = await session.get(ListEntry, entry_id)
-    if entry is None:
-        raise HTTPException(status_code=404, detail="entry not found")
+    entry = await scope.list_entry_in(session, actor, entry_id)
     await session.execute(delete(ListEntry).where(ListEntry.id == entry_id))
-    await audit.record(session, action="list.removed", actor=principal(request),
-                       workspace_id=DEFAULT_WORKSPACE_ID, target=entry.value)
+    await audit.record(session, action="list.removed", actor=actor.label,
+                       workspace_id=actor.workspace_id, target=entry.value)

@@ -8,6 +8,8 @@ from ..cache import cache
 from ..db import get_session
 from ..models import SERVER, CveRecord
 from ..platform import audit
+from ..platform.auth import Actor
+from ..platform.deps import require_owner
 from ..services import feeds
 
 router = APIRouter(tags=["intel"])
@@ -28,14 +30,17 @@ async def feed_status() -> list[dict]:
 
 @router.post("/intel/feeds/{feed}/refresh", status_code=202)
 async def refresh_feed(
-    feed: str, background: BackgroundTasks, session: AsyncSession = Depends(get_session)
+    feed: str,
+    background: BackgroundTasks,
+    actor: Actor = Depends(require_owner),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Kick a refresh without Celery — useful for a single-container demo."""
     if feed not in _REFRESHERS:
         raise HTTPException(status_code=404, detail=f"unknown feed: {feed}")
     background.add_task(_run_refresh, feed)
     # The feeds are the server's, shared by every workspace.
-    await audit.record(session, action="feed.refresh.requested", actor="anonymous",
+    await audit.record(session, action="feed.refresh.requested", actor=actor.label,
                        workspace_id=SERVER, target=feed)
     return {"status": "scheduled", "feed": feed}
 
@@ -65,7 +70,8 @@ async def cve_lookup(cve_id: str, session: AsyncSession = Depends(get_session)) 
 
 
 @router.post("/intel/cache/invalidate")
-async def invalidate_cache(ioc: str = Query(..., min_length=3)) -> dict:
+async def invalidate_cache(ioc: str = Query(..., min_length=3), _owner: Actor = Depends(require_owner)) -> dict:
+    """The provider cache is the server's: only the owner empties it."""
     removed = await cache.invalidate(ioc)
     return {"invalidated": removed, "ioc": ioc}
 

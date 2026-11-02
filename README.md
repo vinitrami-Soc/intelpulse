@@ -93,15 +93,17 @@ docker compose up --build
 No API keys? It still runs. Unconfigured providers report themselves as `skipped` in `/api/health`
 and in every result: the platform never presents a missing source as a clean verdict.
 
-Anywhere but your own machine, set `API_TOKEN` in `.env` and paste the same value into the
-console's **API token** field when you connect; list your dashboard's address in `CORS_ORIGINS`.
+The API needs a caller. On a new server, `docker compose exec api python -m app.cli setup-code`
+prints a one-time code that creates the owner's account with `POST /api/setup`; the owner then
+makes API tokens for scripts (`read`, `triage` or `ingest`). The 1.x `API_TOKEN` still works for
+the endpoints 1.x had, and is deprecated. Details: [docs/API.md](docs/API.md#signing-in-and-api-tokens).
 
 ### Local, without Docker
 
 ```bash
 make install                 # venv + dependencies
 make keys                    # once: ENCRYPTION_KEY in .env
-make test                    # 228 tests, no network required
+make test                    # 345 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -199,7 +201,7 @@ real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
 ## Testing
 
 ```bash
-make test        # 228 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 345 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 56 node tests: engine parity, console model, design-system guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and
@@ -235,10 +237,11 @@ Full detail, with the test that proves each control, is in [docs/SECURITY.md](do
 The September 2026 OWASP audit (thirteen findings, each reproduced, fixed and pinned by a test) is in
 [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md). The short version:
 
-* **Only your dashboard can write.** A `POST` or `DELETE` a browser sends from any origin not in
-  `CORS_ORIGINS` is refused, because CORS alone never stopped a form post. Set `API_TOKEN` and every
-  data route needs `Authorization: Bearer`; the audit log records who the server verified, not the
-  name a client typed.
+* **Every caller is someone.** Every data route needs a signed-in session (with its CSRF token on
+  writes) or a scoped API token; each workspace sees only its own cases, lists and tokens, and
+  another workspace's id is a plain `404`. A `POST` or `DELETE` a browser sends from any origin not
+  in `CORS_ORIGINS` is refused, because CORS alone never stopped a form post. The audit log is a
+  hash chain that records who the server verified, not the name a client typed.
 * **Egress is allowlisted.** Twelve known intelligence hosts, HTTPS only, resolution checked against
   private/loopback/link-local/metadata space on every hop including redirects. IntelPulse never
   fetches an analyst-supplied URL, and the allowlist means it never could.

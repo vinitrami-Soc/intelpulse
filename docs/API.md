@@ -5,6 +5,59 @@ Everything is JSON unless stated; `POST /api/triage/report?fmt=markdown` returns
 
 ---
 
+## Signing in and API tokens
+
+Every `/api` route needs a caller except `GET /api/health`, `GET /api/scoring/model`,
+`GET`/`POST /api/session` and `POST /api/setup`. Everything a caller reads or writes belongs to
+their workspace; another workspace's case, list entry or token answers `404`, exactly like one that
+does not exist.
+
+**A new server.** Run `python -m app.cli setup-code` (in Docker: `docker compose exec api python -m
+app.cli setup-code`). It prints a one-time code; the code is never written to the log. Then:
+
+```bash
+curl -s -c cookies.txt -X POST localhost:8000/api/setup -H 'Content-Type: application/json' -d '{
+  "code": "ABCD-EFGH-JKLM-NPQR", "username": "ada", "password": "at least twelve characters",
+  "organization": "Acme SOC"}'
+```
+
+That makes the owner's account, the admin of the organization that holds every case from before
+the upgrade (renamed to `organization`), and signs them in. The code then stops working.
+
+**A person** signs in with `POST /api/session` (`{"username", "password"}`) and gets the cookie
+`ip_session` (`HttpOnly`, `SameSite=Strict`, `Secure`) and a `csrf` token. Every `POST`, `PATCH` or
+`DELETE` made with the cookie must send that token as `X-CSRF-Token`. A session ends after 8 hours
+idle or 7 days, or with `DELETE /api/session`. After three failed sign-ins for a name or an address,
+each attempt waits twice as long as the last. `GET /api/session` says who is signed in and whether
+the server still needs setup.
+
+**A script** sends `Authorization: Bearer ipt_...`. An admin, signed in, makes tokens:
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/tokens` | `{"name", "scope", "expires_in_days"}`; the answer carries `token`, shown this once |
+| `GET` | `/api/tokens` | Name, scope, who made it, created, expires, last used, revoked |
+| `DELETE` | `/api/tokens/{id}` | Revokes it at once |
+
+| Scope | Reaches |
+| --- | --- |
+| `read` | Every `GET` of the workspace |
+| `triage` | `read`, plus `POST /api/extract`, `/api/triage`, `/api/triage/upload` and `/api/triage/report` |
+| `ingest` | `POST /api/alerts` only (DwellWatch, a SIEM) |
+
+**The 1.x `API_TOKEN`** still works for the endpoints 1.x had, in the original organization, with
+the access it had; it reaches none of the new account and token endpoints. It is deprecated, logged
+on each use, and goes in v3: move scripts to API tokens.
+
+**Roles.** An analyst triages, reads every case of the workspace and creates tickets; changing the
+allow and block lists and deleting a case take an admin. Only the owner refreshes the shared feeds
+or empties the provider cache. An analyst's `GET /api/audit` lists their own actions, an admin's the
+whole workspace, the owner's also the server's own records (setup, feed refreshes, failed sign-ins).
+
+The `curl` examples below leave out `-H 'Authorization: Bearer ipt_...'` to stay short.
+
+---
+
 ## `GET /api/health`
 
 Which sources are live, what storage is in use, how big the offline datasets are. The dashboard calls
@@ -162,7 +215,7 @@ ransomware incidents here.
   ticket lists those actions as `alert_containment`.
 * A tracker that is not configured, or that refuses the issue, does not lose the case: the answer is
   still `201`, with the reason in `ticket_error`.
-* Pushes share the `triage` rate-limit bucket, and need the API token when `API_TOKEN` is set.
+* Pushes share the `triage` rate-limit bucket. A sender needs an `ingest` token (or the 1.x `API_TOKEN`).
 
 ```bash
 curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d '{
@@ -183,9 +236,9 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 | `GET` | `/api/cases?limit=25&offset=0&verdict=high` | Newest first |
 | `GET` | `/api/cases/{id}` | Full stored result including every provider payload, and `alert` for a pushed alert |
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
-| `DELETE` | `/api/cases/{id}` | Removes the case and its indicators |
+| `DELETE` | `/api/cases/{id}` | Removes the case and its indicators (admin) |
 | `GET` | `/api/stats` | Counts by verdict and the most frequent malware families |
-| `GET` | `/api/audit?limit=50` | Append-only trail of triages and list changes |
+| `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens |
 
 ## Allow / block lists
 
@@ -235,13 +288,18 @@ DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross
 
 ## Errors
 
+Refusals from sign-in, roles and tokens carry a stable code beside the sentence:
+`{"error": "csrf", "detail": "missing or wrong X-CSRF-Token: ..."}`. `detail` is a sentence as before.
+
 | Status | Meaning |
 | --- | --- |
+| `401` | No session and no valid token (`error`: `unauthorized`), or a wrong password |
+| `403` | Beyond the caller's role or token scope (`forbidden`), a missing CSRF token (`csrf`), a wrong setup code, or a browser write from an origin not in `CORS_ORIGINS` |
 | `422` | No usable indicators, neither `text` nor `indicators` supplied, or input over `MAX_INPUT_CHARS` |
 | `413` | Body over `MAX_REQUEST_BYTES` (1 MiB) or upload over `MAX_UPLOAD_BYTES` (5 MiB) |
 | `429` | Rate limit exceeded; honour `Retry-After` |
-| `404` | Unknown case, list entry, feed or CVE |
-| `409` | List entry already exists, or the same alert is being pushed by another request at that moment |
+| `404` | Unknown case, list entry, token, feed or CVE, or one that belongs to another workspace |
+| `409` | List entry already exists, the same alert is being pushed by another request at that moment, or the server is set up already |
 
 Provider-level failures are **not** request failures: they appear as `status: "error"` on that source
 with the reason, and the remaining sources still produce a scored verdict.

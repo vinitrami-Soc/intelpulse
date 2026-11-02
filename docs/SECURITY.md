@@ -18,19 +18,20 @@ produced the second file of each pair, with its evidence, is in
 
 | Adversary | What they can reach | What they want |
 | --- | --- | --- |
-| Anyone who can send a request to the API | every endpoint when no token is set | burn API quota, exhaust CPU/memory, use the backend as a scanner |
+| Anyone who can send a request to the API | sign-in, setup, and every endpoint with a guessed or stolen credential | burn API quota, exhaust CPU/memory, use the backend as a scanner, guess a password |
+| A member of one workspace | the API, with their own session or token | read or change another workspace's cases, lists or tokens; act beyond their role |
 | Any web page the analyst has open | the API on `localhost`, through the analyst's browser | allowlist an attacker's address, delete cases, plant a case |
 | Whoever wrote the log an analyst pastes | the ingest field, therefore the DOM and the ticket | script execution in the analyst's browser, a forged section in a ticket, a regex that never finishes |
 | A compromised or hijacked intelligence vendor | provider responses rendered in the UI and written into tickets | inject markup or a hostile URL into the analyst's session |
 | Someone who can write to the browser's storage | `localStorage` for this origin | crash the console, plant markup in case history, pollute prototypes |
 | Someone who can read logs or an image layer | stdout, the built container | API keys, database credentials |
 
-Authentication is one shared bearer token, off by default for the local demo
-and on the moment `API_TOKEN` is set. It proves a caller holds the token; it
-does not tell analysts apart, so there are no roles and no per-user audit trail.
-The design target is a single-analyst or single-team deployment behind the
-SOC's own network boundary. Multi-tenant use needs real identity (OIDC) and
-roles first.
+Since v2 every caller is someone: a person signed in (argon2id passwords,
+sessions stored only as SHA-256, CSRF tokens on writes), or a script with an API
+token scoped to `read`, `triage` or `ingest`. Every person and token belongs to
+one workspace, as admin or analyst, and sees only that workspace's data. The
+1.x shared `API_TOKEN` still reaches the endpoints 1.x had, in the original
+organization, and is deprecated. Single sign-on (OIDC) is not built yet.
 
 ---
 
@@ -44,24 +45,47 @@ roles first.
   their local API with a plain form post (the audit proved it). A `POST` or
   `DELETE` whose `Origin` is not in `CORS_ORIGINS` (or not the API's own), whose
   `Origin` is `null`, or which Fetch Metadata marks `cross-site`, is refused
-  with `403`. Scripts and `curl` send neither header and are unaffected; the
-  token governs them. `CORS_ORIGINS=*` turns the guard off, and the app logs a
+  with `403`. Scripts and `curl` send neither header and are unaffected; their
+  API token governs them. `CORS_ORIGINS=*` turns the guard off, and the app logs a
   warning at startup when it sees that.
-* **Bearer token.** With `API_TOKEN` set, every `/api/` route except
-  `/api/health` and `/api/scoring/model` needs `Authorization: Bearer <token>`,
-  compared with `hmac.compare_digest`. A missing or wrong token is `401` with
-  `WWW-Authenticate`. The rate limiter sits in front, so guessing is throttled.
-  Production without a token logs a warning at startup.
-* **Audit actors are verified, not claimed.** The audit log used to record
-  whatever name the request body typed into `analyst` or `created_by`. The
-  actor is now what the server verified (`api-token` or `anonymous`); the typed
-  name is kept as a label in the entry's detail as `claimed_by`.
+* **Who is asking (`app/platform/deps.py`).** Every `/api/` route except
+  health, the scoring model, `/api/session` and the one-time `/api/setup` needs
+  a session cookie or `Authorization: Bearer`. Routers get the check as a
+  router-wide dependency, so a route that forgets to name its caller is a `401`,
+  not a leak; a test calls every route without credentials. A wrong bearer token
+  is refused even when a session cookie comes with it. Missing or wrong is `401`
+  with `WWW-Authenticate`.
+* **Sessions (`app/platform/auth.py`).** argon2id passwords of at least 12
+  characters; a random cookie (`HttpOnly`, `Secure`, `SameSite=Strict`) of
+  which only the SHA-256 is stored; 8 hours idle, 7 days at most; a disabled
+  account is signed out on its next request. Every write made with a session
+  must carry its CSRF token in `X-CSRF-Token`. After three failed sign-ins for a
+  name or an address, each attempt waits twice as long as the last, up to five
+  minutes; the setup code is throttled the same way.
+* **API tokens.** `ipt_` and 32 random bytes, shown once, stored as SHA-256,
+  scoped (`read`, `triage`, `ingest`), revocable, with an optional end date and
+  the time of last use. Only a signed-in admin manages them.
+* **Workspaces (`app/platform/scope.py`).** Every read of a row by its id goes
+  through a scoped getter: another workspace's case, entry or token is `404`
+  with the same body as one that does not exist. Lists, stats, history diffs
+  and the allow and block lists that shape a verdict are filtered the same way.
+* **The setup code.** The first account is the owner's, made with a one-time
+  code that `python -m app.cli setup-code` prints on the operator's terminal.
+  It is sealed in the database and never logged: whoever enters it first owns
+  the server.
+* **Audit actors are verified, not claimed.** The actor is what the server
+  verified (a username, `token:<name>`, or `api-token` for the 1.x token); a
+  name typed into `analyst` or `created_by` is kept as `claimed_by`.
 
 *Tests:* a foreign page's list write and multipart upload, a look-alike
 origin, `null` and a `cross-site` write without an `Origin` are all refused;
 the dashboard and a script without an `Origin` can still write; token missing,
 wrong, wrong scheme and correct; health and preflight stay open; a `401` is
 readable by the dashboard; a typed `created_by` does not become the actor.
+`tests/test_platform_sessions.py`, `test_platform_tokens.py` and
+`test_platform_isolation.py` cover setup, sign-in, CSRF, the throttle, expiry,
+roles, every token scope, revocation, and every id-taking route from another
+workspace.
 
 ### Outbound egress policy (`app/net.py`)
 
@@ -261,7 +285,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 228 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 345 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

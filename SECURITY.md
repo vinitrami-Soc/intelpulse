@@ -48,9 +48,9 @@ severity warrants, and you will be credited unless you prefer not to be.
   please open a [verdict report](https://github.com/vinitrami-Soc/intelpulse/issues/new/choose).
 - Vulnerabilities in AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox, URLhaus or
   the offline feeds themselves.
-- Deployments exposed to the internet without `API_TOKEN` set. Authentication
-  is one shared token and the design target is a deployment behind the SOC's
-  own network boundary; see [docs/SECURITY.md](docs/SECURITY.md).
+- Anything that needs the 1.x `API_TOKEN` to be leaked or guessed first. It is
+  deprecated and shared by design; accounts and scoped API tokens replace it.
+  See [docs/SECURITY.md](docs/SECURITY.md).
 - Issues that need an attacker who can already change the configuration,
   environment variables or the host.
 

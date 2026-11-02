@@ -32,12 +32,28 @@ JSON report are the public interface.
   - **A tamper-evident audit log.** Each audit record carries the hash of the one before it;
     `python -m app.cli audit verify` reports any record that was changed, removed or reordered, or a
     log cut short. Records from before the upgrade are chained by the migration.
+  - **Accounts and sign-in.** `python -m app.cli setup-code` prints a one-time code (never logged)
+    that creates the owner's account with `POST /api/setup`. People sign in with
+    `POST /api/session`: argon2id passwords, an `HttpOnly`, `SameSite=Strict` session cookie of
+    which only the SHA-256 is stored, a CSRF token on every write, and a growing delay after three
+    failed attempts.
+  - **API tokens** (`/api/tokens`, admin): `ipt_` tokens shown once, scoped to `read`, `triage` or
+    `ingest` (`POST /api/alerts` only), revocable, with an optional end date.
+  - **Workspace isolation.** Every route acts in the caller's workspace: another workspace's case,
+    list entry or token is a `404` like one that does not exist, and lists, stats, history diffs and
+    the allow and block lists behind a verdict are filtered the same way. Admins change lists and
+    delete cases; only the owner refreshes the shared feeds. Refusals carry a stable `error` code
+    beside `detail`.
 
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
   `make keys` writes one to `.env` once, and `python -m app.cli new-key` prints one. A backup of the
   database cannot be read without the key it was made with.
+- **The API needs a caller.** Without a session or a token every route but health, the scoring
+  model, sign-in and setup answers `401`; there is no anonymous access any more. The 1.x `API_TOKEN`
+  keeps its access to the endpoints 1.x had, in the original organization, and is deprecated (it
+  goes in v3); its use is logged.
 
 - The README opens with a five-line block for reviewers: the problem, what
   IntelPulse does, one metric, a demo GIF (`docs/screenshots/demo.gif`) and how
