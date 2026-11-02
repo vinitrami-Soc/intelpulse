@@ -127,11 +127,13 @@ class CveProvider(Provider):
         )
 
 
-async def list_entry_for(value: str) -> ListEntry | None:
-    """Analyst allow/block list lookup — checked before any vendor opinion."""
+async def list_entry_for(value: str, workspace_id: int) -> ListEntry | None:
+    """The workspace's allow/block list entry for a value, checked before any vendor opinion."""
     async with session_scope() as session:
         return (
             await session.execute(
-                select(ListEntry).where(ListEntry.value == value.lower()).limit(1)
+                select(ListEntry)
+                .where(ListEntry.workspace_id == workspace_id, ListEntry.value == value.lower())
+                .limit(1)
             )
         ).scalars().first()

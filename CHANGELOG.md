@@ -18,8 +18,26 @@ JSON report are the public interface.
   (same `source` and `alert_id`) returns the first case without spending vendor quota, and an
   optional `ticket` field files the case in Jira or ServiceNow. Built for DwellWatch's correlated
   ransomware incidents; `GET /api/cases/{id}` now includes `alert`.
+- The groundwork of IntelPulse v2, the multi-user web app
+  ([design](docs/superpowers/specs/2026-11-02-intelpulse-v2-web-design.md)):
+  - **Migrations.** The schema is owned by Alembic (`backend/app/migrations`). A new database is
+    built by the migrations; a 1.x database is recognised, stamped at the baseline and upgraded in
+    place, keeping every row. A test keeps the migrations and the models identical.
+  - **Workspaces.** New `workspaces`, `users`, `sessions`, `api_tokens` and `settings` tables, and a
+    `workspace_id` on every case, pushed alert, indicator result and list entry. Existing rows belong
+    to "Default organization". Allow and block lists, and the duplicate check for pushed alerts, now
+    apply within a workspace.
+  - **Sealed settings.** Per-workspace settings, with secrets kept only sealed (AES-256-GCM, bound to
+    their workspace and key, so a value copied elsewhere does not open).
+  - **A tamper-evident audit log.** Each audit record carries the hash of the one before it;
+    `python -m app.cli audit verify` reports any record that was changed, removed or reordered, or a
+    log cut short. Records from before the upgrade are chained by the migration.
 
 ### Changed
+
+- **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
+  `make keys` writes one to `.env` once, and `python -m app.cli new-key` prints one. A backup of the
+  database cannot be read without the key it was made with.
 
 - The README opens with a five-line block for reviewers: the problem, what
   IntelPulse does, one metric, a demo GIF (`docs/screenshots/demo.gif`) and how

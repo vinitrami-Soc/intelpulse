@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..cache import cache
 from ..db import get_session
-from ..models import AuditLog, CveRecord
+from ..models import SERVER, CveRecord
+from ..platform import audit
 from ..services import feeds
 
 router = APIRouter(tags=["intel"])
@@ -33,7 +34,9 @@ async def refresh_feed(
     if feed not in _REFRESHERS:
         raise HTTPException(status_code=404, detail=f"unknown feed: {feed}")
     background.add_task(_run_refresh, feed)
-    session.add(AuditLog(action="feed.refresh.requested", target=feed, detail={}))
+    # The feeds are the server's, shared by every workspace.
+    await audit.record(session, action="feed.refresh.requested", actor="anonymous",
+                       workspace_id=SERVER, target=feed)
     return {"status": "scheduled", "feed": feed}
 
 

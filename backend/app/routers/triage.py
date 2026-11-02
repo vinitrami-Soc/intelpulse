@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..ioc import Indicator, classify, extract, summarise
+from ..models import DEFAULT_WORKSPACE_ID
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import ExtractRequest, ExtractResponse, TriageRequest, TriageResponse
 from ..security import principal
@@ -80,6 +81,7 @@ async def triage_endpoint(
 
     outcome = await triage(
         indicators,
+        workspace_id=DEFAULT_WORKSPACE_ID,
         title=payload.title,
         use_cache=payload.use_cache,
         analyst=payload.analyst,
@@ -93,6 +95,7 @@ async def triage_endpoint(
         await persist_case(
             session,
             outcome,
+            workspace_id=DEFAULT_WORKSPACE_ID,
             raw_input=payload.text,
             source="paste" if payload.text else "api",
             analyst=payload.analyst,
@@ -130,9 +133,9 @@ async def triage_upload(
     # The filename is chosen by whoever made the file: it is a label like any other.
     label = clean_label(f"{clean_label(title, 120)}: {clean_label(file.filename or 'upload', 80)}", 200)
     claimed = clean_label(analyst, 120) or None if analyst else None
-    outcome = await triage(indicators, title=label, analyst=claimed)
+    outcome = await triage(indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=label, analyst=claimed)
     await persist_case(
-        session, outcome, raw_input=text[:20_000], source="upload", analyst=claimed, actor=principal(request)
+        session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=text[:20_000], source="upload", analyst=claimed, actor=principal(request)
     )
     return TriageResponse(**outcome.as_dict(), persisted=True)
 
@@ -149,11 +152,12 @@ async def triage_report(
     if not indicators:
         raise HTTPException(status_code=422, detail="no usable indicators found in the input")
     outcome = await triage(
-        indicators, title=payload.title, use_cache=payload.use_cache, analyst=payload.analyst
+        indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=payload.title, use_cache=payload.use_cache,
+        analyst=payload.analyst,
     )
     if payload.persist:
         await persist_case(
-            session, outcome, raw_input=payload.text, source="report", analyst=payload.analyst,
+            session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=payload.text, source="report", analyst=payload.analyst,
             actor=principal(request),
         )
 

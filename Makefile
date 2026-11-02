@@ -1,10 +1,19 @@
-.PHONY: help install dev test test-web test-ui lint audit artifact feeds seed up down logs clean
+.PHONY: help install keys dev test test-web test-ui lint audit artifact feeds seed up down logs clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
 install: ## create a venv and install backend dependencies
 	cd backend && python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+
+keys: ## put a fresh ENCRYPTION_KEY in .env, once (an existing key is never replaced)
+	@touch .env
+	@if grep -q '^ENCRYPTION_KEY=..*' .env; then echo "ENCRYPTION_KEY is already set in .env"; \
+	else key="$$(python3 -c 'import base64,os;print(base64.b64encode(os.urandom(32)).decode())')"; \
+	  if grep -q '^ENCRYPTION_KEY=$$' .env; then \
+	    sed "s|^ENCRYPTION_KEY=$$|ENCRYPTION_KEY=$$key|" .env > .env.tmp && cat .env.tmp > .env && rm .env.tmp; \
+	  else printf 'ENCRYPTION_KEY=%s\n' "$$key" >> .env; fi; \
+	  echo "ENCRYPTION_KEY written to .env. Keep a copy somewhere safe: backups cannot be read without it."; fi
 
 dev: ## run the API with reload on :8000
 	cd backend && .venv/bin/uvicorn app.main:app --reload --port 8000

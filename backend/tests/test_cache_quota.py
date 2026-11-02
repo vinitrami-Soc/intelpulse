@@ -16,6 +16,7 @@ import pytest
 
 from app.enrichment.base import STATUS_OK, Provider, Signal
 from app.ioc import Indicator
+from app.models import DEFAULT_WORKSPACE_ID
 from app.services import triage as triage_service
 
 
@@ -66,13 +67,17 @@ async def counting(monkeypatch, clean_db):
     await cache_module.cache.invalidate("")
 
 
+def run_triage(indicators, **options):
+    return triage_service.triage(indicators, workspace_id=DEFAULT_WORKSPACE_ID, **options)
+
+
 def ip(value: str) -> Indicator:
     return Indicator(value=value, type="ip", original=value)
 
 
 @pytest.mark.anyio
 async def test_one_indicator_costs_one_call(counting):
-    await triage_service.triage([ip("203.0.113.10")])
+    await run_triage([ip("203.0.113.10")])
     assert counting.calls == ["203.0.113.10"]
 
 
@@ -84,7 +89,7 @@ async def test_the_same_indicator_twice_in_one_paste_costs_one_call(counting):
     entry when the second checks — a classic stampede that spends two quota
     units on one address.
     """
-    await triage_service.triage([ip("203.0.113.10"), ip("203.0.113.10")])
+    await run_triage([ip("203.0.113.10"), ip("203.0.113.10")])
     assert counting.calls == ["203.0.113.10"], (
         f"{len(counting.calls)} upstream calls for one address: {counting.calls}"
     )
@@ -94,7 +99,7 @@ async def test_the_same_indicator_twice_in_one_paste_costs_one_call(counting):
 async def test_a_slow_provider_still_costs_one_call(counting):
     """Widen the stampede window: a slow vendor must not multiply the cost."""
     counting.delay = 0.05
-    await triage_service.triage([ip("198.51.100.7")] * 4)
+    await run_triage([ip("198.51.100.7")] * 4)
     assert counting.calls == ["198.51.100.7"], (
         f"{len(counting.calls)} upstream calls for one address under a slow provider"
     )
@@ -103,8 +108,8 @@ async def test_a_slow_provider_still_costs_one_call(counting):
 @pytest.mark.anyio
 async def test_re_triaging_within_the_ttl_is_free(counting):
     """The second shift-hour lookup of the same address reads the cache."""
-    await triage_service.triage([ip("203.0.113.55")])
-    await triage_service.triage([ip("203.0.113.55")])
+    await run_triage([ip("203.0.113.55")])
+    await run_triage([ip("203.0.113.55")])
     assert counting.calls == ["203.0.113.55"], (
         f"a repeat triage cost another call: {counting.calls}"
     )
@@ -113,14 +118,14 @@ async def test_re_triaging_within_the_ttl_is_free(counting):
 @pytest.mark.anyio
 async def test_distinct_indicators_each_cost_one_call(counting):
     """De-duplication must not collapse different addresses into one."""
-    await triage_service.triage([ip("203.0.113.1"), ip("203.0.113.2"), ip("203.0.113.1")])
+    await run_triage([ip("203.0.113.1"), ip("203.0.113.2"), ip("203.0.113.1")])
     assert sorted(counting.calls) == ["203.0.113.1", "203.0.113.2"]
 
 
 @pytest.mark.anyio
 async def test_every_distinct_indicator_still_gets_a_verdict(counting):
     """Whatever de-duplication does upstream, the caller gets what it asked for."""
-    outcome = await triage_service.triage([ip("203.0.113.1"), ip("203.0.113.2"), ip("203.0.113.1")])
+    outcome = await run_triage([ip("203.0.113.1"), ip("203.0.113.2"), ip("203.0.113.1")])
     assert sorted(outcome.results_by_ioc) == ["203.0.113.1", "203.0.113.2"]
     assert sorted(v.indicator.value for v in outcome.verdicts) == ["203.0.113.1", "203.0.113.2"]
 
@@ -128,7 +133,7 @@ async def test_every_distinct_indicator_still_gets_a_verdict(counting):
 @pytest.mark.anyio
 async def test_use_cache_false_still_costs_one_call_per_pair(counting):
     """A forced refresh re-reads the vendor once, not once per duplicate."""
-    await triage_service.triage([ip("203.0.113.9")] * 3, use_cache=False)
+    await run_triage([ip("203.0.113.9")] * 3, use_cache=False)
     assert counting.calls == ["203.0.113.9"], (
         f"a forced refresh fanned out to {len(counting.calls)} calls"
     )
@@ -144,8 +149,8 @@ async def test_two_analysts_triaging_the_same_address_at_once_cost_one_call(coun
     """
     counting.delay = 0.05
     await asyncio.gather(
-        triage_service.triage([ip("203.0.113.77")]),
-        triage_service.triage([ip("203.0.113.77")]),
+        run_triage([ip("203.0.113.77")]),
+        run_triage([ip("203.0.113.77")]),
     )
     assert counting.calls == ["203.0.113.77"], (
         f"{len(counting.calls)} concurrent callers each spent a quota unit"
@@ -157,7 +162,7 @@ async def test_a_single_flight_does_not_serialise_different_addresses(counting):
     """Collapsing duplicates must not turn the fan-out into a queue."""
     counting.delay = 0.05
     started = asyncio.get_event_loop().time()
-    await triage_service.triage([ip(f"203.0.113.{n}") for n in range(20, 32)])
+    await run_triage([ip(f"203.0.113.{n}") for n in range(20, 32)])
     elapsed = asyncio.get_event_loop().time() - started
     assert len(counting.calls) == 12
     assert elapsed < 0.4, f"12 distinct lookups took {elapsed:.2f}s — they are not concurrent"

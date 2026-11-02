@@ -22,8 +22,9 @@ from ..enrichment import PROVIDERS, list_entry_for
 from ..enrichment.base import ProviderResult
 from ..graph import build_graph
 from ..ioc import Indicator
-from ..models import AuditLog, Case, IndicatorResult
+from ..models import Case, IndicatorResult
 from ..net import build_client
+from ..platform import audit
 from ..reporting import containment_actions, executive_summary
 from ..scoring import IndicatorVerdict, case_verdict, score_indicator
 
@@ -132,6 +133,7 @@ async def enrich_indicator(
 async def triage(
     indicators: Sequence[Indicator],
     *,
+    workspace_id: int,
     title: str = "Ad-hoc triage",
     use_cache: bool = True,
     analyst: str | None = None,
@@ -170,7 +172,7 @@ async def triage(
 
     for indicator, results in zip(targets, enrichments, strict=True):
         results_by_ioc[indicator.value] = results
-        entry = await list_entry_for(indicator.value)
+        entry = await list_entry_for(indicator.value, workspace_id)
         verdicts.append(score_indicator(indicator, results, list_entry=entry))
 
     level, score = case_verdict(verdicts)
@@ -193,6 +195,8 @@ async def persist_case(
     session: AsyncSession,
     outcome: TriageOutcome,
     *,
+    workspace_id: int,
+    created_by: int | None = None,
     raw_input: str | None = None,
     source: str = "api",
     analyst: str | None = None,
@@ -200,6 +204,8 @@ async def persist_case(
 ) -> Case:
     case = Case(
         id=outcome.case_id,
+        workspace_id=workspace_id,
+        created_by=created_by,
         title=outcome.title,
         source=source,
         analyst=analyst,
@@ -217,6 +223,7 @@ async def persist_case(
         session.add(
             IndicatorResult(
                 case_id=case.id,
+                workspace_id=workspace_id,
                 value=verdict.indicator.value,
                 ioc_type=verdict.indicator.type,
                 score=verdict.score,
@@ -228,13 +235,14 @@ async def persist_case(
             )
         )
 
-    session.add(
-        AuditLog(
-            action="triage.completed",
-            # who the server verified; the name the client typed is only a label
-            actor=actor,
-            target=case.id,
-            detail={
+    await audit.record(
+        session,
+        action="triage.completed",
+        # who the server verified; the name the client typed is only a label
+        actor=actor,
+        workspace_id=workspace_id,
+        target=case.id,
+        detail={
                 "claimed_by": analyst,
                 "indicator_count": len(outcome.verdicts),
                 "verdict": outcome.verdict,
@@ -242,8 +250,6 @@ async def persist_case(
                 "duration_ms": outcome.duration_ms,
                 "cache_hits": outcome.cache_hits,
                 "source": source,
-            },
-        )
+        },
     )
-    await session.flush()
     return case

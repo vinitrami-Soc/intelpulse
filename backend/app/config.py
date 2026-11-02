@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # "Authorization: Bearer <token>". Unset keeps the single-analyst default.
     api_token: str | None = None
     data_dir: Path = DEFAULT_DATA_DIR
+    # 32 random bytes in base64, or a file holding them. It seals raw alert
+    # text, provider keys and ticket credentials; the server will not start
+    # without one (`make keys` prints a fresh key).
+    encryption_key: SecretStr | None = None
+    encryption_key_file: Path | None = None
 
     # --- storage ---------------------------------------------------------
     database_url: str = "sqlite+aiosqlite:///./data/intelpulse.db"
