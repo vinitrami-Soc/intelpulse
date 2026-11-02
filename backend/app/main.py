@@ -149,6 +149,12 @@ def create_app() -> FastAPI:
         await cache.close()
 
     if settings.web_dir is not None and (settings.web_dir / "index.html").is_file():
+        @app.get("/assets/mode.json", include_in_schema=False)
+        async def console_mode() -> JSONResponse:
+            # web/assets/mode.json says "demo" wherever the folder is served as it is;
+            # this server answers the same path, so the console knows to sign in (data.js).
+            return JSONResponse({"mode": "server"}, headers={"Cache-Control": "no-store"})
+
         # Last, so every /api route and /docs are matched first.
         app.mount("/", ConsoleFiles(directory=settings.web_dir, html=True), name="console")
     else:

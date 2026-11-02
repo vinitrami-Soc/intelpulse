@@ -126,38 +126,49 @@ check("safeUrl keeps ordinary vendor links",
   schemes.filter(([u]) => u.startsWith("http")).every(([, out]) => out !== null));
 
 // ———————————————————————————— 3. a dead backend degrades, never freezes
-await page.click('button[data-mode="live"]');
-await page.waitForTimeout(250);
-await page.route("**/api/**", async (route) => {
-  await new Promise((r) => setTimeout(r, 2500));
-  await route.abort();
-});
-await page.fill("#wb-api", "http://127.0.0.1:9999");
-await page.click('[data-act="connect"]');
-await page.fill("#wb-input", "8.8.8.8 1.1.1.1");
-await page.click("#wb-run");
-await page.waitForTimeout(600);
-const loading = await page.evaluate(() => ({
-  bones: document.querySelectorAll("#wb-kpis .sk").length,
-  button: document.querySelector("#wb-run").textContent.trim()
-}));
-check("skeleton placeholders render while sources are queried", loading.bones >= 1, loading.bones + " placeholders");
-check("the run button reports in-flight state", /Triaging/.test(loading.button), loading.button);
+/* Server mode, signed in: the page is told it is a server (assets/mode.json) and
+   who is signed in (/api/session), and every other API call hangs, then dies. */
+{
+  const live = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  live.on("pageerror", (e) => errors.push(e.message));
+  const json = (route, body) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+  await live.route("**/assets/mode.json", (route) => json(route, { mode: "server" }));
+  await live.route("**/api/**", async (route) => {
+    if (route.request().url().endsWith("/api/session")) {
+      return json(route, { mode: "server", setup_needed: false, csrf: "csrf-for-tests",
+        user: { username: "ada", display_name: "Ada", role: "admin", owner: true },
+        workspace: { name: "Acme SOC", kind: "organization" } });
+    }
+    await new Promise((r) => setTimeout(r, 2500));
+    await route.abort();
+  });
+  await openWorkbench(live);
+  check("signed in, the workbench triages on the server",
+    await live.evaluate(() => /live/.test(document.querySelector("#wb-source").textContent)));
+  await live.fill("#wb-input", "8.8.8.8 1.1.1.1");
+  await live.click("#wb-run");
+  await live.waitForTimeout(600);
+  const loading = await live.evaluate(() => ({
+    bones: document.querySelectorAll("#wb-kpis .sk").length,
+    button: document.querySelector("#wb-run").textContent.trim()
+  }));
+  check("skeleton placeholders render while sources are queried", loading.bones >= 1, loading.bones + " placeholders");
+  check("the run button reports in-flight state", /Triaging/.test(loading.button), loading.button);
 
-await page.waitForTimeout(3200);
-const recovered = await page.evaluate(() => ({
-  toast: document.querySelector("#toast").textContent,
-  button: document.querySelector("#wb-run").textContent.trim(),
-  disabled: document.querySelector("#wb-run").disabled,
-  inline: document.querySelector("#wb-error").hidden ? "" : document.querySelector("#wb-error").textContent
-}));
-check("a dead backend degrades with a message, not a freeze",
-  !recovered.disabled && /run triage/i.test(recovered.button) && /failed/i.test(recovered.toast),
-  recovered.toast);
-check("the failure is also written next to the box, where it stays", /did not complete/i.test(recovered.inline),
-  recovered.inline.slice(0, 70));
-await page.unroute("**/api/**");
-await page.click('button[data-mode="demo"]');
+  await live.waitForTimeout(3200);
+  const recovered = await live.evaluate(() => ({
+    toast: document.querySelector("#toast").textContent,
+    button: document.querySelector("#wb-run").textContent.trim(),
+    disabled: document.querySelector("#wb-run").disabled,
+    inline: document.querySelector("#wb-error").hidden ? "" : document.querySelector("#wb-error").textContent
+  }));
+  check("a dead backend degrades with a message, not a freeze",
+    !recovered.disabled && /run triage/i.test(recovered.button) && /failed/i.test(recovered.toast),
+    recovered.toast);
+  check("the failure is also written next to the box, where it stays", /did not complete/i.test(recovered.inline),
+    recovered.inline.slice(0, 70));
+  await live.close();
+}
 
 // ————————————————————————————————————————— 4. a real triage
 await starter(page, "firewall");
@@ -458,16 +469,10 @@ check("an input with nothing routable explains why",
   await page.evaluate(() => !document.querySelector("#wb-error").hidden &&
     /routable/i.test(document.querySelector("#wb-error").textContent)));
 
-await page.click('button[data-mode="live"]');
-await page.waitForTimeout(250);
-await page.fill("#wb-api", "not-a-url");
-await page.click('[data-act="connect"]');
-await page.waitForTimeout(250);
-check("a malformed backend URL is rejected at the field",
-  await page.evaluate(() => document.querySelector("#wb-api").getAttribute("aria-invalid") === "true" &&
-    !document.querySelector("#wb-api-error").hidden && document.activeElement.id === "wb-api"));
-await page.fill("#wb-api", "http://localhost:8000");
-await page.click('button[data-mode="demo"]');
+/* No API address and no token to type in: a server serves its own console. */
+check("the workbench asks for no API address and no token",
+  await page.evaluate(() => !document.querySelector("#wb-api, #wb-token, [data-mode]") &&
+    /demo/.test(document.querySelector("#wb-source").textContent)));
 
 /* The run button must report busy and then recover. A demo triage finishes in
    about a millisecond, so this watches the attribute rather than sampling it. */

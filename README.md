@@ -104,7 +104,7 @@ the endpoints 1.x had, and is deprecated. Details: [docs/API.md](docs/API.md#sig
 ```bash
 make install                 # venv + dependencies
 make keys                    # once: ENCRYPTION_KEY in .env
-make test                    # 371 tests, no network required
+make test                    # 372 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -195,19 +195,23 @@ same weights, authority floor and verdict bands as the API. That dataset is **sy
 documentation addresses and RFC 2606 reserved domains) and the UI says so on every screen and in every
 generated report. Nothing in demo mode describes a real host, and no vendor API is called.
 
-Switch the toggle to **Live API**, point it at a running backend, and the same screens are driven by
-real AbuseIPDB / OTX / GreyNoise / abuse.ch responses.
+Run IntelPulse yourself and open it in a browser, and the same pages become **server mode**
+(`web/assets/data.js` asks the server whether it is one). A new server asks for its one-time setup
+code at `#/setup`; after that the console needs a sign-in, and the workbench triages on the server
+with real AbuseIPDB / OTX / GreyNoise / abuse.ch responses, storing each case in your workspace. No
+API address or token is typed into the page: the session cookie and its CSRF token do the work.
 
 ---
 
 ## Testing
 
 ```bash
-make test        # 371 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 372 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 59 node tests: engine parity, console model, design and asset guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and
                  # tablets, and a hostile-input security suite
+make test-server # Chromium against a new server: setup, sign-in, triage, sign-out
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```

@@ -279,10 +279,14 @@ never from the image.
   address is never used. Poisoned `localStorage` used
   to crash the workbench; now it falls back to defaults, and a `__proto__` key
   pollutes nothing.
-* **The token lives in `sessionStorage`.** When the backend asks for one, the
-  connect form takes it as a password field; it is sent as
-  `Authorization: Bearer` with `credentials: "omit"`, never written to
-  `localStorage`, and gone when the tab closes.
+* **No credential in the page.** Served by an IntelPulse server, the console
+  signs in with an `HttpOnly` session cookie the page cannot read, and keeps
+  the CSRF token the server hands out in memory only, sending it as
+  `X-CSRF-Token` on writes (`web/assets/data.js`). There is no API address and
+  no token field any more, so there is nothing to type, store or leak; scripts
+  use API tokens instead. The hostile-server test also plays the session
+  (a person's and a workspace's names as markup) and checks that no credential
+  reaches `localStorage` or `sessionStorage`.
 * **Degradation.** A slow or dead backend produces a skeleton, then a message,
   never a frozen page. Tested by aborting every `/api/**` request after 2.5 s.
 
@@ -291,7 +295,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 371 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 372 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

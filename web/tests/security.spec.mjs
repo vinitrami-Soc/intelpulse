@@ -41,6 +41,7 @@ async function openPage(options = {}) {
     }, options.storage);
   }
   const page = await context.newPage();
+  if (options.before) await options.before(page);   /* routes that must exist before the page loads */
   const seen = { dialogs: 0, errors: [], outside: [] };
   page.on("dialog", async (d) => { seen.dialogs++; await d.dismiss(); });
   page.on("pageerror", (e) => seen.errors.push(e.message));
@@ -110,15 +111,25 @@ const injected = (page) => page.evaluate(() => {
   await context.close();
 }
 
-// ——————————— 2. a hostile API: every response, every field
+// ——————————— 2. a hostile server: the session, every response, every field
 {
-  const { context, page, seen } = await openPage();
-  let authSeen = null, tokenInUrl = false;
+  /* Server mode, signed in, and everything the server says is hostile: the
+     names of the person and the workspace included. */
+  let authSeen = null, csrfSeen = null, csrfInUrl = false;
+  const hostile = async (page) => {
+  await page.route("**/assets/mode.json", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: '{"mode": "server"}' }));
   await page.route("**/api/**", async (route) => {
     const url = route.request().url();
     authSeen = route.request().headers()["authorization"] || authSeen;
-    if (url.includes("hostile-token-123")) tokenInUrl = true;
+    if (route.request().method() !== "GET") csrfSeen = route.request().headers()["x-csrf-token"] || csrfSeen;
+    if (url.includes("csrf-hostile-123")) csrfInUrl = true;
     const json = (body, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+    if (url.endsWith("/api/session")) {
+      return json({ mode: "server", setup_needed: false, csrf: "csrf-hostile-123",
+        user: { username: MARK("u.name"), display_name: MARK("u.display"), role: MARK("u.role"), owner: MARK("u.owner") },
+        workspace: { name: MARK("w.name"), kind: MARK("w.kind") } });
+    }
     if (url.includes("/api/health")) {
       return json({ status: MARK("h.status"), database: MARK("h.db"), cache: { backend: MARK("h.cache"), hit_rate: MARK("h.rate") },
         providers: [{ name: MARK("h.p.name"), configured: MARK("h.p.conf") }, { name: 7, configured: true }, null, "junk"] });
@@ -149,10 +160,8 @@ const injected = (page) => page.evaluate(() => {
     }
     return json({ detail: MARK("detail") }, 500);
   });
-  await page.click('button[data-mode="live"]');
-  await page.fill("#wb-api", "http://127.0.0.1:9999");
-  await page.fill("#wb-token", "hostile-token-123");
-  await page.click('[data-act="connect"]');
+  };
+  const { context, page, seen } = await openPage({ before: hostile });
   await page.waitForTimeout(500);
   const afterHealth = await injected(page);
   await page.fill("#wb-input", "185.220.101.34 evil.example.com");
@@ -166,17 +175,17 @@ const injected = (page) => page.evaluate(() => {
   await page.waitForTimeout(200);
   const afterTriage = await injected(page);
   const links = await page.evaluate(() => [...document.querySelectorAll("#console-panels a")].map((a) => a.getAttribute("href")));
-  check("a hostile health response stays text", afterHealth.length === 0, afterHealth.join(", "));
+  check("a hostile session and health response stay text (names, roles, workspace)", afterHealth.length === 0, afterHealth.join(", "));
   check("a hostile extract response stays text", afterPreview.length === 0, afterPreview.join(", "));
   check("a result that is hostile in every field at once stays text", afterTriage.length === 0, afterTriage.slice(0, 4).join(", "));
   check("no javascript: link survives a hostile API", links.every((h) => h && /^https?:/i.test(h)), links.length + " links");
-  check("the token rides in the Authorization header", authSeen === "Bearer hostile-token-123", String(authSeen));
-  check("and never in a URL", !tokenInUrl);
-  const stored = await page.evaluate(() => ({
-    local: Object.keys(localStorage).some((k) => (localStorage.getItem(k) || "").includes("hostile-token-123")),
-    session: sessionStorage.getItem("intelpulse:apiToken")
-  }));
-  check("the token is kept for the tab only, never in localStorage", !stored.local && stored.session === "hostile-token-123");
+  check("writes carry the session's CSRF token in its header", csrfSeen === "csrf-hostile-123", String(csrfSeen));
+  check("and never in a URL, and no bearer token is sent at all", !csrfInUrl && authSeen === null, String(authSeen));
+  const stored = await page.evaluate(() => {
+    const all = (s) => Object.keys(s).map((k) => k + "=" + s.getItem(k)).join("\n");
+    return all(localStorage) + all(sessionStorage);
+  });
+  check("no credential is ever written to browser storage", !stored.includes("csrf-hostile-123") && !/apiToken/.test(stored));
   check("a hostile API raises no uncaught errors or dialogs", seen.errors.length === 0 && seen.dialogs === 0, seen.errors[0] || "");
   await context.close();
 }
@@ -204,8 +213,8 @@ const injected = (page) => page.evaluate(() => {
   check("poisoned storage cannot pollute Object.prototype", !polluted);
   check("the workbench still works on poisoned storage", fine === "95" && seen.errors.length === 0,
     "hero " + fine + (seen.errors[0] ? "; " + seen.errors[0] : ""));
-  check("a javascript: API address from storage is never used", await page.evaluate(() =>
-    !document.querySelector("#wb-api") || !/^javascript:/i.test(document.querySelector("#wb-api").value)));
+  check("an API address in storage is never read: there is no such setting", await page.evaluate(() =>
+    !document.querySelector("#wb-api, #wb-token")));
   await context.close();
 }
 

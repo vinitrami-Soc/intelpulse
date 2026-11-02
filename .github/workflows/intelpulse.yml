@@ -115,3 +115,57 @@ jobs:
           PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
           INTELPULSE_URL: http://127.0.0.1:8123/
         run: node web/tests/${{ matrix.spec.file }}
+
+  server:
+    name: browser · server mode · setup, sign-in, triage
+    # The other browser jobs run the static demo. This one runs the same pages
+    # served by the app, on a brand-new server (SQLite, no provider keys): set
+    # up with the one-time code, triage from the workbench, sign out and in.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - name: Install the server
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Install Playwright
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1.56.1
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Start a new server
+        working-directory: backend
+        run: |
+          # A throwaway key and database, made for this run only.
+          echo "ENCRYPTION_KEY=$(python -c 'import base64,os;print(base64.b64encode(os.urandom(32)).decode())')" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=sqlite+aiosqlite:///$RUNNER_TEMP/server.db" >> "$GITHUB_ENV"
+      - name: Serve
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8124 > "$RUNNER_TEMP/server.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            if curl -sf -o /dev/null http://127.0.0.1:8124/api/health; then exit 0; fi
+            sleep 1
+          done
+          echo "the server never came up"
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
+      - name: Test
+        env:
+          PLAYWRIGHT_MODULE: ${{ runner.temp }}/pw/node_modules/playwright/index.mjs
+          INTELPULSE_SERVER_URL: http://127.0.0.1:8124/
+        run: |
+          # printed by the server's own CLI, the way an operator gets it
+          export INTELPULSE_SETUP_CODE="$(cd backend && python -m app.cli setup-code | tail -1)"
+          node web/tests/server.spec.mjs
+      - name: The server's log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log"
+
