@@ -54,6 +54,13 @@ JSON report are the public interface.
     demo is unchanged. A new browser suite, `web/tests/server.spec.mjs` (`make test-server`, and a
     CI job), runs it against a real new server.
 
+- **The case workflow** (milestone M2 begins). Every case has a status (`new`, `in_progress`,
+  `closed`), an assignee from its workspace, and when closed a reason and time; a signed-in member
+  moves it with `PATCH /api/cases/{id}`, and each change is audited with its before and after.
+  Tickets raised for a case are kept with it. `GET /api/cases` gains search (`q`, over titles and
+  indicators) and filters (`status`, `source`, `assignee`, `since`, `until`). Migration 0004 makes
+  every existing case `new` and unassigned.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

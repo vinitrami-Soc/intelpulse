@@ -134,6 +134,13 @@ async def require_owner(actor: Actor = Depends(require_actor)) -> Actor:
     raise forbidden("only the owner of this server can do this")
 
 
+async def require_member(actor: Actor = Depends(require_actor)) -> Actor:
+    """A person, signed in, any role. New v2 endpoints: neither API tokens nor the 1.x API_TOKEN reach them."""
+    if actor.via == "session":
+        return actor
+    raise forbidden("sign in to do this: API tokens cannot")
+
+
 async def require_session_admin(actor: Actor = Depends(require_actor)) -> Actor:
     """An admin, signed in. New v2 endpoints: neither API tokens nor the 1.x API_TOKEN reach them."""
     if actor.is_admin:

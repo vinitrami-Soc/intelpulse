@@ -133,6 +133,13 @@ class Case(Base):
     indicator_count: Mapped[int] = mapped_column(Integer, default=0)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # the workflow (spec 8.3): new -> in_progress -> closed, with a reason; reopening clears it
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)
+    assignee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_cases_assignee_id"), nullable=True, index=True
+    )
+    closed_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     indicators: Mapped[list[IndicatorResult]] = relationship(
         back_populates="case", cascade="all, delete-orphan", lazy="selectin"
@@ -270,6 +277,21 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     prev_hash: Mapped[str] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64))
+
+
+class CaseTicket(Base):
+    """An issue raised for a case in Jira or ServiceNow: the SOC tickets view lists these."""
+
+    __tablename__ = "case_tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), index=True)
+    sink: Mapped[str] = mapped_column(String(20))
+    key: Mapped[str] = mapped_column(String(120))
+    url: Mapped[str] = mapped_column(String(500))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class AuditHead(Base):

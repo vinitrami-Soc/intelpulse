@@ -1,17 +1,22 @@
 """Case history, audit trail and report regeneration from stored results."""
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import SERVER, AuditLog, Case, IndicatorResult, PushedAlert
+from ..models import SERVER, AuditLog, Case, IndicatorResult, PushedAlert, User
 from ..platform import audit, scope
 from ..platform.auth import Actor
-from ..platform.deps import require_actor, require_admin
-from ..schemas import CaseSummary
+from ..platform.deps import require_actor, require_admin, require_member
+from ..platform.errors import ApiError
+from ..schemas import CaseSummary, CaseUpdate
+from ..services import workflow
 from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
 
@@ -23,17 +28,55 @@ async def list_cases(
     limit: int = Query(25, ge=1, le=200),
     # bounded: an offset past SQLite's 64-bit integer was a 500 (found by schema fuzzing)
     offset: int = Query(0, ge=0, le=2**63 - 1),
-    verdict: str | None = None,
+    verdict: str | None = Query(None, max_length=20),
+    q: str | None = Query(None, max_length=200, description="words in the title, or part of an indicator"),
+    status: Literal["new", "in_progress", "closed", "open"] | None = Query(
+        None, description="`open` is new or in progress"),
+    source: str | None = Query(None, max_length=40),
+    assignee: str | None = Query(None, pattern=r"^(me|none|[1-9][0-9]{0,18})$",
+                                 description="`me`, `none`, or a member's id"),
+    since: datetime | None = None,
+    until: datetime | None = None,
     actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[CaseSummary]:
-    query = (
-        select(Case).where(Case.workspace_id == actor.workspace_id)
-        .order_by(Case.created_at.desc()).limit(limit).offset(offset)
-    )
+    """The workspace's cases, newest first, searched and filtered."""
+    query = select(Case).where(Case.workspace_id == actor.workspace_id)
     if verdict:
         query = query.where(Case.verdict == verdict)
-    rows = (await session.execute(query)).scalars().all()
+    if status == "open":
+        query = query.where(Case.status != "closed")
+    elif status:
+        query = query.where(Case.status == status)
+    if source:
+        query = query.where(Case.source == source)
+    if assignee == "me":
+        query = query.where(Case.assignee_id == actor.user_id) if actor.user_id else query.where(False)
+    elif assignee == "none":
+        query = query.where(Case.assignee_id.is_(None))
+    elif assignee:
+        query = query.where(Case.assignee_id == int(assignee))
+    if since:
+        query = query.where(Case.created_at >= since)
+    if until:
+        query = query.where(Case.created_at < until)
+    text = (q or "").strip().lower()
+    if text:
+        query = query.where(or_(
+            func.lower(Case.title).contains(text, autoescape=True),
+            exists().where(IndicatorResult.case_id == Case.id,
+                           func.lower(IndicatorResult.value).contains(text, autoescape=True)),
+        ))
+    rows = (
+        await session.execute(query.order_by(Case.created_at.desc()).limit(limit).offset(offset))
+    ).scalars().all()
+    assignees = {row.assignee_id for row in rows if row.assignee_id}
+    people = {
+        user.id: user for user in (
+            await session.execute(select(User).where(User.id.in_(assignees)))
+        ).scalars()
+    } if assignees else {}
+    tickets = await workflow.ticket_counts(session, [row.id for row in rows])
     return [
         CaseSummary(
             id=row.id,
@@ -45,6 +88,11 @@ async def list_cases(
             analyst=row.analyst,
             duration_ms=row.duration_ms,
             created_at=row.created_at.isoformat() if row.created_at else "",
+            status=row.status,
+            assignee=workflow.person(people.get(row.assignee_id)),
+            closed_reason=row.closed_reason,
+            closed_at=workflow.iso(row.closed_at),
+            ticket_count=tickets.get(row.id, 0),
         )
         for row in rows
     ]
@@ -76,7 +124,35 @@ async def get_case(
         "indicators": [row.payload for row in rows],
         # What a SIEM pushed, when the case came in through /api/alerts; otherwise null.
         "alert": await alert_for(session, case.id),
+        **await _workflow_of(session, case),
     }
+
+
+async def _workflow_of(session: AsyncSession, case: Case) -> dict:
+    assignee = await session.get(User, case.assignee_id) if case.assignee_id else None
+    return {
+        "status": case.status,
+        "assignee": workflow.person(assignee),
+        "closed_reason": case.closed_reason,
+        "closed_at": workflow.iso(case.closed_at),
+        "tickets": await workflow.tickets_for(session, case.id),
+    }
+
+
+@router.patch("/cases/{case_id}")
+async def update_case(
+    case_id: str,
+    body: CaseUpdate,
+    actor: Actor = Depends(require_member),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Move a case along: its status, its assignee, and the reason it was closed."""
+    case = await scope.case_in(session, actor, case_id)
+    changes = body.model_dump(include=body.model_fields_set)
+    if not changes:
+        raise ApiError(422, "invalid", "nothing to change: send status, assignee_id or closed_reason")
+    changed = await workflow.update_case(session, actor, case, changes)
+    return {"case_id": case.id, "changed": sorted(changed), **await _workflow_of(session, case)}
 
 
 @router.get("/cases/{case_id}/report")
@@ -114,14 +190,7 @@ async def raise_ticket(
         # 409 when the sink is simply not configured, 502 when it refused us.
         raise HTTPException(status_code=exc.status or 502, detail=str(exc)) from exc
 
-    await audit.record(
-        session,
-        action="ticket.created",
-        actor=actor.label,
-        workspace_id=actor.workspace_id,
-        target=case.id,
-        detail={"sink": ticket.sink, "key": ticket.key, "url": ticket.url},
-    )
+    await workflow.record_ticket(session, actor, case, ticket)
     await session.commit()
     return ticket.as_dict()
 

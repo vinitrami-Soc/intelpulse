@@ -233,12 +233,45 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/api/cases?limit=25&offset=0&verdict=high` | Newest first |
-| `GET` | `/api/cases/{id}` | Full stored result including every provider payload, and `alert` for a pushed alert |
+| `GET` | `/api/cases?limit=25&offset=0&verdict=high` | Newest first; search and filters below |
+| `GET` | `/api/cases/{id}` | Full stored result including every provider payload, `alert` for a pushed alert, and the workflow: `status`, `assignee`, `closed_reason`, `closed_at`, `tickets` |
+| `PATCH` | `/api/cases/{id}` | Move a case along (a signed-in member); see below |
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
 | `DELETE` | `/api/cases/{id}` | Removes the case and its indicators (admin) |
 | `GET` | `/api/stats` | Counts by verdict and the most frequent malware families |
 | `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens |
+
+### Search and filters
+
+`GET /api/cases` takes, all optional and combined with AND:
+
+| Parameter | Matches |
+| --- | --- |
+| `q` | Words in the title, or part of any indicator in the case (case-insensitive; `%` and `_` are plain characters) |
+| `status` | `new`, `in_progress`, `closed`, or `open` (new or in progress) |
+| `verdict`, `source` | Exactly |
+| `assignee` | `me`, `none`, or a member's id |
+| `since`, `until` | Created at or after, and before (ISO 8601) |
+
+Each row also carries `status`, `assignee` (`id`, `username`, `display_name` or `null`),
+`closed_reason`, `closed_at` and `ticket_count`; a 1.x client reads the fields it always did.
+
+### The case workflow
+
+A case starts `new`, is worked `in_progress` and is `closed` with a reason. Send only what changes:
+
+```bash
+curl -s -X PATCH localhost:8000/api/cases/$CASE -b cookies.txt -H "X-CSRF-Token: $CSRF" \
+  -H 'Content-Type: application/json' -d '{"status": "closed", "closed_reason": "false_positive"}'
+```
+
+* `status`: `new`, `in_progress` or `closed`. Closing needs `closed_reason` (`true_positive`,
+  `false_positive`, `benign`, `duplicate`) and stamps `closed_at`; reopening clears both.
+* `assignee_id`: a member of the case's workspace who can still sign in, or `null` to unassign.
+* Any member, analyst or admin, may move a case; API tokens and the 1.x `API_TOKEN` may not.
+  Every change is audited as `case.updated` with what each field was and became.
+* A ticket raised for the case (`POST /api/cases/{id}/ticket`, or `ticket` on a pushed alert) is
+  kept with it and listed under `tickets`.
 
 ## Allow / block lists
 
