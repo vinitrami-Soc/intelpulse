@@ -295,7 +295,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 372 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 393 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

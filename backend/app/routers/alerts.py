@@ -29,6 +29,7 @@ from ..platform.auth import Actor
 from ..platform.deps import require_actor
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
+from ..services import workflow
 from ..services.reports import case_markdown
 from ..services.tickets import TicketError, create_ticket
 from ..services.triage import persist_case, triage
@@ -146,7 +147,6 @@ async def receive_alert(
             ticket_error = str(exc)
         else:
             ticket = filed.as_dict()
-            await audit.record(session, action="ticket.created", actor=actor.label,
-                               workspace_id=actor.workspace_id, target=case.id, detail=ticket)
+            await workflow.record_ticket(session, actor, case, filed)
     logger.info("alert received", extra={"source": alert.source, "case": case.id, "severity": alert.severity})
     return _answer(case, stored, duplicate=False, ticket=ticket, ticket_error=ticket_error)

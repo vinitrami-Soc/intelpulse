@@ -161,6 +161,12 @@ class AlertOut(BaseModel):
     ticket_error: str | None = None
 
 
+class Person(BaseModel):
+    id: int
+    username: str
+    display_name: str
+
+
 class CaseSummary(BaseModel):
     id: str
     title: str
@@ -171,6 +177,22 @@ class CaseSummary(BaseModel):
     analyst: str | None = None
     duration_ms: int
     created_at: str
+    # the workflow (v2); 1.x clients ignore what they do not know
+    status: str = "new"
+    assignee: Person | None = None
+    closed_reason: str | None = None
+    closed_at: str | None = None
+    ticket_count: int = 0
+
+
+class CaseUpdate(BaseModel):
+    """PATCH /api/cases/{id}: send only what changes; `assignee_id: null` unassigns."""
+
+    model_config = {"extra": "forbid"}
+
+    status: Literal["new", "in_progress", "closed"] | None = None
+    assignee_id: int | None = Field(None, ge=1, le=2**63 - 1)
+    closed_reason: Literal["true_positive", "false_positive", "benign", "duplicate"] | None = None
 
 
 class ListEntryIn(BaseModel):
