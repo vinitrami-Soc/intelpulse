@@ -26,10 +26,12 @@ from ..ioc import Indicator, classify, extract, refang
 from ..models import Case, PushedAlert
 from ..platform import audit
 from ..platform.auth import Actor
+from ..platform.box import server_box
 from ..platform.deps import require_actor
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
 from ..services import workflow
+from ..services import workspace_settings as ws_settings
 from ..services.reports import case_markdown
 from ..services.tickets import TicketError, create_ticket
 from ..services.triage import persist_case, triage
@@ -141,7 +143,8 @@ async def receive_alert(
     if alert.ticket:
         body, meta = await case_markdown(session, case)
         try:
-            filed = await create_ticket(meta, body, alert.ticket)
+            config = await ws_settings.sink_config(session, server_box(), actor.workspace_id)
+            filed = await create_ticket(meta, body, alert.ticket, config)
         except TicketError as exc:
             # The case is stored either way; the sender is told why the tracker said no.
             ticket_error = str(exc)

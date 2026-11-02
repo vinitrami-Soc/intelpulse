@@ -52,13 +52,13 @@ ALLOWED_HOSTS: frozenset[str] = frozenset({
 
 
 def ticket_sink_hosts() -> frozenset[str]:
-    """Hosts the operator configured for ticket delivery, from env only.
+    """Sink hosts the operator named, from the environment only.
 
-    These come from JIRA_BASE_URL / SERVICENOW_BASE_URL, which an operator sets
-    when they deploy. They are never taken from a request, so widening the
-    allowlist with them does not widen what an attacker-controlled indicator
-    can reach — the rest of the policy (HTTPS only, no reserved space unless
-    explicitly permitted) still applies to them.
+    JIRA_BASE_URL / SERVICENOW_BASE_URL (1.x, still honoured) and
+    TICKET_PRIVATE_HOSTS. They are the only sink hosts that may resolve into
+    private address space, and only with TICKET_ALLOW_PRIVATE_HOST on: a
+    workspace admin can point a workspace's sink at any public HTTPS host, but
+    never at an internal one the operator did not name.
     """
     from .config import settings
 
@@ -69,6 +69,7 @@ def ticket_sink_hosts() -> frozenset[str]:
         host = (httpx.URL(raw).host or "").lower()
         if host:
             hosts.add(host)
+    hosts.update(h.strip().lower() for h in settings.ticket_private_hosts.split(",") if h.strip())
     return frozenset(hosts)
 
 # Ranges that an external intelligence API must never resolve to.
@@ -113,7 +114,8 @@ async def resolve(host: str) -> tuple[str, ...]:
     return addresses
 
 
-async def assert_allowed(url: httpx.URL) -> None:
+async def assert_allowed(url: httpx.URL, extra_hosts: frozenset[str] = frozenset()) -> None:
+    """`extra_hosts`: hosts this one client may also reach (a workspace's ticket sink)."""
     from .config import settings
 
     host = (url.host or "").lower()
@@ -121,7 +123,7 @@ async def assert_allowed(url: httpx.URL) -> None:
         raise EgressBlocked(f"refused non-HTTPS outbound request to {host or url}")
 
     sinks = ticket_sink_hosts()
-    if host not in ALLOWED_HOSTS and host not in sinks:
+    if host not in ALLOWED_HOSTS and host not in sinks and host not in extra_hosts:
         raise EgressBlocked(f"refused outbound request to non-allowlisted host {host!r}")
 
     try:
@@ -132,8 +134,9 @@ async def assert_allowed(url: httpx.URL) -> None:
         raise EgressBlocked(f"no addresses returned for {host}")
 
     # A self-hosted Jira or ServiceNow legitimately lives on an internal
-    # network, so an operator can permit reserved space for the sinks they
-    # configured — and only those. Intelligence providers never get it.
+    # network, so an operator can permit reserved space for the sink hosts
+    # they named, and only those: not for a host a workspace admin typed in,
+    # and never for an intelligence provider.
     if host in sinks and settings.ticket_allow_private_host:
         return
 
@@ -146,12 +149,16 @@ async def assert_allowed(url: httpx.URL) -> None:
 class GuardedTransport(httpx.AsyncHTTPTransport):
     """httpx transport that applies the egress policy before every connection."""
 
+    def __init__(self, extra_hosts: frozenset[str] = frozenset(), **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.extra_hosts = frozenset(h.lower() for h in extra_hosts if h)
+
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-        await assert_allowed(request.url)
+        await assert_allowed(request.url, self.extra_hosts)
         return await super().handle_async_request(request)
 
 
-def build_client(**kwargs) -> httpx.AsyncClient:
+def build_client(*, extra_hosts: frozenset[str] = frozenset(), **kwargs) -> httpx.AsyncClient:
     """The only way this codebase is allowed to construct an outbound client.
 
     Redirects are followed, because httpx re-enters the transport for every
@@ -160,4 +167,4 @@ def build_client(**kwargs) -> httpx.AsyncClient:
     """
     kwargs.setdefault("follow_redirects", True)
     kwargs.setdefault("max_redirects", 5)
-    return httpx.AsyncClient(transport=GuardedTransport(), **kwargs)
+    return httpx.AsyncClient(transport=GuardedTransport(extra_hosts), **kwargs)

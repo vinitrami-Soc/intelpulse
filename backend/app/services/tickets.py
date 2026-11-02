@@ -6,10 +6,11 @@ sink turns the generated report into an issue in one request.
 
 Design notes worth keeping:
 
-* A sink is configured by an operator through the environment, never by a
-  request. `net.ticket_sink_hosts()` widens the egress allowlist with exactly
-  those hosts, so this does not become a way for an attacker-controlled
-  indicator to make the server talk to somewhere new.
+* A sink is configured per workspace by its admin (sealed, in its settings;
+  `SinkConfig`), never by a request that carries a case. The client that
+  delivers a ticket is allowed exactly that workspace's sink host and no
+  other; private address space stays closed to it unless the operator named
+  the host (`net.ticket_sink_hosts()`).
 * Credentials never appear in a response or a log line. On failure the caller
   is told the status code and the vendor's message, not the request.
 * One sink failing is a 502 with the reason, not a crash: the case is already
@@ -59,14 +60,47 @@ def _summary(case: dict[str, Any]) -> str:
     return f"[{verdict}] {title}: {count} indicator(s), score {case.get('score', 0)}/100"[:250]
 
 
-def configured_sinks() -> list[str]:
-    """Which sinks this deployment can actually deliver to."""
-    sinks = []
-    if settings.jira_base_url and settings.jira_api_token and settings.jira_project_key:
-        sinks.append(JIRA)
-    if settings.servicenow_base_url and settings.servicenow_password:
-        sinks.append(SERVICENOW)
-    return sinks
+@dataclass(frozen=True)
+class SinkConfig:
+    """One workspace's trackers. Built from its settings (workspace_settings.sink_config)."""
+
+    jira_base_url: str | None = None
+    jira_email: str | None = None
+    jira_api_token: str | None = None
+    jira_project_key: str | None = None
+    jira_issue_type: str = "Task"
+    servicenow_base_url: str | None = None
+    servicenow_user: str | None = None
+    servicenow_password: str | None = None
+    servicenow_table: str = "incident"
+
+    @classmethod
+    def from_env(cls) -> SinkConfig:
+        """What IntelPulse 1.x read from the environment (moved into the first organization once)."""
+        return cls(
+            jira_base_url=settings.jira_base_url, jira_email=settings.jira_email,
+            jira_api_token=settings.jira_api_token, jira_project_key=settings.jira_project_key,
+            jira_issue_type=settings.jira_issue_type or "Task",
+            servicenow_base_url=settings.servicenow_base_url, servicenow_user=settings.servicenow_user,
+            servicenow_password=settings.servicenow_password, servicenow_table=settings.servicenow_table or "incident",
+        )
+
+    def sinks(self) -> list[str]:
+        """Which sinks can actually deliver: a URL alone is not enough, the credential is needed too."""
+        found = []
+        if self.jira_base_url and self.jira_api_token and self.jira_project_key:
+            found.append(JIRA)
+        if self.servicenow_base_url and self.servicenow_password:
+            found.append(SERVICENOW)
+        return found
+
+    def host(self, sink: str) -> str:
+        raw = self.jira_base_url if sink == JIRA else self.servicenow_base_url
+        return (httpx.URL(raw).host or "").lower() if raw else ""
+
+
+def configured_sinks(config: SinkConfig) -> list[str]:
+    return config.sinks()
 
 
 def _auth_header(user: str | None, secret: str | None) -> str:
@@ -74,16 +108,18 @@ def _auth_header(user: str | None, secret: str | None) -> str:
     return "Basic " + base64.b64encode(raw).decode()
 
 
-async def _post(url: str, *, headers: dict[str, str], json: dict) -> httpx.Response:
-    async with build_client(timeout=settings.ticket_timeout_seconds) as client:
+async def _post(url: str, *, headers: dict[str, str], json: dict, host: str = "") -> httpx.Response:
+    # This client, and only this one, may reach the workspace's own sink host.
+    async with build_client(timeout=settings.ticket_timeout_seconds,
+                            extra_hosts=frozenset({host}) if host else frozenset()) as client:
         return await client.post(url, headers=headers, json=json)
 
 
-async def _create_jira(case: dict[str, Any], body: str) -> Ticket:
-    base = str(settings.jira_base_url).rstrip("/")
+async def _create_jira(case: dict[str, Any], body: str, config: SinkConfig) -> Ticket:
+    base = str(config.jira_base_url).rstrip("/")
     payload = {
         "fields": {
-            "project": {"key": settings.jira_project_key},
+            "project": {"key": config.jira_project_key},
             "summary": _summary(case),
             # Jira Cloud's v3 API takes Atlassian Document Format, not Markdown.
             # One code block keeps the report readable without a converter that
@@ -95,17 +131,18 @@ async def _create_jira(case: dict[str, Any], body: str) -> Ticket:
                     {"type": "codeBlock", "content": [{"type": "text", "text": body[:30_000]}]}
                 ],
             },
-            "issuetype": {"name": settings.jira_issue_type},
+            "issuetype": {"name": config.jira_issue_type},
             "labels": ["intelpulse", f"verdict-{case.get('verdict', 'informational')}"],
         }
     }
     response = await _post(
         f"{base}/rest/api/3/issue",
         headers={
-            "Authorization": _auth_header(settings.jira_email, settings.jira_api_token),
+            "Authorization": _auth_header(config.jira_email, config.jira_api_token),
             "Accept": "application/json",
         },
         json=payload,
+        host=config.host(JIRA),
     )
     if response.status_code >= 400:
         raise TicketError(_vendor_message(response), status=response.status_code)
@@ -114,9 +151,9 @@ async def _create_jira(case: dict[str, Any], body: str) -> Ticket:
     return Ticket(sink=JIRA, key=key, url=f"{base}/browse/{key}" if key else base)
 
 
-async def _create_servicenow(case: dict[str, Any], body: str) -> Ticket:
-    base = str(settings.servicenow_base_url).rstrip("/")
-    table = settings.servicenow_table
+async def _create_servicenow(case: dict[str, Any], body: str, config: SinkConfig) -> Ticket:
+    base = str(config.servicenow_base_url).rstrip("/")
+    table = config.servicenow_table
     # ServiceNow urgency/impact run 1 (high) to 3 (low) — the inverse of how a
     # verdict reads, so the mapping is explicit rather than arithmetic.
     urgency = {"critical": "1", "high": "1", "medium": "2"}.get(
@@ -134,11 +171,12 @@ async def _create_servicenow(case: dict[str, Any], body: str) -> Ticket:
         f"{base}/api/now/table/{table}",
         headers={
             "Authorization": _auth_header(
-                settings.servicenow_user, settings.servicenow_password
+                config.servicenow_user, config.servicenow_password
             ),
             "Accept": "application/json",
         },
         json=payload,
+        host=config.host(SERVICENOW),
     )
     if response.status_code >= 400:
         raise TicketError(_vendor_message(response), status=response.status_code)
@@ -167,25 +205,25 @@ def _vendor_message(response: httpx.Response) -> str:
     return f"{response.status_code} {response.reason_phrase}".strip()
 
 
-async def create_ticket(case: dict[str, Any], body: str, sink: str) -> Ticket:
+async def create_ticket(case: dict[str, Any], body: str, sink: str, config: SinkConfig) -> Ticket:
     """Raise `case` in `sink`.
 
     `case` is metadata only — case_id, title, verdict, score, indicators — and
     `body` is the rendered report. The caller owns rendering, because it already
     does for the download route and the two must not drift.
     """
-    available = configured_sinks()
+    available = config.sinks()
     if sink not in available:
         raise TicketError(
-            f"{sink} is not configured on this deployment"
+            f"{sink} is not configured for this workspace"
             + (f" (available: {', '.join(available)})" if available else ""),
             status=409,
         )
     try:
         if sink == JIRA:
-            ticket = await _create_jira(case, body)
+            ticket = await _create_jira(case, body, config)
         else:
-            ticket = await _create_servicenow(case, body)
+            ticket = await _create_servicenow(case, body, config)
     except TicketError:
         raise
     except httpx.HTTPError as exc:

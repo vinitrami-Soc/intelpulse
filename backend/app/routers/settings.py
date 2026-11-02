@@ -47,14 +47,91 @@ class ProviderSwitch(BaseModel):
     enabled: bool
 
 
+class JiraIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    base_url: str | None = Field(None, max_length=300)
+    email: str | None = Field(None, max_length=254)
+    project_key: str | None = Field(None, max_length=50)
+    issue_type: str | None = Field(None, max_length=60)
+    api_token: str | None = Field(None, max_length=512)
+
+
+class ServiceNowIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    base_url: str | None = Field(None, max_length=300)
+    user: str | None = Field(None, max_length=120)
+    table: str | None = Field(None, max_length=80)
+    password: str | None = Field(None, max_length=512)
+
+
+class TicketsIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    jira: JiraIn | None = None
+    servicenow: ServiceNowIn | None = None
+
+
 class SettingsUpdate(BaseModel):
-    """Send only what changes. A key of "" removes it."""
+    """Send only what changes. A key, a field or a secret of "" removes it."""
 
     model_config = {"extra": "forbid"}
 
     providers: dict[str, ProviderSwitch] | None = None
     keys: dict[str, str] | None = None
     retention_days: int | None = Field(None, ge=1, le=365)
+    tickets: TicketsIn | None = None
+
+
+PLAIN_RE = re.compile(r"^[^\x00-\x1f\x7f]*$")
+SECRET_RE = re.compile(r"^[\x20-\x7e]{1,512}$")   # sent base64-encoded in Basic auth
+FIELD_RULES = {
+    "email": (re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]+$"), "an email address"),
+    "project_key": (re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,49}$"), "a Jira project key, like SOC"),
+    "table": (re.compile(r"^[a-z0-9_]{1,80}$"), "a ServiceNow table name, like incident"),
+}
+
+
+def _sink_url(value: str) -> str:
+    """An https address of a tracker: no credentials, query or fragment in it."""
+    try:
+        url = httpx.URL(value)
+    except (httpx.InvalidURL, ValueError) as exc:
+        raise ApiError(422, "invalid", "that is not an address") from exc
+    if url.scheme != "https" or not url.host or url.userinfo or url.query or url.fragment:
+        raise ApiError(422, "invalid", "a tracker address is https://host[/path], with no credentials, query or fragment")
+    return str(url).rstrip("/")
+
+
+async def _update_sinks(db: AsyncSession, box, ws: int, tickets: TicketsIn) -> dict[str, list[str]]:
+    changed: dict[str, list[str]] = {}
+    for sink, body in (("jira", tickets.jira), ("servicenow", tickets.servicenow)):
+        if body is None:
+            continue
+        fields, secret = ws_settings.SINK_FIELDS[sink]
+        given = body.model_dump(include=body.model_fields_set)
+        for field in fields:
+            if field not in given:
+                continue
+            value = (given[field] or "").strip()
+            if value and field == "base_url":
+                value = _sink_url(value)
+            elif value and not PLAIN_RE.match(value):
+                raise ApiError(422, "invalid", f"{field} cannot hold control characters")
+            elif value and field in FIELD_RULES and not FIELD_RULES[field][0].match(value):
+                raise ApiError(422, "invalid", f"{field} must be {FIELD_RULES[field][1]}")
+            name = ws_settings.sink_setting(sink, field)
+            if (await store.get_value(db, ws, name) or "") != value:
+                await store.set_value(db, ws, name, value or None)
+                changed.setdefault(sink, []).append(field)
+        if secret in given:
+            value = given[secret] or ""
+            if value and not SECRET_RE.match(value):
+                raise ApiError(422, "invalid", f"{secret} must be 1 to 512 printable characters")
+            name = ws_settings.sink_setting(sink, secret)
+            had = bool(await store.get_secret(db, box, ws, name))
+            await store.set_secret(db, box, ws, name, value)
+            if value or had:
+                changed.setdefault(sink, []).append(f"{secret} " + (("replaced" if had else "set") if value else "removed"))
+    return changed
 
 
 def _provider(name: str):
@@ -96,6 +173,11 @@ async def update_settings(
         if value or had:
             # what happened, never the key
             changed.setdefault("keys", {})[slot] = ("replaced" if had else "set") if value else "removed"
+
+    if body.tickets is not None:
+        sinks = await _update_sinks(db, box, ws, body.tickets)
+        if sinks:
+            changed["tickets"] = sinks
 
     if body.retention_days is not None:
         before = await ws_settings.retention_days(db, ws)
@@ -146,4 +228,5 @@ async def read_workspace(actor: Actor = Depends(require_actor), db: AsyncSession
         "kind": workspace.kind if workspace else "organization",
         "providers": providers,
         "retention_days": await ws_settings.retention_days(db, actor.workspace_id),
+        "ticket_sinks": (await ws_settings.sink_config(db, server_box(), actor.workspace_id)).sinks(),
     }

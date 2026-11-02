@@ -187,7 +187,7 @@ ransomware incidents here.
 | `first_seen`, `last_seen` | datetime | `null` | ISO 8601 |
 | `indicators` | string[] | `[]` | Explicit indicators, defanged or not |
 | `evidence` | object[] | `[]` | `{"time", "label", "text"}` per event, up to 200. Indicators are also extracted from `text` |
-| `ticket` | string | `null` | `jira` or `servicenow`: also file the case there, if this deployment has it configured |
+| `ticket` | string | `null` | `jira` or `servicenow`: also file the case there, if the workspace has it configured |
 
 ```json
 {
@@ -284,8 +284,23 @@ configuration, so a verdict means the same thing everywhere.
 | --- | --- | --- | --- |
 | `GET` | `/api/workspace` | any caller | Name, kind, retention days, and each provider's `enabled` and `ready` (no key material) |
 | `GET` | `/api/settings` | admin, signed in | Providers with their switch and key slot; each key slot's `set` and `hint` (the last four characters) |
-| `PATCH` | `/api/settings` | admin, signed in | `{"providers": {"threatfox": {"enabled": false}}, "keys": {"otx": "..."}, "retention_days": 30}`; a key of `""` removes it |
+| `PATCH` | `/api/settings` | admin, signed in | `{"providers": {"threatfox": {"enabled": false}}, "keys": {"otx": "..."}, "retention_days": 30, "tickets": {...}}`; a key of `""` removes it |
 | `POST` | `/api/settings/providers/{name}/test` | admin, signed in | One lookup of a harmless indicator (8.8.8.8, example.com, the EICAR hash) with the workspace's key, past the cache |
+
+**Trackers.** Each workspace raises tickets in its own Jira or ServiceNow:
+
+```json
+{"tickets": {"jira": {"base_url": "https://acme.atlassian.net", "email": "soc@acme.example",
+                      "project_key": "SOC", "issue_type": "Task", "api_token": "..."},
+             "servicenow": {"base_url": "https://acme.service-now.com", "user": "svc_intelpulse",
+                            "table": "incident", "password": "..."}}}
+```
+
+A tracker address is `https://host[/path]` with no credentials, query or fragment; a table is a plain
+name; the token and password are sealed and shown only as set and their last four characters. `GET
+/api/workspace` lists the trackers a workspace can deliver to as `ticket_sinks` (and `/api/health`
+no longer does). The client that delivers a ticket may reach that workspace's tracker host and no
+other; see `docs/SECURITY.md` for private hosts.
 
 Key slots: `abuseipdb`, `otx`, `greynoise`, and `abusech` (ThreatFox and URLhaus share it). A key is
 1 to 512 printable characters without spaces, since it travels in a request header. Every change is

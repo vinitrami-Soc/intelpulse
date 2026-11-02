@@ -42,8 +42,9 @@ def stub(monkeypatch, status: int, payload):
     """Replace the outbound POST, recording what would have gone over the wire."""
     seen: dict = {}
 
-    async def fake_post(url, *, headers, json):
+    async def fake_post(url, *, headers, json, host=""):
         seen["url"] = url
+        seen["host"] = host
         seen["headers"] = headers
         seen["json"] = json
         return httpx.Response(status, json=payload, request=httpx.Request("POST", url))
@@ -66,7 +67,7 @@ def test_no_sink_is_configured_by_default(monkeypatch):
     for name in ("jira_base_url", "jira_api_token", "jira_project_key",
                  "servicenow_base_url", "servicenow_password"):
         monkeypatch.setattr(settings, name, None)
-    assert tickets.configured_sinks() == []
+    assert tickets.configured_sinks(tickets.SinkConfig.from_env()) == []
 
 
 def test_a_sink_needs_its_credential_not_just_a_url(monkeypatch):
@@ -75,13 +76,14 @@ def test_a_sink_needs_its_credential_not_just_a_url(monkeypatch):
     monkeypatch.setattr(settings, "jira_project_key", "SOC")
     monkeypatch.setattr(settings, "servicenow_base_url", None)
     monkeypatch.setattr(settings, "servicenow_password", None)
-    assert tickets.configured_sinks() == []
+    assert tickets.configured_sinks(tickets.SinkConfig.from_env()) == []
 
 
 @pytest.mark.anyio
 async def test_jira_gets_the_issue_at_the_v3_endpoint(monkeypatch, jira):
     seen = stub(monkeypatch, 201, {"key": "SOC-42", "id": "10001"})
-    ticket = await tickets.create_ticket(CASE, BODY, "jira")
+    ticket = await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
+    assert seen["host"] == "example.atlassian.net"  # the one host this client may reach
 
     assert seen["url"] == "https://example.atlassian.net/rest/api/3/issue"
     fields = seen["json"]["fields"]
@@ -101,7 +103,7 @@ async def test_jira_gets_the_issue_at_the_v3_endpoint(monkeypatch, jira):
 @pytest.mark.anyio
 async def test_jira_is_authenticated_with_the_configured_token(monkeypatch, jira):
     seen = stub(monkeypatch, 201, {"key": "SOC-1"})
-    await tickets.create_ticket(CASE, BODY, "jira")
+    await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     expected = base64.b64encode(f"soc@example.com:{TOKEN}".encode()).decode()
     assert seen["headers"]["Authorization"] == "Basic " + expected
 
@@ -109,7 +111,7 @@ async def test_jira_is_authenticated_with_the_configured_token(monkeypatch, jira
 @pytest.mark.anyio
 async def test_servicenow_gets_an_incident_with_an_inverted_urgency(monkeypatch, snow):
     seen = stub(monkeypatch, 201, {"result": {"number": "INC0012345", "sys_id": "abc123"}})
-    ticket = await tickets.create_ticket(CASE, BODY, "servicenow")
+    ticket = await tickets.create_ticket(CASE, BODY, "servicenow", tickets.SinkConfig.from_env())
 
     assert seen["url"] == "https://example.service-now.com/api/now/table/incident"
     # ServiceNow runs 1 (high) to 3 (low) — the inverse of how a verdict reads.
@@ -123,7 +125,7 @@ async def test_servicenow_gets_an_incident_with_an_inverted_urgency(monkeypatch,
 @pytest.mark.anyio
 async def test_a_quiet_verdict_maps_to_the_lowest_urgency(monkeypatch, snow):
     seen = stub(monkeypatch, 201, {"result": {"number": "INC1", "sys_id": "x"}})
-    await tickets.create_ticket({**CASE, "verdict": "low"}, BODY, "servicenow")
+    await tickets.create_ticket({**CASE, "verdict": "low"}, BODY, "servicenow", tickets.SinkConfig.from_env())
     assert seen["json"]["urgency"] == "3"
 
 
@@ -131,7 +133,7 @@ async def test_a_quiet_verdict_maps_to_the_lowest_urgency(monkeypatch, snow):
 async def test_an_unconfigured_sink_is_refused_before_any_request(monkeypatch, jira):
     called = stub(monkeypatch, 201, {})
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "servicenow")
+        await tickets.create_ticket(CASE, BODY, "servicenow", tickets.SinkConfig.from_env())
     assert exc.value.status == 409
     assert "not configured" in str(exc.value)
     assert called == {}, "a request went out for a sink that is not set up"
@@ -141,7 +143,7 @@ async def test_an_unconfigured_sink_is_refused_before_any_request(monkeypatch, j
 async def test_a_vendor_refusal_carries_the_vendor_message(monkeypatch, jira):
     stub(monkeypatch, 400, {"errorMessages": ["issue type is required"], "errors": {}})
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "jira")
+        await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     assert exc.value.status == 400
     assert "issue type is required" in str(exc.value)
 
@@ -150,7 +152,7 @@ async def test_a_vendor_refusal_carries_the_vendor_message(monkeypatch, jira):
 async def test_a_field_level_refusal_is_readable_too(monkeypatch, jira):
     stub(monkeypatch, 400, {"errorMessages": [], "errors": {"project": "does not exist"}})
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "jira")
+        await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     assert "project" in str(exc.value) and "does not exist" in str(exc.value)
 
 
@@ -159,40 +161,40 @@ async def test_an_error_never_leaks_the_credential(monkeypatch, jira):
     """The message goes to an analyst's screen and into a log line."""
     stub(monkeypatch, 401, {"errorMessages": ["Client must be authenticated"]})
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "jira")
+        await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     assert TOKEN not in str(exc.value)
     assert "Basic " not in str(exc.value)
 
 
 @pytest.mark.anyio
 async def test_an_unreachable_sink_is_a_502_not_a_crash(monkeypatch, jira):
-    async def boom(url, *, headers, json):
+    async def boom(url, *, headers, json, host=""):
         raise httpx.ConnectError("name or service not known")
 
     monkeypatch.setattr(tickets, "_post", boom)
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "jira")
+        await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     assert exc.value.status == 502
     assert "could not reach jira" in str(exc.value)
 
 
 @pytest.mark.anyio
 async def test_a_vendor_that_answers_with_html_still_gives_a_message(monkeypatch, jira):
-    async def html(url, *, headers, json):
+    async def html(url, *, headers, json, host=""):
         return httpx.Response(
             502, text="<html>bad gateway</html>", request=httpx.Request("POST", url)
         )
 
     monkeypatch.setattr(tickets, "_post", html)
     with pytest.raises(tickets.TicketError) as exc:
-        await tickets.create_ticket(CASE, BODY, "jira")
+        await tickets.create_ticket(CASE, BODY, "jira", tickets.SinkConfig.from_env())
     assert "502" in str(exc.value)
 
 
 @pytest.mark.anyio
 async def test_the_report_body_is_truncated_rather_than_rejected(monkeypatch, jira):
     seen = stub(monkeypatch, 201, {"key": "SOC-9"})
-    await tickets.create_ticket(CASE, "x" * 50_000, "jira")
+    await tickets.create_ticket(CASE, "x" * 50_000, "jira", tickets.SinkConfig.from_env())
     text = seen["json"]["fields"]["description"]["content"][0]["content"][0]["text"]
     assert len(text) == 30_000
 
@@ -204,6 +206,46 @@ async def test_a_configured_sink_host_is_allowed_through_the_egress_policy(jira)
     from app import net
 
     assert {"example.atlassian.net"} <= net.ticket_sink_hosts()
+
+
+@pytest.mark.anyio
+async def test_a_ticket_client_may_reach_its_workspaces_sink_host_and_no_other_may(monkeypatch):
+    """A sink a workspace admin set is reachable by the client that delivers its ticket, only."""
+    from app import net
+
+    async def public(host):
+        return ("203.0.113.10",)  # documentation space stands in for a public address here
+
+    monkeypatch.setattr(net, "is_blocked_address", lambda address: False)
+    monkeypatch.setattr(net, "resolve", public)
+    url = httpx.URL("https://acme.atlassian.net/rest/api/3/issue")
+    await net.assert_allowed(url, frozenset({"acme.atlassian.net"}))
+    with pytest.raises(net.EgressBlocked):
+        await net.assert_allowed(url)                                     # any other client
+    with pytest.raises(net.EgressBlocked):
+        await net.assert_allowed(url, frozenset({"globex.atlassian.net"}))  # another workspace's
+
+
+@pytest.mark.anyio
+async def test_the_private_opt_in_covers_only_hosts_the_operator_named(monkeypatch):
+    """A workspace admin can type any host into Settings; only the operator can open private space to it."""
+    from app import net
+
+    monkeypatch.setattr(settings, "jira_base_url", None)
+    monkeypatch.setattr(settings, "servicenow_base_url", None)
+    monkeypatch.setattr(settings, "ticket_allow_private_host", True)
+    monkeypatch.setattr(settings, "ticket_private_hosts", "jira.corp.internal")
+
+    async def private(host):
+        return ("10.0.0.5",)
+
+    monkeypatch.setattr(net, "resolve", private)
+    typed = httpx.URL("https://metadata.attacker.internal/latest")
+    with pytest.raises(net.EgressBlocked) as exc:
+        await net.assert_allowed(typed, frozenset({"metadata.attacker.internal"}))
+    assert "non-routable" in str(exc.value)
+    named = httpx.URL("https://jira.corp.internal/rest/api/3/issue")
+    await net.assert_allowed(named, frozenset({"jira.corp.internal"}))
 
 
 @pytest.mark.anyio

@@ -69,6 +69,12 @@ JSON report are the public interface.
   workspaces. `GET /api/workspace` tells every member which sources answer. Retention days (1 to
   365, default 30) are kept for the sweep that arrives in M3.
 
+- **Jira and ServiceNow per workspace.** An admin sets the workspace's tracker in its settings (the
+  token or password sealed, shown only as set and its last four characters); tickets raised from a
+  case or a pushed alert go to that tracker with that credential, and `/api/workspace` says which
+  trackers a workspace has. The client that delivers a ticket may reach that workspace's tracker host
+  and no other. Tracker settings from 1.x's environment move into the first organization once.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
@@ -86,6 +92,9 @@ JSON report are the public interface.
   (`ABUSEIPDB_API_KEY`, `OTX_API_KEY`, `GREYNOISE_API_KEY`, `ABUSECH_AUTH_KEY`) are sealed into the
   first organization's settings, once, and ignored after that (a warning says so if they are still
   set). `/api/health` reports keyed providers as configured only per workspace (`/api/workspace`).
+- **`TICKET_ALLOW_PRIVATE_HOST` covers only hosts the operator named** (`JIRA_BASE_URL`,
+  `SERVICENOW_BASE_URL`, and the new `TICKET_PRIVATE_HOSTS`), never an address a workspace admin types
+  into Settings. `/api/health` no longer lists ticket sinks; they are per workspace.
 - **The API needs a caller.** Without a session or a token every route but health, the scoring
   model, sign-in and setup answers `401`; there is no anonymous access any more. The 1.x `API_TOKEN`
   keeps its access to the endpoints 1.x had, in the original organization, and is deprecated (it

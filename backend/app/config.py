@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     # typo or an SSRF attempt, not a self-hosted instance. Operators running
     # Jira or ServiceNow on an internal network turn this on deliberately.
     ticket_allow_private_host: bool = False
+    # Comma-separated hosts that may resolve into private space when the switch
+    # above is on, besides JIRA_BASE_URL / SERVICENOW_BASE_URL. A host a
+    # workspace admin types into Settings never gets this unless named here.
+    ticket_private_hosts: str = ""
     max_iocs_per_request: int = 100
     max_upload_bytes: int = 5 * 1024 * 1024
     max_request_bytes: int = 1024 * 1024      # JSON bodies; uploads use the limit above
