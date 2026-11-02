@@ -170,6 +170,21 @@ async function sweep(where) {
          mid-reflow sat below a viewport it fits in. One that is still out of
          reach after three tries is reported, with what is in the way. */
       let box;
+      /* A control in the floating nav cannot be scrolled into view: the nav
+         tucks itself away while the page moves down, and the previous probe
+         (a nav link to a section further down) can leave a smooth scroll still
+         running on a slow machine, keeping it tucked through every attempt
+         below (seen in CI: "Evidence" at y -35, scrollY 518). Do what a person
+         does to get it back: stop, and scroll up a little. */
+      const nav = el.closest("#nav");
+      if (nav && nav.classList.contains("hide")) {
+        scrollTo({ top: scrollY, behavior: "instant" });        // ends a smooth scroll in flight
+        scrollTo({ top: Math.max(0, scrollY - 2), behavior: "instant" });
+        for (let waited = 0; waited < 1200 && (nav.classList.contains("hide")
+             || nav.getBoundingClientRect().top < 0); waited += 50) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+      }
       for (let attempt = 0; attempt < 3; attempt++) {
         el.scrollIntoView({ block: "center", behavior: "instant" });
         /* A control pinned to the viewport (the brand, the theme button) does
