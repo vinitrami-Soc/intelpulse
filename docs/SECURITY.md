@@ -253,11 +253,17 @@ never from the image.
   matrix.
 * **CSP.** A `<meta>` policy blocks inline script, `eval`, objects and form
   submission, and limits script to this origin: no CDN, now that neither graph
-  loads a library. The two redirect stubs (`workbench.html`, `explorer.html`)
-  run no script at all: `default-src 'none'`.
-  `frame-ancestors` cannot be set from a meta tag, so the nginx service sends
-  it as a real header (`web/nginx.conf`). GitHub Pages cannot send headers,
-  which is why the app never depends on them for correctness.
+  loads a library. The fonts are bundled too (`web/assets/fonts/`, SIL OFL), so
+  a page loads nothing from any other host, and a browser test fails if one
+  does. The two redirect stubs (`workbench.html`, `explorer.html`) run no
+  script at all: `default-src 'none'`.
+  The IntelPulse server serves the pages itself and sends the policy as a real
+  header (`default-src 'self'; script-src 'self'; ... connect-src 'self';
+  frame-ancestors 'none'`), which a meta tag cannot fully express; it serves
+  only the pages and `assets/`, never the test suites beside them.
+  `web/nginx.conf` does the same for anyone hosting the static demo. GitHub
+  Pages cannot send headers, which is why the app never depends on them for
+  correctness.
 * **Nothing from outside is trusted as a shape.** Every result the API returns
   goes through `normalizeResult()` before anything renders it: numbers become finite numbers, lists become arrays,
   a verdict is recomputed from the score. Before, a string where a count was
@@ -285,7 +291,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 345 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 371 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

@@ -1,8 +1,11 @@
+# Built from the repository root, so the image carries the console (web/) beside
+# the API and serves both on one origin:  docker build -t intelpulse .
 FROM python:3.12-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    WEB_DIR=/srv/web
 
 WORKDIR /srv
 
@@ -10,10 +13,12 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
+COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY backend/ ./
+# The pages and their assets only: .dockerignore leaves out the browser tests.
+COPY web/ ./web/
 
 # Run unprivileged: the container only ever needs to read its own code and
 # write to ./data.

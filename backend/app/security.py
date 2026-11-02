@@ -96,6 +96,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not settings.rate_limit_enabled or request.method == "OPTIONS":
             return await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            # the console's own files: one page load is a dozen of them, and none costs quota
+            return await call_next(request)
 
         bucket, limit = self._limit_for(request)
         key = f"{bucket}:{client_ip(request)}"
@@ -236,6 +239,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
 
     API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    # The console's pages (spec 11.2): everything from this origin, no inline script.
+    # 'unsafe-inline' for styles stays until the console stops setting style attributes.
+    PAGE_CSP = (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; "
+        "base-uri 'none'; object-src 'none'"
+    )
     DOCS_CSP = (
         "default-src 'self'; img-src 'self' data: https://fastapi.tiangolo.com; "
         "script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' "
@@ -260,10 +270,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             )
         duration_ms = int((time.perf_counter() - started) * 1000)
 
-        is_docs = request.url.path in ("/docs", "/redoc", "/docs/oauth2-redirect")
-        response.headers.setdefault(
-            "Content-Security-Policy", self.DOCS_CSP if is_docs else self.API_CSP
-        )
+        path = request.url.path
+        if path in ("/docs", "/redoc", "/docs/oauth2-redirect"):
+            policy = self.DOCS_CSP
+        elif path.startswith("/api/") or path == "/openapi.json":
+            policy = self.API_CSP
+        else:
+            policy = self.PAGE_CSP
+        response.headers.setdefault("Content-Security-Policy", policy)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "no-referrer")

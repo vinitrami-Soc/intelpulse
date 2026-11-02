@@ -24,6 +24,7 @@ from .security import (
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
+from .web import ConsoleFiles
 
 configure_logging(settings.log_level, json_logs=settings.json_logs)
 logger = logging.getLogger("intelpulse")
@@ -147,16 +148,20 @@ def create_app() -> FastAPI:
     async def _shutdown() -> None:
         await cache.close()
 
-    @app.get("/", include_in_schema=False)
-    async def root() -> JSONResponse:
-        return JSONResponse(
-            {
-                "name": settings.app_name,
-                "docs": "/docs",
-                "health": "/api/health",
-                "triage": "POST /api/triage",
-            }
-        )
+    if settings.web_dir is not None and (settings.web_dir / "index.html").is_file():
+        # Last, so every /api route and /docs are matched first.
+        app.mount("/", ConsoleFiles(directory=settings.web_dir, html=True), name="console")
+    else:
+        @app.get("/", include_in_schema=False)
+        async def root() -> JSONResponse:
+            return JSONResponse(
+                {
+                    "name": settings.app_name,
+                    "docs": "/docs",
+                    "health": "/api/health",
+                    "triage": "POST /api/triage",
+                }
+            )
 
     return app
 
