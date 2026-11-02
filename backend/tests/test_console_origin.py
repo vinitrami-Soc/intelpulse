@@ -1,6 +1,8 @@
 """One origin: the app serves the console's pages beside the API (spec 4)."""
 from __future__ import annotations
 
+import json
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -56,6 +58,13 @@ async def test_the_pages_assets_are_served(browser, path, kind):
 async def test_nothing_else_in_the_folder_or_beside_it_is_served(browser, path):
     response = await browser.get(path)
     assert response.status_code == 404, path
+
+
+async def test_the_server_tells_the_console_it_is_a_server(browser):
+    """The file in web/ says demo; the server answers the same path itself (data.js)."""
+    answer = await browser.get("/assets/mode.json")
+    assert answer.json() == {"mode": "server"} and answer.headers["cache-control"] == "no-store"
+    assert json.loads((settings.web_dir / "assets" / "mode.json").read_text()) == {"mode": "demo"}
 
 
 async def test_an_unknown_api_path_is_still_a_json_404(browser):

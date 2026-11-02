@@ -1009,7 +1009,7 @@ button { font-family: inherit; cursor: pointer; }
 .wb-muted { color: var(--ink-3); }
 .wb-mono { font-family: var(--mono); font-size: 11.5px; word-break: break-word; }
 .wb-preview:empty { display: none; }
-.wb-live { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wb-source { margin-left: auto; text-transform: none; letter-spacing: 0; }
 .wb-link {
   font: inherit; font-size: 12px; font-weight: 600; color: var(--flame-ink); background: none;
   border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
@@ -1442,3 +1442,18 @@ button { font-family: inherit; cursor: pointer; }
 .cg-table th:nth-child(4) { width: 22%; }
 .cg-table th:nth-child(5) { width: 10%; }
 .cg-table th:nth-child(6) { width: 12%; }
+
+/* ═══════════════════════════════════════ sign in · set up (server mode) */
+.page-account { padding-top: 120px; padding-bottom: 60px; }
+.account-card { width: min(460px, 100%); margin-inline: auto; padding: 24px; }
+.account-title { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
+.account-lead { margin-top: 6px; }
+.account-field { display: grid; gap: 6px; margin-top: 14px; }
+.account-field .wb-field { width: 100%; flex: none; }
+.account-field .wb-hint { margin-top: 0; }
+.account-field .wb-field[aria-invalid="true"] { border-color: var(--sev-critical); }
+.account-actions { margin-top: 18px; }
+.account-who { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (pointer: coarse) {
+  .account-field .wb-field, .account-actions .btn, #c-signout { min-height: 44px; }
+}

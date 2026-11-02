@@ -204,7 +204,8 @@ identically from GitHub Pages, nginx or `python -m http.server`.
 | Page | What it is |
 | --- | --- |
 | `web/index.html` | The site and the operator console, which is what a visitor lands on: a light, sky-gradient landing page that explains the correlation model, and a console route (`#/console`) with the posture metrics, severity split and attack-surface gauge. |
-| `#/console/workbench` | The analyst tool, as a console view. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket, switch between demo data and the live API. |
+| `#/console/workbench` | The analyst tool, as a console view. Paste an alert, run the triage, read the evidence, open the graph, generate the ticket. On GitHub Pages it scores the demo data in the browser; served by an IntelPulse server, it triages on the server for the signed-in workspace. |
+| `#/setup`, `#/signin` | Server mode only: the owner's one-time setup, and signing in. The console sends anyone without a session here and back to the page they asked for afterwards. |
 | `#/console/campaigns` | The campaign graph: one synthetic investigation drawn as a radial map, with a first-seen timeline and a severity filter. |
 
 The workbench and the graph used to be separate pages, `web/workbench.html` and

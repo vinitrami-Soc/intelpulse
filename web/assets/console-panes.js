@@ -33,17 +33,6 @@
   const $ = (sel, scope) => (scope || document).querySelector(sel);
   const $$ = (sel, scope) => Array.from((scope || document).querySelectorAll(sel));
 
-  /* The API token lives for the tab and no longer: sessionStorage, never
-     localStorage, so it is gone when the tab closes and never written to disk
-     alongside the history. */
-  const secret = {
-    get() { try { return sessionStorage.getItem("intelpulse:apiToken") || ""; } catch (_) { return ""; } },
-    set(value) {
-      try { if (value) sessionStorage.setItem("intelpulse:apiToken", value); else sessionStorage.removeItem("intelpulse:apiToken"); }
-      catch (_) { /* storage blocked: the token lasts as long as this view */ }
-    }
-  };
-
   const store = {
     get(key, fallback) {
       try { const raw = localStorage.getItem("intelpulse:" + key); return raw === null ? fallback : JSON.parse(raw); }
@@ -166,10 +155,13 @@
      null in the history used to take the view down. Each value is checked for
      the shape it must have, and replaced by the default when it is not. */
   const objects = (value) => (Array.isArray(value) ? value.filter((v) => v && typeof v === "object" && !Array.isArray(v)) : []);
-  const storedBase = store.get("apiBase", "http://localhost:8000");
+  /* Where the intelligence comes from is not a switch any more: served by an
+     IntelPulse server and signed in, the workbench triages on the server, in the
+     workspace (assets/data.js); anywhere else it is the in-browser demo. No API
+     address and no token are typed in, so none is kept. */
+  const serverMode = () => Boolean(window.IntelPulseData && window.IntelPulseData.server);
   const wb = {
-    mode: store.get("mode", "demo") === "live" ? "live" : "demo",
-    apiBase: typeof storedBase === "string" && safeUrl(storedBase) ? storedBase : "http://localhost:8000",
+    mode: "demo",
     lists: objects(store.get("lists", [])).filter((e) => typeof e.value === "string"),
     history: objects(store.get("history", [])),
     health: null,
@@ -187,15 +179,14 @@
   const PAGE_SIZE = 25;
 
   function workbenchBody() {
+    wb.mode = serverMode() ? "live" : "demo";
     const scenarios = (DEMO && DEMO.scenarios) || [];
     return '<div class="wb" data-wb>' +
       '<div class="panel-row wb-top">' +
         '<section class="card panel wb-input-card">' +
           '<div class="panel-head"><h4>Paste an alert</h4>' +
-            '<div class="seg" role="group" aria-label="Where the intelligence comes from">' +
-              '<button type="button" data-mode="demo" aria-pressed="' + (wb.mode === "demo") + '">Demo data</button>' +
-              '<button type="button" data-mode="live" aria-pressed="' + (wb.mode === "live") + '">Live API</button>' +
-            "</div></div>" +
+            '<span class="label-xs wb-source" id="wb-source">' +
+              (wb.mode === "live" ? "live · this server" : "demo · in your browser") + "</span></div>" +
           '<label class="label-xs" for="wb-input">Alert, log lines, JSON export or a list of indicators</label>' +
           '<textarea id="wb-input" class="wb-input" rows="7" spellcheck="false" autocomplete="off" ' +
             'aria-describedby="wb-error wb-hint" placeholder="Sep 18 02:14:11 fw-edge-01 kernel: [UFW BLOCK] SRC=203.0.113.10 DST=10.20.4.15 DPT=445"></textarea>' +
@@ -212,15 +203,6 @@
             '<button type="button" class="btn btn-light btn-sm" data-act="clear">Clear</button>' +
           "</div>" +
           '<div id="wb-preview" class="wb-preview" aria-live="polite"></div>' +
-          '<div class="wb-live" id="wb-live"' + (wb.mode === "live" ? "" : " hidden") + ">" +
-            '<label class="label-xs" for="wb-api">API address</label>' +
-            '<div class="wb-row"><input id="wb-api" class="wb-field" type="url" inputmode="url" spellcheck="false" autocomplete="off" aria-describedby="wb-api-error" value="' + esc(wb.apiBase) + '">' +
-              '<button type="button" class="btn btn-light btn-sm" data-act="connect">Connect</button></div>' +
-            '<p class="wb-error" id="wb-api-error" role="alert" hidden></p>' +
-            '<label class="label-xs" for="wb-token" style="margin-top:10px;display:block">API token <span class="wb-muted">(if the API sets API_TOKEN)</span></label>' +
-            '<input id="wb-token" class="wb-field" type="password" autocomplete="off" spellcheck="false" aria-describedby="wb-token-hint">' +
-            '<p class="wb-hint" id="wb-token-hint">Kept for this tab only, sent as a Bearer header, never stored with your history.</p>' +
-          "</div>" +
         "</section>" +
         '<section class="card panel wb-side">' +
           '<div class="panel-head"><h4>Start from a sample</h4></div>' +
@@ -254,7 +236,7 @@
       "</div>" +
 
       '<section class="card panel"><div class="panel-head"><h4>Case history</h4>' +
-        '<span class="label-xs">last 25, this browser' + (wb.mode === "live" ? " or the API" : "") + "</span></div>" +
+        '<span class="label-xs">' + (wb.mode === "live" ? "last 25 in this workspace" : "last 25, this browser") + "</span></div>" +
         '<div id="wb-history"></div></section>' +
 
       '<dialog class="wb-dialog" id="wb-dialog" role="dialog" aria-modal="true" aria-labelledby="wb-dialog-title">' +
@@ -272,24 +254,12 @@
 
     const q = (sel) => $(sel, root);
 
+    /* This server, same origin: the session cookie and the CSRF token ride along (data.js). */
     async function api(path, options) {
       const controller = new AbortController();
       inflight.add(controller);
       try {
-        const base = wb.apiBase.replace(/\/+$/, "");
-        const headers = { "Content-Type": "application/json" };
-        const token = secret.get();
-        if (token) headers.Authorization = "Bearer " + token;
-        const response = await fetch(base + path, Object.assign({
-          headers, signal: controller.signal, credentials: "omit"
-        }, options || {}));
-        if (!response.ok) {
-          let detail = response.statusText;
-          try { detail = (await response.json()).detail || detail; } catch (_) { /* non-JSON error */ }
-          throw new Error(detail);
-        }
-        const type = response.headers.get("content-type") || "";
-        return type.includes("application/json") ? response.json() : response.text();
+        return await window.IntelPulseData.request(path, Object.assign({}, options || {}, { signal: controller.signal }));
       } finally { inflight.delete(controller); }
     }
 
@@ -312,14 +282,14 @@
         box.innerHTML = '<div class="wb-chips">' +
           ["AbuseIPDB", "OTX", "ThreatFox", "URLhaus", "GreyNoise", "Local blocklist", "GeoIP", "NVD"]
             .map((n) => '<span class="wb-chip">' + n + "</span>").join("") + "</div>" +
-          '<p class="wb-hint">Demo mode scores a bundled synthetic dataset in your browser with the same weights as the API. Switch to <b>Live API</b> for real vendor lookups.</p>';
+          '<p class="wb-hint">The demo scores a bundled synthetic dataset in your browser with the same weights as the server. Run IntelPulse yourself (<code>docker compose up</code>) and sign in for real vendor lookups.</p>';
         return;
       }
       if (!wb.health) {
         conn.className = "wb-conn err"; conn.textContent = "unreachable";
-        box.innerHTML = '<p class="wb-hint wb-warn">Cannot reach <code>' + esc(wb.apiBase) + "</code>" +
+        box.innerHTML = '<p class="wb-hint wb-warn">The server did not answer' +
           (errorMessage ? " (" + esc(errorMessage) + ")" : "") + ".</p>" +
-          '<p class="wb-hint">Start it with <code>docker compose up</code>, or switch back to demo data.</p>';
+          '<p class="wb-hint">Reload the page in a moment; if it persists, check the server\'s log.</p>';
         return;
       }
       const h = wb.health;
@@ -353,15 +323,6 @@
         renderProviders(error.message);
       }
       renderTicketButton();
-    }
-
-    function setMode(mode) {
-      wb.mode = mode === "live" ? "live" : "demo";
-      store.set("mode", wb.mode);
-      $$("[data-mode]", root).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === wb.mode)));
-      q("#wb-live").hidden = wb.mode !== "live";
-      checkHealth();
-      renderHistory();
     }
 
     /* ─── ingest ─── */
@@ -1181,8 +1142,6 @@
     /* ─── wiring: one delegated listener, so unmount is one removal ─── */
     function onClick(event) {
       const t = event.target;
-      const mode = t.closest("[data-mode]");
-      if (mode) { setMode(mode.dataset.mode); return; }
       const scenario = t.closest("[data-scenario]");
       if (scenario) { loadScenario(scenario.dataset.scenario); return; }
       const top = t.closest(".wb-ioc-top");
@@ -1208,22 +1167,6 @@
         case "preview": preview(); break;
         case "clear": clearWorkspace(); break;
         case "undo": if (wb.undo) { wb.undo(); wb.undo = null; q("#wb-preview").innerHTML = ""; } break;
-        case "connect": {
-          /* On the field, not in a toast: an error that disappears before it is
-             read, next to nothing, is how a typo becomes an hour of debugging. */
-          const field = q("#wb-api"), box = q("#wb-api-error");
-          const value = field.value.trim();
-          if (!safeUrl(value)) {
-            field.setAttribute("aria-invalid", "true");
-            box.textContent = "That is not an address. Use the full URL, starting with http:// or https://";
-            box.hidden = false; field.focus();
-            return;
-          }
-          field.removeAttribute("aria-invalid"); box.hidden = true; box.textContent = "";
-          wb.apiBase = value; store.set("apiBase", value);
-          secret.set(q("#wb-token").value.trim());
-          checkHealth(); break;
-        }
         case "show-all": wb.showAll = true; renderIndicators(wb.result); break;
         case "copy-report": copyText(q("#wb-report").dataset.markdown || "", "Markdown ticket copied."); break;
         case "download-md": downloadReport("md"); break;
@@ -1272,7 +1215,6 @@
 
     /* Coming back to the pane finds the draft and the open case where they were. */
     q("#wb-input").value = wb.draft.text;
-    q("#wb-token").value = secret.get();
     q("#wb-title").value = wb.draft.title;
     checkHealth();
     renderHistory();

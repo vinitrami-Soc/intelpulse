@@ -508,10 +508,24 @@
           '<button class="round-btn" id="c-search" aria-label="Ask the assistant">' + icon("i-search") + "</button>" +
           (pane === "workbench" ? "" :
             '<a class="btn btn-dark btn-sm" href="#/console/workbench">Live triage' + icon("i-arrow") + "</a>") +
-          '<span class="status-pill">Sample data <span class="on">synthetic</span></span>' +
+          (signedIn() && pane === "workbench"
+            ? '<span class="status-pill">Live <span class="on" id="c-workspace"></span></span>'
+            : '<span class="status-pill">Sample data <span class="on">synthetic</span></span>') +
+          (signedIn()
+            ? '<span class="status-pill account-who" id="c-who"></span>' +
+              '<button class="btn btn-light btn-sm" id="c-signout" type="button">Sign out</button>'
+            : "") +
           '<button class="round-btn" id="c-collapse" aria-label="Collapse sidebar">' + icon("i-sidebar") + "</button>" +
         "</div>" +
       "</header>" + '<div class="route" id="console-panels">' + skeleton() + "</div>";
+    if (signedIn()) {
+      /* names a person typed: set as text, never as markup */
+      const session = DATA_SOURCE.session;
+      $("#c-who").textContent = session.user.displayName + " · " + (session.user.owner ? "owner" : session.user.role);
+      const ws = $("#c-workspace");
+      if (ws) ws.textContent = session.workspace ? session.workspace.name : "";
+      $("#c-signout").addEventListener("click", signOut);
+    }
 
     /* Paint the header and the skeleton first, then swap the panels in on the
        next frame. Charts measure their container, so they need a layout to
@@ -616,6 +630,29 @@
     else location.hash = hash;
   }
 
+  /* Server mode (assets/data.js): the console needs a session, and #/signin and
+     #/setup are the way in. In the demo neither exists and every route behaves
+     as it always has. */
+  const DATA_SOURCE = window.IntelPulseData;
+  function serverMode() { return Boolean(DATA_SOURCE && DATA_SOURCE.server); }
+  function signedIn() { return serverMode() && Boolean(DATA_SOURCE.session && DATA_SOURCE.session.user); }
+  function accountFromHash() {
+    if (!serverMode()) return null;
+    const first = hashParts()[0];
+    return first === "signin" || first === "setup" ? first : null;
+  }
+  function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
+  async function signOut() {
+    try { await DATA_SOURCE.source.signOut(); }
+    catch (_) { /* the session is gone either way */ }
+    go("#/signin");
+    toast("Signed out");
+  }
+  addEventListener("intelpulse:signed-out", () => {
+    if (routeIsConsole()) { window.IntelPulseAccount.remember(location.hash); go("#/signin"); }
+    toast("Your session ended: sign in again");
+  });
+
   /* The browser paints its chrome with this colour, so it has to match what is
      really at the top of the page: the sky on the site, the console's own ground
      inside the tool. Read the live token rather than repeating its value. */
@@ -628,7 +665,37 @@
   }
 
   let shownRoute = null;
+  function showAccount(view) {
+    leavePane();
+    shownRoute = view;
+    $("#page-home").hidden = true;
+    $("#page-console").hidden = true;
+    $("#page-account").hidden = false;
+    window.IntelPulseAccount.render(view, $("#account-root"), (target) => go(target));
+    const skip = $("#skip");
+    if (skip) { skip.href = "#page-account"; skip.textContent = "Skip to the form"; }
+    syncChrome();
+    openDrawer(false);
+    openMenu(false);
+    window.scrollTo({ top: 0 });
+  }
+
   function route() {
+    const account = accountFromHash();
+    if (account) {
+      const session = DATA_SOURCE.session || {};
+      if (session.user) { go("#/console/dashboard"); return; }
+      if (account === "setup" && !session.setupNeeded) { go("#/signin"); return; }
+      if (account === "signin" && session.setupNeeded) { go("#/setup"); return; }
+      showAccount(account);
+      return;
+    }
+    if (serverMode() && routeIsConsole() && !signedIn()) {
+      window.IntelPulseAccount.remember(location.hash);
+      go(wayIn());
+      return;
+    }
+    $("#page-account").hidden = true;
     const pane = paneFromHash();
     const toConsole = pane !== null;
     /* The pane is part of the route: switching views is a navigation too. */
@@ -667,7 +734,8 @@
     openMenu(false);
     if (moved) window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
   }
-  addEventListener("hashchange", route);
+  let booted = false;
+  addEventListener("hashchange", () => { if (booted) route(); });
 
   /* An <a href="#console-body"> would rewrite the hash the router reads, which
      would throw the reader back to the site. Move the focus by hand instead. */
@@ -827,7 +895,9 @@
     severityBar($("#sev-landing"), btn.dataset.filter);
     stateRow($("#state-landing"), btn.dataset.filter);
   }));
-  route();
+  /* The first route waits for data.js to know whether a server is behind this
+     page: a static host answers in milliseconds, and so does a server. */
+  (DATA_SOURCE ? DATA_SOURCE.ready : Promise.resolve()).then(() => { booted = true; route(); }, () => { booted = true; route(); });
   onScroll();
   fitPreview();
   addEventListener("load", fitPreview);

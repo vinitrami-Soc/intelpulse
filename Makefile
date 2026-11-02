@@ -1,4 +1,4 @@
-.PHONY: help install keys dev test test-web test-ui lint audit artifact feeds seed up down logs clean
+.PHONY: help install keys dev test test-web test-ui test-server lint audit artifact feeds seed up down logs clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -29,6 +29,16 @@ test-ui: ## browser security + UX tests (needs playwright; serve web/ on :8123 f
 	node web/tests/suite.spec.mjs
 	node web/tests/mobile.spec.mjs
 	node web/tests/security.spec.mjs
+
+test-server: ## the console against a real, new server on SQLite (needs playwright)
+	@rm -f /tmp/intelpulse-server-spec.db
+	@cd backend && export ENCRYPTION_KEY="$$(python3 -c 'import base64,os;print(base64.b64encode(os.urandom(32)).decode())')" \
+	  DATABASE_URL=sqlite+aiosqlite:////tmp/intelpulse-server-spec.db API_TOKEN= && \
+	  { .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8124 > /tmp/intelpulse-server-spec.log 2>&1 & echo $$! > /tmp/intelpulse-server-spec.pid; } && \
+	  for i in $$(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:8124/api/health && break; sleep 1; done && \
+	  code="$$(.venv/bin/python -m app.cli setup-code | tail -1)" && cd .. && \
+	  INTELPULSE_SETUP_CODE="$$code" INTELPULSE_SERVER_URL=http://127.0.0.1:8124/ node web/tests/server.spec.mjs; \
+	  status=$$?; kill "$$(cat /tmp/intelpulse-server-spec.pid)"; exit $$status
 
 lint: ## ruff check
 	cd backend && .venv/bin/ruff check app tests

@@ -47,12 +47,20 @@ JSON report are the public interface.
   - **One origin.** The server serves the console itself (`web/`, at `/`), with the page policy as
     a real header: everything from this origin, no inline script, `frame-ancestors 'none'`. Only the
     pages and `assets/` are served, never the browser test suites beside them.
+  - **The console on the session.** Served by a server, the console is in server mode
+    (`web/assets/data.js`): a new server opens `#/setup` for the one-time code, the console needs a
+    sign-in (`#/signin`) and returns to the page that asked, the header names who is signed in with
+    a Sign out button, and the workbench triages on the server into the workspace. The GitHub Pages
+    demo is unchanged. A new browser suite, `web/tests/server.spec.mjs` (`make test-server`, and a
+    CI job), runs it against a real new server.
 
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
   `make keys` writes one to `.env` once, and `python -m app.cli new-key` prints one. A backup of the
   database cannot be read without the key it was made with.
+- **The workbench's "Live API" box is gone**, with its API address field and the API token it kept
+  in `sessionStorage`: a server serves its own console, and scripts use API tokens.
 - **One port.** `docker compose up` answers on http://localhost:8000 for the console and the API;
   the separate nginx container on 8080 is gone (`web/nginx.conf` stays for hosting the static demo
   yourself). The image is built from the repository root (`Dockerfile`) and carries `web/`.
