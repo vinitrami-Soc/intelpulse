@@ -134,6 +134,9 @@ const injected = (page) => page.evaluate(() => {
       return json({ status: MARK("h.status"), database: MARK("h.db"), cache: { backend: MARK("h.cache"), hit_rate: MARK("h.rate") },
         providers: [{ name: MARK("h.p.name"), configured: MARK("h.p.conf") }, { name: 7, configured: true }, null, "junk"] });
     }
+    if (url.includes("/api/workspace")) {
+      return json({ name: MARK("ws.name"), providers: [{ name: MARK("ws.p.name"), ready: MARK("ws.p.ready") }, null, 7, "junk"] });
+    }
     if (url.includes("/api/extract")) {
       return json({ indicators: [{ type: MARK("x.type"), value: MARK("x.value") }, null, 7], count: MARK("x.count") });
     }

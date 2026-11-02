@@ -18,12 +18,14 @@ from .platform.box import server_box
 from .platform.deps import require_actor
 from .platform.errors import ApiError
 from .routers import account, alerts, cases, health, intel, lists, tokens, triage
+from .routers import settings as settings_router
 from .security import (
     BodySizeLimitMiddleware,
     OriginGuardMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
+from .services import workspace_settings
 from .web import ConsoleFiles
 
 configure_logging(settings.log_level, json_logs=settings.json_logs)
@@ -110,7 +112,7 @@ def create_app() -> FastAPI:
     # Everything else needs a verified caller. Each route also names the actor it acts
     # for; this router-wide check is the backstop that makes a forgotten one a 401, not a leak.
     signed_in = [Depends(require_actor)]
-    for module in (triage, alerts, cases, lists, intel, tokens):
+    for module in (triage, alerts, cases, lists, intel, tokens, settings_router):
         app.include_router(module.router, prefix="/api", responses=refusals, dependencies=signed_in)
 
     @app.on_event("startup")
@@ -119,6 +121,9 @@ def create_app() -> FastAPI:
         # alert text and secrets must not start at all.
         server_box()
         await init_db()
+        # once: 1.x's provider keys move from the environment into the default organization
+        async with session_scope() as db:
+            await workspace_settings.import_env_keys(db, server_box())
         await cache.connect()
         configured = [p.name for p in PROVIDERS if p.configured()]
         logger.info(

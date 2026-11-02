@@ -69,6 +69,14 @@ organization, and is deprecated. Single sign-on (OIDC) is not built yet.
   through a scoped getter: another workspace's case, entry or token is `404`
   with the same body as one that does not exist. Lists, stats, history diffs
   and the allow and block lists that shape a verdict are filtered the same way.
+* **Provider keys are the workspace's (`app/enrichment/credentials.py`).** A
+  triage runs inside its workspace's credentials, so a lookup can only spend
+  that workspace's keys; outside a workspace there are none. Keys are sealed,
+  shown only as their last four characters, and limited to printable ASCII
+  without spaces, because they travel in request headers. Every cached
+  provider answer is filed under the workspace that asked, so another
+  workspace neither reads it nor learns from the `cached` flag that someone
+  looked at the same indicator.
 * **The setup code.** The first account is the owner's, made with a one-time
   code that `python -m app.cli setup-code` prints on the operator's terminal.
   It is sealed in the database and never logged: whoever enters it first owns
@@ -295,7 +303,7 @@ never from the image.
 ## Verifying it yourself
 
 ```bash
-cd backend && pytest -q                 # 393 tests incl. the security suite and the audit's regressions
+cd backend && pytest -q                 # 419 tests incl. the security suite and the audit's regressions
 cd backend && pip-audit -r requirements.txt
 python3 -m http.server 8123 --directory web &
 node web/tests/ui.spec.mjs              # workbench + campaign graph checks (needs Playwright)

@@ -26,6 +26,7 @@ import httpx
 from ..cache import cache
 from ..config import settings
 from ..ioc import Indicator
+from . import credentials
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +124,23 @@ class Provider:
     label: str = "Provider"
     supported_types: set[str] = set()
     requires_key: bool = True
+    # The workspace setting that holds this provider's key (credentials.KEY_SLOTS); None: no key.
+    key_slot: str | None = None
     reference_url: str = ""
     cacheable: bool = True
 
+    def key(self) -> str | None:
+        """The key of the workspace this lookup runs for, if it set one (credentials.py)."""
+        return credentials.key(self.key_slot)
+
     def configured(self) -> bool:
-        return True
+        return not self.requires_key or bool(self.key())
+
+    def cache_name(self) -> str:
+        """A cached answer belongs to the workspace that looked it up (spec 6.6): another
+        workspace neither reads it nor learns from the `cached` flag that someone asked."""
+        creds = credentials.current()
+        return f"{self.name}@{creds.workspace_id}" if creds is not None else self.name
 
     def supports(self, indicator: Indicator) -> bool:
         return indicator.type in self.supported_types
@@ -159,13 +172,18 @@ class Provider:
             return self._result(
                 indicator, status=STATUS_SKIPPED, error=f"{indicator.type} not supported"
             )
+        if credentials.disabled(self.name):
+            return self._result(
+                indicator, status=STATUS_SKIPPED, error="turned off in this workspace's settings"
+            )
         if not self.configured():
             return self._result(
                 indicator, status=STATUS_SKIPPED, error="API key not configured"
             )
 
+        cache_name = self.cache_name()
         if use_cache and self.cacheable:
-            cached = await cache.get(self.name, indicator.value)
+            cached = await cache.get(cache_name, indicator.value)
             if cached is not None:
                 result = _from_cache(cached, self, indicator)
                 if result is not None:
@@ -179,7 +197,7 @@ class Provider:
         if not self.cacheable:
             return await self._fetch_and_store(client, indicator)
 
-        key = (self.name, indicator.value)
+        key = (cache_name, indicator.value)
         lock = _inflight.get(key)
         if lock is None:
             lock = _inflight[key] = asyncio.Lock()
@@ -187,7 +205,7 @@ class Provider:
             # The holder of the lock has written the cache by the time we get
             # here, so re-check before spending a call of our own.
             if use_cache:
-                cached = await cache.get(self.name, indicator.value)
+                cached = await cache.get(cache_name, indicator.value)
                 if cached is not None:
                     result = _from_cache(cached, self, indicator)
                     if result is not None:
@@ -229,7 +247,7 @@ class Provider:
                 if result.answered
                 else settings.cache_negative_ttl_seconds
             )
-            await cache.set(self.name, indicator.value, result.as_dict(), ttl=ttl)
+            await cache.set(self.cache_name(), indicator.value, result.as_dict(), ttl=ttl)
         return result
 
 

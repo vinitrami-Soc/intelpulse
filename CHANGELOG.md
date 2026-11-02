@@ -61,6 +61,14 @@ JSON report are the public interface.
   indicators) and filters (`status`, `source`, `assignee`, `since`, `until`). Migration 0004 makes
   every existing case `new` and unassigned.
 
+- **Workspace settings and provider keys.** Each workspace keeps its own provider keys (sealed,
+  shown only as set and their last four characters) and an on/off switch per provider, managed by
+  an admin through `GET/PATCH /api/settings`, with `POST /api/settings/providers/{name}/test` making
+  one harmless lookup with the key. A triage spends only its workspace's keys, and every cached
+  answer belongs to the workspace that asked, so the `cached` flag reveals nothing across
+  workspaces. `GET /api/workspace` tells every member which sources answer. Retention days (1 to
+  365, default 30) are kept for the sweep that arrives in M3.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
@@ -74,6 +82,10 @@ JSON report are the public interface.
 - **No Google Fonts.** Outfit and JetBrains Mono are bundled under `web/assets/fonts/` (SIL OFL
   1.1, Latin and Latin Extended), so neither the server nor the GitHub Pages demo asks a third party
   for anything when a page opens.
+- **Provider keys move out of the environment.** On the first start of v2 the keys `.env` holds
+  (`ABUSEIPDB_API_KEY`, `OTX_API_KEY`, `GREYNOISE_API_KEY`, `ABUSECH_AUTH_KEY`) are sealed into the
+  first organization's settings, once, and ignored after that (a warning says so if they are still
+  set). `/api/health` reports keyed providers as configured only per workspace (`/api/workspace`).
 - **The API needs a caller.** Without a session or a token every route but health, the scoring
   model, sign-in and setup answers `401`; there is no anonymous access any more. The 1.x `API_TOKEN`
   keeps its access to the endpoints 1.x had, in the original organization, and is deprecated (it
