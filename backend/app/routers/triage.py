@@ -3,17 +3,17 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..db import get_session
 from ..ioc import Indicator, classify, extract, summarise
-from ..models import DEFAULT_WORKSPACE_ID
+from ..platform.auth import Actor
+from ..platform.deps import require_actor
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import ExtractRequest, ExtractResponse, TriageRequest, TriageResponse
-from ..security import principal
 from ..services.history import diff_for_indicator
 from ..services.triage import persist_case, triage
 from ..text import clean_label
@@ -23,13 +23,13 @@ router = APIRouter(tags=["triage"])
 
 
 async def _diffs_for(
-    session: AsyncSession, body: dict, *, exclude_case_id: str | None = None
+    session: AsyncSession, body: dict, *, workspace_id: int, exclude_case_id: str | None = None
 ) -> list[dict]:
     """One diff per indicator, in the same order the response lists them."""
     return [
         (
             await diff_for_indicator(
-                session, item["value"], item, exclude_case_id=exclude_case_id
+                session, item["value"], item, workspace_id=workspace_id, exclude_case_id=exclude_case_id
             )
         ).as_dict()
         for item in body.get("indicators", [])
@@ -61,7 +61,7 @@ def _indicators_from_request(payload: TriageRequest) -> list[Indicator]:
 
 
 @router.post("/extract", response_model=ExtractResponse)
-async def extract_endpoint(payload: ExtractRequest) -> ExtractResponse:
+async def extract_endpoint(payload: ExtractRequest, _actor: Actor = Depends(require_actor)) -> ExtractResponse:
     """Parse-only: what would be triaged, without spending a single API call."""
     indicators = extract(payload.text, limit=payload.limit or settings.max_iocs_per_request)
     return ExtractResponse(
@@ -73,7 +73,7 @@ async def extract_endpoint(payload: ExtractRequest) -> ExtractResponse:
 
 @router.post("/triage", response_model=TriageResponse)
 async def triage_endpoint(
-    payload: TriageRequest, request: Request, session: AsyncSession = Depends(get_session)
+    payload: TriageRequest, actor: Actor = Depends(require_actor), session: AsyncSession = Depends(get_session)
 ) -> TriageResponse:
     indicators = _indicators_from_request(payload)
     if not indicators:
@@ -81,7 +81,7 @@ async def triage_endpoint(
 
     outcome = await triage(
         indicators,
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        workspace_id=actor.workspace_id,
         title=payload.title,
         use_cache=payload.use_cache,
         analyst=payload.analyst,
@@ -90,16 +90,17 @@ async def triage_endpoint(
     body = outcome.as_dict()
     # Read the history BEFORE this case joins it, or every indicator diffs
     # against itself and reports no change.
-    diffs = await _diffs_for(session, body, exclude_case_id=outcome.case_id)
+    diffs = await _diffs_for(session, body, workspace_id=actor.workspace_id, exclude_case_id=outcome.case_id)
     if payload.persist:
         await persist_case(
             session,
             outcome,
-            workspace_id=DEFAULT_WORKSPACE_ID,
+            workspace_id=actor.workspace_id,
+            created_by=actor.user_id,
             raw_input=payload.text,
             source="paste" if payload.text else "api",
             analyst=payload.analyst,
-            actor=principal(request),
+            actor=actor.label,
         )
         persisted = True
 
@@ -108,10 +109,10 @@ async def triage_endpoint(
 
 @router.post("/triage/upload", response_model=TriageResponse)
 async def triage_upload(
-    request: Request,
     file: UploadFile = File(...),
     title: str = Form("Uploaded log triage", max_length=200),
     analyst: str | None = Form(None, max_length=120),
+    actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
 ) -> TriageResponse:
     """Accepts .txt/.log/.csv/.json (including evtx-converted JSON) up to 5 MB."""
@@ -133,9 +134,10 @@ async def triage_upload(
     # The filename is chosen by whoever made the file: it is a label like any other.
     label = clean_label(f"{clean_label(title, 120)}: {clean_label(file.filename or 'upload', 80)}", 200)
     claimed = clean_label(analyst, 120) or None if analyst else None
-    outcome = await triage(indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=label, analyst=claimed)
+    outcome = await triage(indicators, workspace_id=actor.workspace_id, title=label, analyst=claimed)
     await persist_case(
-        session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=text[:20_000], source="upload", analyst=claimed, actor=principal(request)
+        session, outcome, workspace_id=actor.workspace_id, created_by=actor.user_id,
+        raw_input=text[:20_000], source="upload", analyst=claimed, actor=actor.label,
     )
     return TriageResponse(**outcome.as_dict(), persisted=True)
 
@@ -143,8 +145,8 @@ async def triage_upload(
 @router.post("/triage/report")
 async def triage_report(
     payload: TriageRequest,
-    request: Request,
     fmt: str = Query("markdown", pattern="^(markdown|json)$"),
+    actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
 ):
     """Triage and return a ready-to-paste SOC ticket in one call."""
@@ -152,13 +154,13 @@ async def triage_report(
     if not indicators:
         raise HTTPException(status_code=422, detail="no usable indicators found in the input")
     outcome = await triage(
-        indicators, workspace_id=DEFAULT_WORKSPACE_ID, title=payload.title, use_cache=payload.use_cache,
+        indicators, workspace_id=actor.workspace_id, title=payload.title, use_cache=payload.use_cache,
         analyst=payload.analyst,
     )
     if payload.persist:
         await persist_case(
-            session, outcome, workspace_id=DEFAULT_WORKSPACE_ID, raw_input=payload.text, source="report", analyst=payload.analyst,
-            actor=principal(request),
+            session, outcome, workspace_id=actor.workspace_id, created_by=actor.user_id,
+            raw_input=payload.text, source="report", analyst=payload.analyst, actor=actor.label,
         )
 
     if fmt == "json":

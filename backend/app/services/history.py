@@ -201,12 +201,12 @@ def diff_snapshots(
 
 
 async def previous_result(
-    session: AsyncSession, value: str, *, exclude_case_id: str | None = None
+    session: AsyncSession, value: str, *, workspace_id: int, exclude_case_id: str | None = None
 ) -> IndicatorResult | None:
-    """The most recent stored result for this indicator, before the current case."""
+    """The most recent stored result for this indicator in this workspace, before the current case."""
     stmt = (
         select(IndicatorResult)
-        .where(IndicatorResult.value == value)
+        .where(IndicatorResult.workspace_id == workspace_id, IndicatorResult.value == value)
         .order_by(IndicatorResult.created_at.desc(), IndicatorResult.id.desc())
         .limit(1)
     )
@@ -220,9 +220,10 @@ async def diff_for_indicator(
     value: str,
     current_payload: dict[str, Any],
     *,
+    workspace_id: int,
     exclude_case_id: str | None = None,
 ) -> IndicatorDiff:
-    previous = await previous_result(session, value, exclude_case_id=exclude_case_id)
+    previous = await previous_result(session, value, workspace_id=workspace_id, exclude_case_id=exclude_case_id)
     if previous is None:
         return diff_snapshots(snapshot_from_payload(current_payload), None, value=value)
     before = snapshot_from_payload(previous.payload or {})

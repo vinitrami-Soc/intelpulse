@@ -36,9 +36,13 @@ class Settings(BaseSettings):
         "http://localhost:8123,http://127.0.0.1:8123,"
         "https://vinitrami-soc.github.io"
     )
-    # When set, every /api route but /api/health and /api/scoring/model needs
-    # "Authorization: Bearer <token>". Unset keeps the single-analyst default.
+    # The shared token of IntelPulse 1.x, deprecated: still accepted as
+    # "Authorization: Bearer <token>" for the endpoints 1.x had, inside the
+    # default organization. Create scoped API tokens instead; it goes in v3.
     api_token: str | None = None
+    # Session cookies are Secure. Browsers accept them over plain HTTP on
+    # localhost; set false only to test on another plain-HTTP address.
+    cookie_secure: bool = True
     data_dir: Path = DEFAULT_DATA_DIR
     # 32 random bytes in base64, or a file holding them. It seals raw alert
     # text, provider keys and ticket credentials; the server will not start

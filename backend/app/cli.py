@@ -6,6 +6,7 @@
     python -m app.cli refresh-tlds  # update the hostname allowlist from IANA
     python -m app.cli audit verify  # exit 1 if any audit record was changed
     python -m app.cli new-key       # a fresh ENCRYPTION_KEY
+    python -m app.cli setup-code    # the one-time code that makes the first account (the owner)
 """
 from __future__ import annotations
 
@@ -17,7 +18,8 @@ import sys
 from .db import init_db, session_scope
 from .ioc import extract
 from .models import DEFAULT_WORKSPACE_ID
-from .platform import audit
+from .platform import accounts, audit
+from .platform.box import server_box
 from .platform.crypto import new_key
 from .reporting import to_markdown
 from .services import feeds
@@ -123,6 +125,18 @@ async def _new_key(_args: argparse.Namespace) -> None:
     print(new_key())
 
 
+async def _setup_code(_args: argparse.Namespace) -> None:
+    # Printed here only, never logged: whoever enters it first owns the server.
+    await init_db()
+    async with session_scope() as session:
+        code = await accounts.setup_code(session, server_box())
+    if code is None:
+        print("this server is set up already: an admin adds people, and the owner signs in", file=sys.stderr)
+        raise SystemExit(1)
+    print("Open the console in a browser, choose Set up this server, and enter this code (it works once):")
+    print(code)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="intelpulse")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -160,6 +174,11 @@ def main() -> None:
         "new-key", help="print a fresh ENCRYPTION_KEY (32 random bytes, base64)"
     )
     key_parser.set_defaults(func=_new_key)
+
+    setup_parser = sub.add_parser(
+        "setup-code", help="print the one-time code that creates the owner's account on a new server"
+    )
+    setup_parser.set_defaults(func=_setup_code)
 
     args = parser.parse_args()
     asyncio.run(args.func(args))

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,11 +23,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..ioc import Indicator, classify, extract, refang
-from ..models import DEFAULT_WORKSPACE_ID, Case, PushedAlert
+from ..models import Case, PushedAlert
 from ..platform import audit
+from ..platform.auth import Actor
+from ..platform.deps import require_actor
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
-from ..security import principal
 from ..services.reports import case_markdown
 from ..services.tickets import TicketError, create_ticket
 from ..services.triage import persist_case, triage
@@ -84,13 +85,16 @@ def _answer(case: Case, alert: dict, *, duplicate: bool, ticket=None, ticket_err
     },
 )
 async def receive_alert(
-    alert: AlertIn, request: Request, response: Response, session: AsyncSession = Depends(get_session)
+    alert: AlertIn,
+    response: Response,
+    actor: Actor = Depends(require_actor),
+    session: AsyncSession = Depends(get_session),
 ) -> AlertOut:
     """Triage a pushed alert into a case (201), or return the case an earlier push made (200)."""
     earlier = (
         await session.execute(
             select(PushedAlert).where(
-                PushedAlert.workspace_id == DEFAULT_WORKSPACE_ID,
+                PushedAlert.workspace_id == actor.workspace_id,
                 PushedAlert.source == alert.source,
                 PushedAlert.alert_id == alert.alert_id,
             )
@@ -105,16 +109,17 @@ async def receive_alert(
         await session.flush()
 
     stored = alert.model_dump(mode="json", exclude={"ticket"})
-    outcome = await triage(_indicators(alert), workspace_id=DEFAULT_WORKSPACE_ID, title=alert.title)
+    outcome = await triage(_indicators(alert), workspace_id=actor.workspace_id, title=alert.title)
     case = await persist_case(
         session,
         outcome,
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        workspace_id=actor.workspace_id,
+        created_by=actor.user_id,
         raw_input=_evidence_text(alert),
         source="webhook",
-        actor=principal(request),
+        actor=actor.label,
     )
-    session.add(PushedAlert(case_id=case.id, workspace_id=DEFAULT_WORKSPACE_ID, source=alert.source,
+    session.add(PushedAlert(case_id=case.id, workspace_id=actor.workspace_id, source=alert.source,
                             alert_id=alert.alert_id, severity=alert.severity, payload=stored))
     try:
         await session.flush()
@@ -124,8 +129,8 @@ async def receive_alert(
     await audit.record(
         session,
         action="alert.received",
-        actor=principal(request),
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        actor=actor.label,
+        workspace_id=actor.workspace_id,
         target=case.id,
         detail={"source": alert.source, "alert_id": alert.alert_id, "severity": alert.severity,
                 "indicator_count": len(outcome.verdicts)},
@@ -141,7 +146,7 @@ async def receive_alert(
             ticket_error = str(exc)
         else:
             ticket = filed.as_dict()
-            await audit.record(session, action="ticket.created", actor=principal(request),
-                               workspace_id=DEFAULT_WORKSPACE_ID, target=case.id, detail=ticket)
+            await audit.record(session, action="ticket.created", actor=actor.label,
+                               workspace_id=actor.workspace_id, target=case.id, detail=ticket)
     logger.info("alert received", extra={"source": alert.source, "case": case.id, "severity": alert.severity})
     return _answer(case, stored, duplicate=False, ticket=ticket, ticket_error=ticket_error)

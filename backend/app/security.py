@@ -8,7 +8,6 @@ health check as cheap, and headers that stop the API being framed or sniffed.
 """
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import time
@@ -202,8 +201,8 @@ class OriginGuardMiddleware(BaseHTTPMiddleware):
     attacker's address through their local API (proven, then fixed). Browsers
     always name the origin of a write, so a write naming a foreign one, or
     marked cross-site by Fetch Metadata, is refused. Clients that are not
-    browsers send neither header and are unaffected; the API token is what
-    governs them.
+    browsers send neither header and are unaffected; their API token is what
+    governs them (app/platform/deps.py).
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -225,45 +224,6 @@ class OriginGuardMiddleware(BaseHTTPMiddleware):
                     status_code=403,
                     content={"detail": "cross-origin write refused: this origin is not in CORS_ORIGINS"},
                 )
-        return await call_next(request)
-
-
-# Open without a token: whether the service is up, and the published weights.
-TOKEN_EXEMPT = frozenset({"/api/health", "/api/scoring/model"})
-
-
-def principal(request: Request) -> str:
-    """Who the request is, as far as the server can verify: never a name the client typed."""
-    return getattr(request.state, "principal", "anonymous")
-
-
-class TokenAuthMiddleware(BaseHTTPMiddleware):
-    """Bearer-token authentication, on when API_TOKEN is set.
-
-    Compared with hmac.compare_digest so the check takes the same time however
-    much of the token a guess gets right. Preflights and the two read-only
-    status endpoints stay open; so do /docs and the schema, which describe the
-    API without touching any data.
-    """
-
-    async def dispatch(self, request: Request, call_next):
-        token = settings.api_token
-        request.state.principal = "anonymous"
-        if not token or request.method == "OPTIONS":
-            return await call_next(request)
-        path = request.url.path
-        if not path.startswith("/api/") or path in TOKEN_EXEMPT:
-            return await call_next(request)
-        sent = request.headers.get("authorization", "")
-        scheme, _, credential = sent.partition(" ")
-        if scheme.lower() != "bearer" or not hmac.compare_digest(credential.strip().encode(), token.encode()):
-            logger.warning("unauthenticated request refused", extra={"client_ip": client_ip(request), "path": path})
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "a valid API token is required: send it as 'Authorization: Bearer <token>'"},
-                headers={"WWW-Authenticate": 'Bearer realm="intelpulse"'},
-            )
-        request.state.principal = "api-token"
         return await call_next(request)
 
 

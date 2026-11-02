@@ -3,24 +3,26 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .cache import cache
 from .config import settings
-from .db import init_db
+from .db import init_db, session_scope
 from .enrichment import PROVIDERS
 from .logging_config import configure_logging
+from .platform import accounts
 from .platform.box import server_box
-from .routers import alerts, cases, health, intel, lists, triage
+from .platform.deps import require_actor
+from .platform.errors import ApiError
+from .routers import account, alerts, cases, health, intel, lists, tokens, triage
 from .security import (
     BodySizeLimitMiddleware,
     OriginGuardMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
-    TokenAuthMiddleware,
 )
 
 configure_logging(settings.log_level, json_logs=settings.json_logs)
@@ -57,7 +59,6 @@ def create_app() -> FastAPI:
     # an opaque network error. The rate limiter sits outside the token check,
     # so guessing tokens is rate limited like everything else.
     app.add_middleware(BodySizeLimitMiddleware)
-    app.add_middleware(TokenAuthMiddleware)
     app.add_middleware(OriginGuardMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(
@@ -85,23 +86,31 @@ def create_app() -> FastAPI:
         ]
         return JSONResponse(status_code=422, content={"detail": errors})
 
+    @app.exception_handler(ApiError)
+    async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
+        return JSONResponse(status_code=exc.status_code, content={"error": exc.error, "detail": exc.detail},
+                            headers=exc.headers)
+
     # Every refusal the API can make, in the contract: schema fuzzing flagged
     # 401/403/404/413/415/429 as undocumented.
     refusals = {
         400: {"description": "The body could not be parsed (malformed JSON or encoding)"},
-        401: {"description": "API_TOKEN is set and the request did not carry it"},
-        403: {"description": "A browser write from an origin not in CORS_ORIGINS"},
+        401: {"description": "No session and no valid API token"},
+        403: {"description": "Beyond the caller's role or token scope, a missing CSRF token, "
+                             "or a browser write from an origin not in CORS_ORIGINS"},
         404: {"description": "No such case, entry, feed or CVE"},
         413: {"description": "Body over the size limit"},
         415: {"description": "Upload is not a text file"},
         429: {"description": "Rate limit exceeded; see Retry-After"},
     }
+    # Open to anyone: health, the published scoring model, signing in and the one-time setup.
     app.include_router(health.router, prefix="/api", responses=refusals)
-    app.include_router(triage.router, prefix="/api", responses=refusals)
-    app.include_router(alerts.router, prefix="/api", responses=refusals)
-    app.include_router(cases.router, prefix="/api", responses=refusals)
-    app.include_router(lists.router, prefix="/api", responses=refusals)
-    app.include_router(intel.router, prefix="/api", responses=refusals)
+    app.include_router(account.router, prefix="/api", responses=refusals)
+    # Everything else needs a verified caller. Each route also names the actor it acts
+    # for; this router-wide check is the backstop that makes a forgotten one a 401, not a leak.
+    signed_in = [Depends(require_actor)]
+    for module in (triage, alerts, cases, lists, intel, tokens):
+        app.include_router(module.router, prefix="/api", responses=refusals, dependencies=signed_in)
 
     @app.on_event("startup")
     async def _startup() -> None:
@@ -116,17 +125,23 @@ def create_app() -> FastAPI:
             settings.app_name,
             ", ".join(configured) or "none (offline sources only)",
         )
-        production = settings.environment.lower() in ("production", "prod")
         if settings.cors_allows_any:
             logger.warning(
                 "CORS_ORIGINS is '*': any page in any browser can call this API and "
                 "the cross-origin write guard is off — list the dashboard's origin instead"
             )
-        if production and not settings.api_token:
+        if settings.api_token:
             logger.warning(
-                "API_TOKEN is not set in a production environment: anyone who can "
-                "reach this API can write to it"
+                "API_TOKEN (IntelPulse 1.x) is set: it still works for the endpoints 1.x had, "
+                "but it is deprecated; create scoped API tokens instead"
             )
+        # The code itself stays out of the log: logs travel, and whoever enters it first owns the server.
+        async with session_scope() as db:
+            if await accounts.needs_setup(db):
+                logger.warning(
+                    "no one has an account yet: run `python -m app.cli setup-code` for the one-time "
+                    "setup code, then open the console and enter it"
+                )
 
     @app.on_event("shutdown")
     async def _shutdown() -> None:
