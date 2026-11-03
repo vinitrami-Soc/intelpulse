@@ -1,0 +1,307 @@
+<!doctype html>
+<!-- The README's key art, one <section class="slide"> per image. scripts/readme-art.mjs serves the
+     repository, opens this page and saves each slide as docs/readme/<id>.png at twice the pixels.
+     Product shots come from docs/screenshots/server-*.png and docs/readme/shots/ (made by the same
+     script from the demo); every address in them is RFC 5737 and every name is made up. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IntelPulse README art</title>
+<style>
+  @font-face { font-family: "Outfit"; font-weight: 100 900; font-display: block;
+    src: url("/web/assets/fonts/outfit-latin-wght-normal.woff2") format("woff2"); }
+  @font-face { font-family: "JetBrains Mono"; font-weight: 100 800; font-display: block;
+    src: url("/web/assets/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); }
+
+  :root {
+    --stage: #07080a; --stage-2: #0e1014; --ink: #f4f5f7; --ink-2: #aab1bc; --ink-3: #6f7782;
+    --line: rgba(255, 255, 255, .09); --flame: #fe5729; --flame-2: #ff8a5c; --amber: #ffb36b;
+    --azure: #4a9fdd; --azure-2: #8cc8f5; --ok: #5fe0a8;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: transparent; font-family: "Outfit", sans-serif; color: var(--ink);
+    -webkit-font-smoothing: antialiased; padding: 40px; display: grid; gap: 40px; justify-content: center; }
+  .mono { font-family: "JetBrains Mono", monospace; }
+
+  .slide { width: 1100px; position: relative; overflow: hidden; border-radius: 34px; background: var(--stage);
+    padding: 76px 80px; isolation: isolate; }
+  .slide::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+  .glow { position: absolute; border-radius: 50%; filter: blur(90px); z-index: -1; }
+  .center { text-align: center; }
+  .eyebrow { font-weight: 600; font-size: 15px; letter-spacing: .24em; text-transform: uppercase; color: var(--flame-2); }
+  h1, h2 { font-weight: 800; letter-spacing: -.045em; line-height: .98; }
+  h1 { font-size: 96px; margin-top: 22px; }
+  h2 { font-size: 72px; margin-top: 18px; }
+  .grad { background: linear-gradient(92deg, var(--flame-2) 0%, var(--flame) 45%, var(--amber) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .grad-azure { background: linear-gradient(92deg, var(--azure-2), var(--azure) 60%, #b39cff);
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { font-size: 23px; line-height: 1.45; color: var(--ink-2); margin-top: 24px; max-width: 760px; }
+  .center .sub { margin-inline: auto; }
+
+  .brand { display: inline-flex; align-items: center; gap: 12px; font-weight: 650; font-size: 22px; letter-spacing: -.02em; }
+  .mark { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(145deg, #ff7a4d, var(--flame) 55%, #d93d15); box-shadow: 0 10px 30px -8px rgba(254, 87, 41, .7); }
+  .mark svg { width: 22px; height: 22px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* a browser window around a product shot */
+  .frame { border-radius: 16px; overflow: hidden; background: #111317; border: 1px solid rgba(255, 255, 255, .10);
+    box-shadow: 0 50px 120px -30px rgba(0, 0, 0, .85), 0 0 0 1px rgba(0, 0, 0, .4); }
+  .frame .bar { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+    background: linear-gradient(#1b1e24, #15171c); border-bottom: 1px solid rgba(255, 255, 255, .06); }
+  .frame .bar i { width: 11px; height: 11px; border-radius: 50%; background: #3a3f48; }
+  .frame .bar i:nth-child(1) { background: #ff5f57; } .frame .bar i:nth-child(2) { background: #febc2e; } .frame .bar i:nth-child(3) { background: #28c840; }
+  .frame .bar span { margin-left: 14px; font-size: 12px; color: var(--ink-3); background: rgba(255, 255, 255, .05);
+    padding: 4px 14px; border-radius: 999px; letter-spacing: .01em; }
+  .frame img { display: block; width: 100%; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .center .chips { justify-content: center; }
+  .chip { font-size: 15px; font-weight: 500; color: var(--ink-2); padding: 9px 16px; border-radius: 999px;
+    background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  /* ── hero ── */
+  #hero { padding-bottom: 0; height: 1080px; }
+  #hero .stack { position: relative; z-index: 1; }
+  #hero .shot { position: absolute; left: 70px; right: 70px; top: 560px; perspective: 1800px; }
+  #hero .shot .frame { transform: rotateX(20deg); transform-origin: 50% 0; }
+  #hero .fade { position: absolute; inset: auto 0 0 0; height: 220px; z-index: 2;
+    background: linear-gradient(transparent, var(--stage) 85%); }
+
+  /* ── how it works ── */
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 54px; position: relative; }
+  .steps::before { content: ""; position: absolute; left: 6%; right: 6%; top: 37px; height: 2px;
+    background: linear-gradient(90deg, rgba(254, 87, 41, 0), var(--flame) 20%, var(--azure) 80%, rgba(74, 159, 221, 0)); opacity: .55; }
+  .step { position: relative; padding: 26px 24px 28px; border-radius: 22px; background: linear-gradient(180deg, #121419, #0d0f12);
+    border: 1px solid var(--line); }
+  .step .n { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    color: #fff; background: var(--flame); box-shadow: 0 0 0 6px rgba(254, 87, 41, .16); position: relative; margin-bottom: 26px; }
+  .step:nth-child(3) .n, .step:nth-child(4) .n { background: var(--azure); box-shadow: 0 0 0 6px rgba(74, 159, 221, .18); }
+  .step h3 { font-size: 27px; font-weight: 700; letter-spacing: -.03em; }
+  .step p { margin-top: 10px; font-size: 16.5px; line-height: 1.45; color: var(--ink-2); }
+  .step code { font-family: "JetBrains Mono", monospace; font-size: 13.5px; color: var(--amber); }
+
+  /* ── shows its work ── */
+  #work { height: 1040px; }
+  .formula { display: inline-flex; gap: 12px; align-items: center; margin-top: 30px; padding: 14px 22px; border-radius: 14px;
+    font-family: "JetBrains Mono", monospace; font-size: 17px; color: var(--ink); background: rgba(255, 255, 255, .04);
+    border: 1px solid var(--line); }
+  .formula em { font-style: normal; color: var(--azure-2); }
+  #work .main { position: absolute; left: 80px; width: 820px; top: 470px; }
+  #work .float { position: absolute; right: 56px; top: 600px; width: 470px; }
+  #work .float .frame { box-shadow: 0 50px 120px -20px rgba(0, 0, 0, .9), 0 0 80px -10px rgba(74, 159, 221, .35); }
+
+  /* ── the whole SOC ── */
+  #soc { height: 1060px; }
+  #soc .fan { position: absolute; left: 0; right: 0; top: 470px; height: 600px; }
+  #soc .fan .frame { position: absolute; width: 640px; }
+  #soc .fan .left { left: 40px; top: 70px; transform: rotate(-6deg); opacity: .9; }
+  #soc .fan .right { right: 40px; top: 70px; transform: rotate(6deg); opacity: .9; }
+  #soc .fan .front { left: 230px; width: 640px; top: 0; z-index: 2;
+    box-shadow: 0 60px 140px -20px rgba(0, 0, 0, .95), 0 0 100px -20px rgba(254, 87, 41, .35); }
+
+  /* ── private by design ── */
+  .timeline { margin-top: 56px; padding: 34px 36px 30px; border-radius: 24px; background: linear-gradient(180deg, #121419, #0d0f12);
+    border: 1px solid var(--line); }
+  .track { position: relative; height: 12px; border-radius: 999px; margin: 26px 0 22px;
+    background: linear-gradient(90deg, var(--flame) 0%, #c9465a 55%, rgba(255, 255, 255, .08) 100%); }
+  .track .dot { position: absolute; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+    background: var(--stage); border: 3px solid var(--flame); }
+  .track .dot.end { border-color: var(--ok); }
+  .ends { display: flex; justify-content: space-between; gap: 40px; }
+  .ends div { max-width: 430px; }
+  .ends .day { font-size: 14px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--flame-2); }
+  .ends .end .day { color: var(--ok); }
+  .ends h4 { margin-top: 8px; font-size: 25px; font-weight: 700; letter-spacing: -.02em; }
+  .ends p { margin-top: 6px; color: var(--ink-2); font-size: 16.5px; line-height: 1.45; }
+  .ends .end { text-align: right; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 18px; }
+  .card { padding: 26px 24px; border-radius: 22px; background: linear-gradient(180deg, #121419, #0d0f12); border: 1px solid var(--line); }
+  .card .ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(74, 159, 221, .12); margin-bottom: 18px; }
+  .card .ico svg { width: 22px; height: 22px; fill: none; stroke: var(--azure-2); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .card h4 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .card p { margin-top: 8px; color: var(--ink-2); font-size: 16px; line-height: 1.45; }
+
+  /* ── by the numbers ── */
+  .numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 56px; border-top: 1px solid var(--line); }
+  .num { padding: 34px 22px 6px; border-left: 1px solid var(--line); }
+  .num:first-child { border-left: 0; padding-left: 0; }
+  .num b { display: block; font-size: 76px; font-weight: 800; letter-spacing: -.05em; line-height: 1; }
+  .num span { display: block; margin-top: 14px; color: var(--ink-2); font-size: 17px; line-height: 1.4; }
+  .foot { margin-top: 34px; color: var(--ink-3); font-size: 14px; }
+
+  /* ── one more thing ── */
+  #more { height: 1020px; }
+  .term { margin: 50px auto 0; width: 860px; border-radius: 18px; overflow: hidden; background: #0b0c0f; border: 1px solid rgba(255, 255, 255, .10);
+    box-shadow: 0 50px 120px -30px rgba(0, 0, 0, .9), 0 0 120px -30px rgba(254, 87, 41, .45); text-align: left; }
+  .term .bar { height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #15171c; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+  .term .bar i { width: 12px; height: 12px; border-radius: 50%; }
+  .term .bar i:nth-child(1) { background: #ff5f57; } .term .bar i:nth-child(2) { background: #febc2e; } .term .bar i:nth-child(3) { background: #28c840; }
+  .term .bar span { margin: 0 auto; transform: translateX(-30px); font-size: 13px; color: var(--ink-3); }
+  .term pre { padding: 26px 30px 30px; font-family: "JetBrains Mono", monospace; font-size: 15.5px; line-height: 1.75; color: #c9ced6; white-space: pre-wrap; }
+  .term .p { color: var(--flame-2); } .term .c { color: var(--ink); font-weight: 600; } .term .ok { color: var(--ok); }
+  .term .dim { color: var(--ink-3); } .term .url { color: var(--azure-2); } .term .code { color: var(--amber); font-weight: 700; }
+  .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 860px; margin: 26px auto 0; }
+  .three div { padding: 18px 20px; border-radius: 16px; background: rgba(255, 255, 255, .035); border: 1px solid var(--line);
+    font-size: 16px; color: var(--ink-2); line-height: 1.4; text-align: left; }
+  .three b { display: block; color: var(--ink); font-size: 17px; margin-bottom: 4px; }
+
+  /* ── social preview (1280 x 640) ── */
+  #social { width: 1280px; height: 640px; border-radius: 0; padding: 70px 80px; }
+  #social .shot { position: absolute; right: -90px; top: 110px; width: 700px; transform: perspective(1600px) rotateY(-14deg) rotateX(4deg); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pulse" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="chain" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+</defs></svg>
+
+<!-- 1. the hero -->
+<section class="slide center" id="hero">
+  <div class="glow" style="width:760px;height:520px;left:170px;top:520px;background:rgba(254,87,41,.55)"></div>
+  <div class="glow" style="width:520px;height:420px;left:-120px;top:-160px;background:rgba(74,159,221,.30)"></div>
+  <div class="glow" style="width:420px;height:380px;right:-120px;top:120px;background:rgba(179,156,255,.18)"></div>
+  <div class="stack">
+    <span class="brand"><span class="mark"><svg><use href="#pulse"/></svg></span>IntelPulse</span>
+    <p class="eyebrow" style="margin-top:46px">Introducing IntelPulse 2.0</p>
+    <h1>One alert in.<br><span class="grad">One verdict out.</span></h1>
+    <p class="sub">Every intelligence source, checked in one pass. The arithmetic behind every score. A ticket ready to file. Now for your whole SOC.</p>
+  </div>
+  <div class="shot"><div class="frame"><div class="bar"><i></i><i></i><i></i><span>intel.example.org</span></div>
+    <img src="/docs/screenshots/server-overview.png" alt=""></div></div>
+  <div class="fade"></div>
+</section>
+
+<!-- 2. how it works -->
+<section class="slide" id="how">
+  <div class="glow" style="width:600px;height:360px;right:-160px;top:-140px;background:rgba(74,159,221,.30)"></div>
+  <div class="glow" style="width:520px;height:320px;left:-200px;bottom:-180px;background:rgba(254,87,41,.28)"></div>
+  <p class="eyebrow">How it works</p>
+  <h2>Paste anything.<br><span class="grad">Get the answer.</span></h2>
+  <div class="steps">
+    <div class="step"><div class="n">1</div><h3>Paste</h3><p>An alert, firewall or proxy logs, a list, or a file of up to 5 MB.</p></div>
+    <div class="step"><div class="n">2</div><h3>Extract</h3><p>IPs, domains, URLs, hashes, emails and CVEs. <code>hxxp://</code> and <code>1.2.3[.]4</code> too.</p></div>
+    <div class="step"><div class="n">3</div><h3>Enrich</h3><p>Eight intelligence sources at once, with the workspace's own keys.</p></div>
+    <div class="step"><div class="n">4</div><h3>Decide</h3><p>A score with its math, a verdict, and a ticket for Jira or ServiceNow.</p></div>
+  </div>
+  <div class="chips" style="margin-top:30px">
+    <span class="chip"><b>AbuseIPDB</b></span><span class="chip"><b>AlienVault OTX</b></span><span class="chip"><b>GreyNoise</b></span>
+    <span class="chip"><b>ThreatFox</b></span><span class="chip"><b>URLhaus</b></span><span class="chip">Feodo Tracker</span>
+    <span class="chip">FireHOL</span><span class="chip">CISA KEV</span><span class="chip">NVD</span><span class="chip">GeoLite2</span>
+  </div>
+</section>
+
+<!-- 3. it shows its work -->
+<section class="slide" id="work">
+  <div class="glow" style="width:640px;height:460px;right:-120px;top:480px;background:rgba(74,159,221,.38)"></div>
+  <div class="glow" style="width:520px;height:420px;left:-160px;top:-160px;background:rgba(254,87,41,.25)"></div>
+  <p class="eyebrow">Explainable by default</p>
+  <h2>It shows<br><span class="grad-azure">its work.</span></h2>
+  <p class="sub">Every score comes with the sources that answered, what each one said, and the arithmetic. Nothing hides behind the number.</p>
+  <div class="formula">score = max( <em>weighted mean</em> , <em>strongest single hit</em> )</div>
+  <div class="main"><div class="frame"><div class="bar"><i></i><i></i><i></i><span>Workbench</span></div>
+    <img src="/docs/readme/shots/workbench.png" alt=""></div></div>
+  <div class="float"><div class="frame"><div class="bar"><i></i><i></i><i></i><span>How was this scored?</span></div>
+    <img src="/docs/readme/shots/scoring.png" alt=""></div></div>
+</section>
+
+<!-- 4. built for the whole SOC -->
+<section class="slide center" id="soc">
+  <div class="glow" style="width:820px;height:520px;left:140px;top:600px;background:rgba(254,87,41,.42)"></div>
+  <div class="glow" style="width:500px;height:400px;left:-200px;top:-120px;background:rgba(74,159,221,.26)"></div>
+  <p class="eyebrow">New in 2.0</p>
+  <h2>Built for the<br><span class="grad">whole SOC.</span></h2>
+  <p class="sub">Workspaces that see only their own cases. Admins and analysts. One queue the whole team works from.</p>
+  <div class="chips" style="margin-top:28px">
+    <span class="chip">Workspaces</span><span class="chip">Roles</span><span class="chip">Invitations</span><span class="chip">Case workflow</span>
+    <span class="chip">API tokens</span><span class="chip">Pushed alerts</span><span class="chip">Email reset</span>
+  </div>
+  <div class="fan">
+    <div class="frame left"><div class="bar"><i></i><i></i><i></i><span>Team</span></div><img src="/docs/screenshots/server-team.png" alt=""></div>
+    <div class="frame right"><div class="bar"><i></i><i></i><i></i><span>Settings</span></div><img src="/docs/screenshots/server-settings.png" alt=""></div>
+    <div class="frame front"><div class="bar"><i></i><i></i><i></i><span>Triage queue</span></div><img src="/docs/screenshots/server-queue.png" alt=""></div>
+  </div>
+</section>
+
+<!-- 5. private by design -->
+<section class="slide" id="private">
+  <div class="glow" style="width:620px;height:380px;right:-160px;top:-160px;background:rgba(95,224,168,.20)"></div>
+  <div class="glow" style="width:560px;height:360px;left:-180px;top:260px;background:rgba(254,87,41,.24)"></div>
+  <p class="eyebrow">Privacy</p>
+  <h2>Private<br><span class="grad">by design.</span></h2>
+  <p class="sub">A SOC's alerts are its most sensitive data. IntelPulse keeps them sealed, and keeps them only as long as you say.</p>
+  <div class="timeline">
+    <div class="ends">
+      <div><p class="day">Day 0</p><h4>Alert text sealed</h4><p>The paste, the file, the pushed alert: AES-256-GCM, bound to its case.</p></div>
+      <div class="end"><p class="day">Day 30, by default</p><h4>Text deleted, verdict kept</h4><p>Retention is set per workspace, 1 to 365 days. Hold a case to keep it.</p></div>
+    </div>
+    <div class="track"><span class="dot" style="left:0%"></span><span class="dot end" style="left:100%"></span></div>
+  </div>
+  <div class="cards">
+    <div class="card"><div class="ico"><svg><use href="#chain"/></svg></div><h4>An audit chain</h4><p>Every change recorded, hash-chained. Verify proves nothing was edited.</p></div>
+    <div class="card"><div class="ico"><svg><use href="#shield"/></svg></div><h4>Nothing from anyone else</h4><p>No analytics, no third-party scripts or fonts. A strict CSP.</p></div>
+    <div class="card"><div class="ico"><svg><use href="#lock"/></svg></div><h4>Keys stay sealed</h4><p>Provider keys and tracker credentials, shown only by their last four characters.</p></div>
+  </div>
+</section>
+
+<!-- 6. by the numbers -->
+<section class="slide" id="numbers">
+  <div class="glow" style="width:700px;height:360px;left:200px;bottom:-260px;background:rgba(254,87,41,.30)"></div>
+  <p class="eyebrow">By the numbers</p>
+  <h2>Measured, <span class="grad">not claimed.</span></h2>
+  <div class="numbers">
+    <div class="num"><b class="grad">100%</b><span>precision and recall extracting 9,325 indicators*</span></div>
+    <div class="num"><b>8</b><span>intelligence sources, checked in one pass</span></div>
+    <div class="num"><b>1,144</b><span>automated checks on every pull request</span></div>
+    <div class="num"><b class="grad-azure">23</b><span>security findings found and fixed, across two review rounds</span></div>
+  </div>
+  <p class="foot">* On the project's own 3,400-line, 15-format test corpus. Method and caveats in docs/EXTRACTION-BENCHMARK.md.</p>
+</section>
+
+<!-- 7. one more thing -->
+<section class="slide center" id="more">
+  <div class="glow" style="width:760px;height:480px;left:170px;top:380px;background:rgba(254,87,41,.40)"></div>
+  <div class="glow" style="width:520px;height:380px;right:-200px;top:-160px;background:rgba(74,159,221,.26)"></div>
+  <p class="eyebrow">One more thing</p>
+  <h2>Your own server.<br><span class="grad">One command.</span></h2>
+  <div class="term"><div class="bar"><i></i><i></i><i></i><span>~/intelpulse</span></div>
+<pre><span class="p">$</span> <span class="c">./deploy/setup.sh</span>
+Address people will open: <span class="url">https://intel.example.org</span>
+Cloudflare Tunnel token: <span class="dim">••••••••••••••••</span>
+Wrote deploy/.env (readable by you alone).
+Building and starting IntelPulse...
+ <span class="ok">✔</span> Container intelpulse-db-1      <span class="ok">Healthy</span>
+ <span class="ok">✔</span> Container intelpulse-app-1     <span class="ok">Healthy</span>
+ <span class="ok">✔</span> Container intelpulse-tunnel-1  <span class="ok">Started</span>
+Health: {"status":"<span class="ok">ok</span>","checks":{"database":{"ok":true},"redis":{"ok":true}, …}}
+
+IntelPulse is running. To make the owner's account, open
+    <span class="url">https://intel.example.org/#/setup</span>
+and enter this one-time code:
+    <span class="code">XXXX-XXXX-XXXX-XXXX</span></pre></div>
+  <div class="three">
+    <div><b>Postgres and Redis</b>with the worker and beat, read-only containers</div>
+    <div><b>No open port</b>reached through a Cloudflare Tunnel</div>
+    <div><b>Backups and updates</b>one script each, and a smoke test</div>
+  </div>
+</section>
+
+<!-- 8. the repository's social preview -->
+<section class="slide" id="social">
+  <div class="glow" style="width:700px;height:520px;right:-120px;top:180px;background:rgba(254,87,41,.50)"></div>
+  <div class="glow" style="width:520px;height:420px;left:-200px;top:-200px;background:rgba(74,159,221,.30)"></div>
+  <span class="brand"><span class="mark"><svg><use href="#pulse"/></svg></span>IntelPulse</span>
+  <h1 style="font-size:84px;margin-top:70px">One alert in.<br><span class="grad">One verdict out.</span></h1>
+  <p class="sub" style="max-width:470px;font-size:22px">Threat intelligence triage for your whole SOC. Self-hosted, open source.</p>
+  <div class="shot"><div class="frame"><div class="bar"><i></i><i></i><i></i><span>intel.example.org</span></div>
+    <img src="/docs/screenshots/server-queue.png" alt=""></div></div>
+</section>
+
+</body>
+</html>
