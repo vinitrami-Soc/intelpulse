@@ -1520,3 +1520,5 @@ button { font-family: inherit; cursor: pointer; }
 .account-alt { margin-top: 14px; }
 .sv-wide-check { grid-column: 1 / -1; }
 @media (pointer: coarse) { .account-choice { min-height: 44px; } }
+
+.sv-gap-sm { margin-top: 6px; }

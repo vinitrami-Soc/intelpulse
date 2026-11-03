@@ -148,6 +148,15 @@ JSON report are the public interface.
   admins; the alert's text by the whole team. `input_deleted_at` and the reports are ready for
   the retention sweep: a report rendered after the input is gone says it was deleted, and when.
 
+- **Retention, hold and both deletes.** Every hour (Celery beat, or `python -m app.cli sweep`) the
+  input of each case older than its workspace's retention days is deleted, unless an admin holds
+  the case; the verdict, the indicators and the workflow stay, the case says when its input went,
+  and one audit record per workspace gives the count. An analyst deletes their own case's input
+  now (`DELETE /api/cases/{id}/input`), an admin any; an admin holds and releases
+  (`POST/DELETE /api/cases/{id}/hold`) and deletes a case completely, the audit keeping its ID and
+  the input's SHA-256. The triage history shows each case's state with Hold, Delete input and
+  Delete case controls (the deletes take a second press). Migration 0008 adds `cases.held`.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

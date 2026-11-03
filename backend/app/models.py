@@ -141,6 +141,8 @@ class Case(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # tier 1 (spec 6.3) lives sealed in case_inputs; this says when it was deleted, if it was
     input_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # an admin's hold keeps tier 1 past the retention days (spec 6.5)
+    held: Mapped[bool] = mapped_column(Boolean, default=False)
 
     indicators: Mapped[list[IndicatorResult]] = relationship(
         back_populates="case", cascade="all, delete-orphan", lazy="selectin"

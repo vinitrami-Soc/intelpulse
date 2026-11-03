@@ -30,6 +30,7 @@
       signupOpen: body.signup === true,
       emailEnabled: body.email === true,
       user: user && text(user.username, 64) ? {
+        id: Number.isInteger(user.id) && user.id > 0 ? user.id : 0,
         username: text(user.username, 64),
         displayName: text(user.display_name, 120) || text(user.username, 64),
         role: user.role === "admin" ? "admin" : "analyst",

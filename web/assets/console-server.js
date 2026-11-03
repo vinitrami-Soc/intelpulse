@@ -334,6 +334,25 @@
             "</select>";
         }
 
+        /* What a case was made from (tier 1): its state, and who may hold it or delete it. */
+        function inputControls(row) {
+          const user = me();
+          const admin = user.role === "admin";
+          const id = esc(row.id);
+          const parts = [];
+          if (row.held) parts.push('<span class="sv-sub">held: kept past retention</span>');
+          if (row.input_deleted_at) parts.push('<span class="sv-sub">input deleted ' + esc(when(row.input_deleted_at)) + "</span>");
+          else if (!row.held && (admin || (user.id && whole(row.created_by) === user.id))) {
+            parts.push('<button type="button" class="btn btn-light btn-sm" data-drop-input="' + id + '">Delete input</button>');
+          }
+          if (admin) {
+            parts.push('<button type="button" class="btn btn-light btn-sm" data-hold="' + id + '" data-held="' + (row.held ? "1" : "") + '">' +
+              (row.held ? "Release" : "Hold") + "</button>");
+            parts.push('<button type="button" class="btn btn-light btn-sm" data-delete-case="' + id + '">Delete case</button>');
+          }
+          return parts.length ? '<div class="sv-controls sv-gap-sm">' + parts.join("") + "</div>" : "";
+        }
+
         function line(row) {
           const report = "/api/cases/" + encodeURIComponent(text(row.id)) + "/report?fmt=markdown";
           return '<tr data-case="' + esc(row.id) + '">' +
@@ -345,7 +364,8 @@
               : cell("Status", esc(statusText(row))) +
                 cell("Assignee", esc(row.assignee ? row.assignee.display_name || row.assignee.username : "nobody"))) +
             cell("Opened", esc(when(row.created_at)), "mono") +
-            cell("Report", '<a class="wb-link" href="' + esc(report) + '" target="_blank" rel="noopener">Markdown</a>') +
+            cell("Report", '<a class="wb-link" href="' + esc(report) + '" target="_blank" rel="noopener">Markdown</a>' +
+              (queue ? "" : inputControls(row))) +
             "</tr>";
         }
 
@@ -407,6 +427,47 @@
           }
         }
 
+        /* two presses, no dialog, for what cannot be undone */
+        const armed = (button, label) => {
+          if (button.dataset.armed === "1") return true;
+          button.dataset.armed = "1";
+          button.textContent = label;
+          return false;
+        };
+        async function act(button, path, method, said) {
+          button.disabled = true;
+          try {
+            await request(path, { method, signal: view.signal });
+            if (!view.alive) return;
+            ctx.toast(said);
+            note("");
+            await load(false);
+          } catch (error) {
+            if (quiet(view, error)) return;
+            button.disabled = false;
+            note("That did not work: " + (error.message || "the server did not answer"));
+          }
+        }
+        view.on(root, "click", (event) => {
+          const drop = event.target.closest("[data-drop-input]");
+          if (drop) {
+            if (armed(drop, "Press again to delete the input")) {
+              act(drop, "/api/cases/" + encodeURIComponent(drop.dataset.dropInput) + "/input", "DELETE", "Input deleted; the verdict stays");
+            }
+            return;
+          }
+          const hold = event.target.closest("[data-hold]");
+          if (hold) {
+            const release = hold.dataset.held === "1";
+            act(hold, "/api/cases/" + encodeURIComponent(hold.dataset.hold) + "/hold", release ? "DELETE" : "POST",
+              release ? "Released: retention applies again" : "Held: kept past retention");
+            return;
+          }
+          const gone = event.target.closest("[data-delete-case]");
+          if (gone && armed(gone, "Press again to delete the case")) {
+            act(gone, "/api/cases/" + encodeURIComponent(gone.dataset.deleteCase), "DELETE", "Case deleted");
+          }
+        });
         view.on(root, "change", (event) => {
           const target = event.target;
           if (target.matches("[data-assign]")) {

@@ -137,6 +137,16 @@ async def _setup_code(_args: argparse.Namespace) -> None:
     print(code)
 
 
+async def _sweep(_args: argparse.Namespace) -> None:
+    """What the hourly Celery job does, once, from the terminal (or a cron line without Celery)."""
+    from .services import retention
+
+    await init_db()
+    async with session_scope() as session:
+        swept = await retention.sweep(session)
+    print(f"{sum(swept.values())} case input(s) past retention deleted, in {len(swept)} workspace(s)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="intelpulse")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -179,6 +189,11 @@ def main() -> None:
         "setup-code", help="print the one-time code that creates the owner's account on a new server"
     )
     setup_parser.set_defaults(func=_setup_code)
+
+    sweep_parser = sub.add_parser(
+        "sweep", help="delete case inputs older than each workspace's retention days (held cases stay)"
+    )
+    sweep_parser.set_defaults(func=_sweep)
 
     args = parser.parse_args()
     asyncio.run(args.func(args))

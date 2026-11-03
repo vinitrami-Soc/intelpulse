@@ -166,6 +166,19 @@ await page.click("#sv-search button[type=submit]");
 await page.waitForFunction(() => document.querySelectorAll("#sv-cases tbody tr").length === 1, null, { timeout: 5000 }).catch(() => {});
 check("and searching finds the case by its title", /Server suite: perimeter block/.test(await text("#sv-cases")) &&
   (await page.$$eval("#sv-cases tbody tr", (r) => r.length)) === 1);
+const searched = await page.$eval("#sv-cases [data-hold]", (el) => el.dataset.hold);
+await page.click("#sv-cases [data-hold]");
+await page.waitForFunction(() => /Release/.test(document.querySelector("#sv-cases [data-hold]")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("an admin holds a case from the history", (await api("/api/cases/" + searched)).body.held === true);
+await page.click("#sv-cases [data-hold]");
+await page.waitForFunction(() => /^Hold$/.test(document.querySelector("#sv-cases [data-hold]")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("and releases it", (await api("/api/cases/" + searched)).body.held === false);
+await page.click("#sv-cases [data-drop-input]");
+check("deleting an input asks twice", /Press again/.test(await text("#sv-cases [data-drop-input]")));
+await page.click("#sv-cases [data-drop-input]");
+await page.waitForFunction(() => /input deleted/.test(document.querySelector("#sv-cases")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+const dropped = (await api("/api/cases/" + searched)).body;
+check("and then the input is gone, the verdict stays", dropped.input_deleted_at && dropped.raw_input === null && Boolean(dropped.verdict));
 
 await view("triage", "#sv-cases [data-status]");
 const caseId = await page.$eval("#sv-cases [data-status]", (el) => el.dataset.status);
