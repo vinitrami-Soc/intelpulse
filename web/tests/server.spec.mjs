@@ -172,7 +172,14 @@ const caseId = await page.$eval("#sv-cases [data-status]", (el) => el.dataset.st
 await page.selectOption('[data-status="' + caseId + '"]', "in_progress");
 await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("Case updated"), null, { timeout: 5000 }).catch(() => {});
 const me = (await api("/api/users")).body.find((m) => m.username === "ada");
-await page.waitForSelector('[data-assign="' + caseId + '"]:not([disabled])', { timeout: 5000 }).catch(() => {});
+/* The change re-renders the queue: wait for the new row (its status select enabled, and showing the
+   new status) before the next control, or the click lands on a select that is about to go. */
+const rerendered = (id) => page.waitForFunction((id) => {
+  const select = document.querySelector('[data-status="' + id + '"]');
+  return Boolean(select) && !select.disabled && select.value === "in_progress" &&
+    !document.querySelector('[data-assign="' + id + '"]').disabled;
+}, id, { timeout: 8000 }).catch(() => {});
+await rerendered(caseId);
 await page.selectOption('[data-assign="' + caseId + '"]', String(me.id));
 await page.waitForFunction(async ([id, uid]) => {
   const c = await (await fetch("/api/cases/" + id, { credentials: "same-origin" })).json();

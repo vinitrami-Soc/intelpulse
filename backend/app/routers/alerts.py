@@ -30,7 +30,7 @@ from ..platform.box import server_box
 from ..platform.deps import require_actor
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
-from ..services import workflow
+from ..services import case_inputs, workflow
 from ..services import workspace_settings as ws_settings
 from ..services.reports import case_markdown
 from ..services.tickets import TicketError, create_ticket
@@ -111,7 +111,8 @@ async def receive_alert(
         await session.delete(earlier)  # its case is gone: this push starts a new one
         await session.flush()
 
-    stored = alert.model_dump(mode="json", exclude={"ticket"})
+    # the description and each evidence item's text are tier 1: sealed with the case, not in the payload
+    tier1, stored = case_inputs.split_alert(alert.model_dump(mode="json", exclude={"ticket"}))
     outcome = await triage(_indicators(alert), workspace_id=actor.workspace_id, title=alert.title)
     case = await persist_case(
         session,
@@ -119,6 +120,7 @@ async def receive_alert(
         workspace_id=actor.workspace_id,
         created_by=actor.user_id,
         raw_input=_evidence_text(alert),
+        alert_input=tier1,
         source="webhook",
         actor=actor.label,
     )

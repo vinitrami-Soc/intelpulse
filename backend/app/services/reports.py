@@ -14,6 +14,7 @@ from ..ioc import Indicator
 from ..models import Case, IndicatorResult, PushedAlert
 from ..reporting import ticket_level, to_markdown, to_ticket_json
 from ..scoring import Contribution, IndicatorVerdict
+from . import case_inputs
 
 
 def rehydrate(results: list[IndicatorResult]) -> list[IndicatorVerdict]:
@@ -50,11 +51,19 @@ def rehydrate(results: list[IndicatorResult]) -> list[IndicatorVerdict]:
 
 
 async def alert_for(session: AsyncSession, case_id: str) -> dict[str, Any] | None:
-    """The alert a SIEM pushed for this case, or None for a case an analyst started."""
+    """The alert a SIEM pushed for this case, with its tier 1 while that is kept, or None for a
+    case an analyst started. Once tier 1 is gone it says so (`input_deleted_at`)."""
     row = (
         await session.execute(select(PushedAlert).where(PushedAlert.case_id == case_id))
     ).scalar_one_or_none()
-    return row.payload if row else None
+    if row is None:
+        return None
+    kept = await case_inputs.read(session, case_id)
+    alert = case_inputs.join_alert(row.payload or {}, (kept or {}).get("alert"))
+    case = await session.get(Case, case_id)
+    if case is not None and case.input_deleted_at is not None:
+        alert["input_deleted_at"] = case.input_deleted_at.date().isoformat()
+    return alert
 
 
 async def _stored(session: AsyncSession, case: Case) -> tuple[list[IndicatorResult], dict[str, Any] | None]:
@@ -76,6 +85,7 @@ async def case_markdown(session: AsyncSession, case: Case) -> tuple[str, dict[st
         analyst=case.analyst,
         duration_ms=case.duration_ms,
         alert=alert,
+        input_deleted_at=case.input_deleted_at.date().isoformat() if case.input_deleted_at else None,
     )
     meta = {
         "case_id": case.id,
@@ -91,5 +101,6 @@ async def case_markdown(session: AsyncSession, case: Case) -> tuple[str, dict[st
 async def case_json(session: AsyncSession, case: Case) -> dict[str, Any]:
     rows, alert = await _stored(session, case)
     return to_ticket_json(
-        case.id, case.title, rehydrate(rows), case.verdict, case.max_score, analyst=case.analyst, alert=alert
+        case.id, case.title, rehydrate(rows), case.verdict, case.max_score, analyst=case.analyst, alert=alert,
+        input_deleted_at=case.input_deleted_at.date().isoformat() if case.input_deleted_at else None,
     )

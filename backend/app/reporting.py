@@ -130,7 +130,10 @@ def _alert_lines(alert: dict[str, Any]) -> list[str]:
     one line, escaped, schemes defanged.
     """
     lines = [f"## Alert from {md_text(alert.get('source'), 40)}", ""]
-    if alert.get("description"):
+    if alert.get("input_deleted_at"):
+        lines += [f"_The alert's description and evidence were deleted on {md_text(alert['input_deleted_at'], 10)} "
+                  "under the retention policy._", ""]
+    elif alert.get("description"):
         lines += [md_text(alert["description"], 2000), ""]
     lines += [
         "| Field | Value |",
@@ -149,7 +152,7 @@ def _alert_lines(alert: dict[str, Any]) -> list[str]:
         if alert.get(key):
             lines.append(f"| {name} | {_when(alert[key])} UTC |")
     lines.append("")
-    evidence = alert.get("evidence") or []
+    evidence = [] if alert.get("input_deleted_at") else alert.get("evidence") or []
     if evidence:
         lines += ["| Time (UTC) | What | Detail |", "| --- | --- | --- |"]
         for item in evidence[:_EVIDENCE_ROWS]:
@@ -225,6 +228,7 @@ def to_markdown(
     analyst: str | None = None,
     duration_ms: int = 0,
     alert: dict[str, Any] | None = None,
+    input_deleted_at: str | None = None,
 ) -> str:
     """The ticket. `alert` is what a SIEM pushed, for a case that came in through
     /api/alerts: it opens the report, and its severity can raise the priority."""
@@ -337,8 +341,10 @@ def to_ticket_json(
     *,
     analyst: str | None = None,
     alert: dict[str, Any] | None = None,
+    input_deleted_at: str | None = None,
 ) -> dict:
     ticket = {
+        "input_deleted_at": input_deleted_at,
         "case_id": case_id,
         "title": case_title,
         "generated_at": datetime.now(UTC).isoformat(),
