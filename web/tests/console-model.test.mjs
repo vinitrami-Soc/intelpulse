@@ -106,3 +106,33 @@ test("the numbers on the page are the ones the model derives", () => {
     ["17 Awaiting triage", "9 In progress", "14 Closed"]);
   assert.deepEqual([M.total("all"), M.total("open"), M.total("close")], [40, 26, 14]);
 });
+
+/* A server's own numbers go through the same arithmetic (GET /api/stats `bands`). */
+test("a server's bands draw through the same model", () => {
+  const live = M.from([
+    { verdict: "critical", new: 2, in_progress: 1, closed: 4 },
+    { verdict: "informational", new: 1, in_progress: 0, closed: 0 },
+    { verdict: "high", new: 0, in_progress: 3, closed: 0 }
+  ]);
+  assert.deepEqual(live.severity("all").map((r) => [r.k, r.n]),
+    [["critical", 7], ["high", 3], ["medium", 0], ["low", 0], ["info", 1]]);
+  assert.equal(live.severity("open")[0].text, "3 Critical");
+  assert.deepEqual(live.states("all").map((s) => s.n), [3, 4, 4]);
+  assert.equal(live.total("all"), 11);
+  assert.equal(live.total("open") + live.total("close"), live.total("all"));
+  assert.equal(live.stateTotal("open"), live.total("open"));
+  // the demo's own table is untouched
+  assert.equal(M.total("all"), M.BANDS.reduce((n, b) => n + b.awaiting + b.progress + b.closed, 0));
+});
+
+test("a bad server answer draws an empty bar, never NaN or a sixth band", () => {
+  for (const rows of [null, "x", [{ verdict: "critical", new: "lots", in_progress: -3, closed: 2.7 }],
+                      [{ verdict: "__proto__", new: 5 }, { verdict: "severe", new: 9 }]]) {
+    const live = M.from(rows);
+    const bands = live.severity("all");
+    assert.equal(bands.length, 5);
+    for (const band of bands) assert.ok(Number.isInteger(band.n) && band.n >= 0, JSON.stringify(rows));
+  }
+  assert.equal(M.from([{ verdict: "critical", new: "lots", in_progress: -3, closed: 2.7 }]).total("all"), 2);
+  assert.equal(M.from([{ verdict: "__proto__", new: 5 }]).total("all"), 0);
+});

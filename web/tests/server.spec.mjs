@@ -106,6 +106,94 @@ const cases = await page.evaluate(async () => (await fetch("/api/cases", { crede
 check("the server stored it in the owner's workspace", Array.isArray(cases) && cases.some((c) => c.title === "Server suite: perimeter block"),
   Array.isArray(cases) ? cases.length + " case(s)" : JSON.stringify(cases).slice(0, 80));
 
+// ——————————————————————————————————————— 2b. every view reads the workspace's own cases
+const api = (path, init) => page.evaluate(async ([path, init]) => {
+  const csrf = (await (await fetch("/api/session", { credentials: "same-origin" })).json()).csrf;
+  const response = await fetch(path, Object.assign({ credentials: "same-origin" }, init || {}, {
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }
+  }));
+  return { status: response.status, body: await response.json().catch(() => null) };
+}, [path, init]);
+const HOSTILE = '<img src=x onerror="window.__pwned=1">Hostile title';
+for (const [n, title] of [[1, "Ransomware staging on LON-WS-0442"], [2, HOSTILE]]) {
+  const pushed = await api("/api/alerts", { method: "POST", body: JSON.stringify({
+    source: "dwellwatch", alert_id: "DW-" + n, title, severity: "high", attack_techniques: ["T1486"],
+    entities: [{ kind: "host", name: "LON-WS-0442" }, { kind: "user", name: "j.okafor" },
+      ...(n === 2 ? [{ kind: "host", name: '<svg onload="window.__pwned=2">' }] : [])] }) });
+  check("an integration pushes alert " + n, pushed.status === 201, String(pushed.status));
+}
+const view = async (pane, ready) => {
+  await page.evaluate((p) => { location.hash = "#/console/" + p; }, pane);
+  await page.waitForSelector(ready, { timeout: 8000 }).catch(() => {});
+};
+const stats = (await api("/api/stats")).body;
+
+await view("dashboard", "#sv-kpis .kpi");
+const kpis = await page.$$eval("#sv-kpis .kpi", (cards) => cards.map((c) => [c.querySelector("b").textContent, c.querySelector(".val").textContent]));
+check("the overview counts the workspace's open cases", kpis.some(([label, value]) => label === "Open cases" && Number(value) === stats.open),
+  JSON.stringify(kpis) + " vs open " + stats.open);
+const banded = await page.$$eval("[data-sv-sev] span", (spans) => spans.reduce((n, s) => n + parseInt(s.textContent, 10), 0));
+check("its severity bar adds up to the workspace's cases", banded === stats.cases, banded + " vs " + stats.cases);
+check("the header says live, in the workspace, not sample data",
+  /Acme SOC/.test(await text("#c-workspace")) && !/sample data/i.test(await text("#console-body .console-head")));
+check("no sample indicator is shown", !/203\.0\.113\.10|cdn\.example\.org/.test(await text("#console-panels")));
+
+await view("all-findings", "#sv-ind table, #sv-ind .empty-state");
+const indicators = (await api("/api/indicators?limit=200")).body;
+const listed = await page.$$eval("#sv-ind tbody tr", (rows) => rows.length);
+check("all indicators lists each of the workspace's indicators once", listed === indicators.length && listed > 0,
+  listed + " rows vs " + indicators.length);
+check("including the one triaged above", /185\.220\.101\.34/.test(await text("#sv-ind")));
+
+await view("activity", "#sv-cases table");
+const allCases = (await api("/api/cases?limit=200")).body;
+check("the triage history lists every case", (await page.$$eval("#sv-cases tbody tr", (r) => r.length)) === allCases.length,
+  allCases.length + " cases");
+check("a hostile case title is shown as text, never run", await page.evaluate(() =>
+  window.__pwned === undefined && !document.querySelector("#sv-cases img") &&
+  document.querySelector("#sv-cases").textContent.includes('<img src=x onerror="window.__pwned=1">')));
+await page.fill("#sv-q", "perimeter");
+await page.click("#sv-search button[type=submit]");
+await page.waitForFunction(() => document.querySelectorAll("#sv-cases tbody tr").length === 1, null, { timeout: 5000 }).catch(() => {});
+check("and searching finds the case by its title", /Server suite: perimeter block/.test(await text("#sv-cases")) &&
+  (await page.$$eval("#sv-cases tbody tr", (r) => r.length)) === 1);
+
+await view("triage", "#sv-cases [data-status]");
+const caseId = await page.$eval("#sv-cases [data-status]", (el) => el.dataset.status);
+await page.selectOption('[data-status="' + caseId + '"]', "in_progress");
+await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("Case updated"), null, { timeout: 5000 }).catch(() => {});
+const me = (await api("/api/users")).body.find((m) => m.username === "ada");
+await page.waitForSelector('[data-assign="' + caseId + '"]:not([disabled])', { timeout: 5000 }).catch(() => {});
+await page.selectOption('[data-assign="' + caseId + '"]', String(me.id));
+await page.waitForFunction(async ([id, uid]) => {
+  const c = await (await fetch("/api/cases/" + id, { credentials: "same-origin" })).json();
+  return c.status === "in_progress" && c.assignee && c.assignee.id === uid;
+}, [caseId, me.id], { timeout: 5000, polling: 300 }).catch(() => {});
+const worked = (await api("/api/cases/" + caseId)).body;
+check("the queue's controls move the case: in progress, and taken", worked.status === "in_progress" && worked.assignee?.username === "ada",
+  worked.status + " / " + (worked.assignee && worked.assignee.username));
+const update = writes.find((w) => w.path === "/api/cases/" + caseId && w.method === "PATCH");
+check("each change carried the session's CSRF token", Boolean(update && update.headers["x-csrf-token"]));
+
+await view("surface", "#sv-assets table");
+check("the attack surface names the host the alerts named", /LON-WS-0442/.test(await text("#sv-assets")) &&
+  /j\.okafor/.test(await text("#sv-assets")));
+check("and a hostile host name is text, never markup", await page.evaluate(() =>
+  window.__pwned === undefined && !document.querySelector("#sv-assets svg[onload]") &&
+  document.querySelector("#sv-assets").textContent.includes('<svg onload="window.__pwned=2">')));
+await view("narratives", "#sv-stories .sv-card");
+check("the narratives tell the pushed alert's technique", /Impact/.test(await text("#sv-stories")) && /T1486/.test(await text("#sv-stories")));
+await view("tickets", "#sv-tickets .empty-state, #sv-tickets table");
+check("a workspace with no ticket says how to raise one", /No tickets yet/.test(await text("#sv-tickets")));
+await view("sources", "#sv-sources table");
+const providers = (await api("/api/sources")).body.providers;
+check("the sources view lists every provider the workspace has", (await page.$$eval("#sv-sources tbody tr", (r) => r.length)) === providers.length);
+await view("campaigns", "#sv-campaigns .card");
+check("the campaigns view answers from the workspace", (await page.$$eval("#sv-campaigns .card", (c) => c.length)) >= 1);
+check("one h1 or none on every view: the console's titles are h3", await page.evaluate(() =>
+  document.querySelectorAll("#page-console h1").length <= 1));
+await view("workbench", "#wb-input");
+
 // ——————————————————————————————————————— 3. signing out closes the console
 await page.click("#c-signout");
 await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});

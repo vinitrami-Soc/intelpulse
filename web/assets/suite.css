@@ -1457,3 +1457,28 @@ button { font-family: inherit; cursor: pointer; }
 @media (pointer: coarse) {
   .account-field .wb-field, .account-actions .btn, #c-signout { min-height: 44px; }
 }
+
+/* ─── the server's views (console-server.js): the console's own components, laid
+   out for tables with more columns and a few controls in a row ─── */
+.sv-gap { margin-top: 14px; }
+.sv-card + .sv-card { margin-top: 14px; }
+.sv-sub { display: block; font-size: 11px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.sv-filters .wb-field { flex: 1 1 160px; }
+.sv-filters .wb-field[type="search"] { flex: 3 1 240px; }
+.wb-field.sv-select { flex: 0 1 auto; width: auto; padding-block: 8px; }
+.sv-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.sv-controls .sv-select { max-width: 100%; }
+.table.sv-table th:nth-child(n) { width: auto; }
+.table.sv-table th:first-child { width: 30%; }
+/* wrap rather than cut: a status, a date or an error is read whole */
+.table.sv-table td { white-space: normal; overflow-wrap: anywhere; }
+.sv-cell { min-width: 0; }
+.sv-cell .wb-badge { vertical-align: middle; }
+.sv-steps { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 10px; font-size: 13px; }
+.sv-steps ul { margin: 4px 0 0; padding-left: 16px; display: grid; gap: 4px; color: var(--ink-2); }
+.sv-steps .sv-sub { display: inline; }
+.sv-bars { margin-top: 8px; }
+.sv-loading { padding: 8px 0; }
+@media (pointer: coarse) {
+  .wb-field.sv-select { min-height: 44px; }
+}
