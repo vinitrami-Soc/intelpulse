@@ -120,6 +120,19 @@
       return this.session;
     },
 
+    /* An invitation: what it opens (the token travels in a body, never in a URL), then the account. */
+    async checkInvite(token) {
+      const body = await this.request("/api/join/check", { method: "POST", body: JSON.stringify({ token }) });
+      const workspace = body && body.workspace && typeof body.workspace === "object" ? body.workspace : {};
+      return { workspace: text(workspace.name, 120), role: body && body.role === "admin" ? "admin" : "analyst" };
+    },
+
+    async join(fields) {
+      const body = await this.request("/api/join", { method: "POST", body: JSON.stringify(fields) });
+      this.session = cleanSession(body || {});
+      return this.session;
+    },
+
     async changePassword(current, next) {
       await this.request("/api/profile", {
         method: "PATCH", body: JSON.stringify({ current_password: current, new_password: next })

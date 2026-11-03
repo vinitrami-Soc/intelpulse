@@ -187,9 +187,11 @@ async def test_only_the_owner_refreshes_the_shared_feeds(people):
 
 # -- every route --------------------------------------------------------------------
 PUBLIC = {("GET", "/api/health"), ("GET", "/api/scoring/model"), ("GET", "/api/session"),
-          ("POST", "/api/session"), ("POST", "/api/setup"), ("POST", "/api/signup")}
+          ("POST", "/api/session"), ("POST", "/api/setup"), ("POST", "/api/signup"),
+          ("POST", "/api/join"), ("POST", "/api/join/check")}
 SAMPLE_IDS = {"{case_id}": "00000000-0000-0000-0000-000000000000", "{entry_id}": "1", "{token_id}": "1",
-              "{feed}": "cisa-kev", "{cve_id}": "CVE-2024-3400", "{name}": "otx", "{user_id}": "1"}
+              "{feed}": "cisa-kev", "{cve_id}": "CVE-2024-3400", "{name}": "otx", "{user_id}": "1",
+              "{invite_id}": "1"}
 
 
 def _api_routes() -> list[tuple[str, str]]:

@@ -25,6 +25,7 @@
   const session = () => (window.IntelPulseData && window.IntelPulseData.session) || {};
   const isAdmin = () => Boolean(session().user && session().user.role === "admin");
   const isOwner = () => Boolean(session().user && session().user.owner);
+  const organization = () => Boolean(session().workspace && session().workspace.kind === "organization");
 
   /* A form's fields as text, trimmed; a password is left exactly as typed. */
   function fields(form) {
@@ -266,8 +267,19 @@
             field("tm-password", "First password", 'type="password" name="password" required minlength="12" maxlength="1024" autocomplete="new-password"',
               "At least 12 characters.") +
             '<div class="wb-row"><button type="submit" class="btn btn-dark btn-sm">Add member</button></div></form>' +
-          statusLine("tm-add-status") + "</section>",
-      mount(root) {
+          statusLine("tm-add-status") + "</section>" +
+        (organization()
+          ? '<section class="card panel sv-gap" aria-labelledby="tm-inv-h"><div class="panel-head"><h4 id="tm-inv-h">Invite someone</h4></div>' +
+              '<p class="wb-hint">A link for one person, good for seven days: they choose their own username and password.</p>' +
+              '<form id="tm-invite" class="wb-row">' +
+                '<label class="sr-only" for="tm-inv-role">Role</label>' +
+                '<select class="wb-field sv-select" id="tm-inv-role" name="role"><option value="analyst">As an analyst</option>' +
+                  '<option value="admin">As an admin</option></select>' +
+                '<button type="submit" class="btn btn-dark btn-sm">Create link</button></form>' +
+              '<div id="tm-inv-once" hidden></div>' + statusLine("tm-inv-status") +
+              '<div id="tm-inv-list" class="sv-gap">' + loading + "</div></section>"
+          : ""),
+      mount(root, ctx) {
         if (!isAdmin()) return null;
         const view = life();
         const me = () => (session().user || {}).username;
@@ -315,6 +327,24 @@
             if (!quiet(view, error)) failed($("#tm-list", root), error, load);
           }
         }
+        async function loadInvites() {
+          if (!organization()) return;
+          try {
+            const rows = objects(await get(view, "/api/invites"));
+            if (!view.alive) return;
+            $("#tm-inv-list", root).innerHTML = rows.length
+              ? table(["Invitation", "State", "Made by", "Expires", "Revoke"], rows.map((i) => "<tr>" +
+                  cell("Invitation", "As " + (i.role === "admin" ? "an admin" : "an analyst")) +
+                  cell("State", esc(i.state === "used" ? "used by " + text(i.used_by || "a removed member") : i.state)) +
+                  cell("Made by", esc(i.created_by || "a removed member")) + cell("Expires", esc(when(i.expires_at)), "mono") +
+                  cell("Revoke", i.state === "open"
+                    ? '<button type="button" class="btn btn-light btn-sm" data-revoke-invite="' + whole(i.id) + '">Revoke</button>' : "none") +
+                  "</tr>"))
+              : emptyState("No invitations", "Create a link above and send it to the person you invite.");
+          } catch (error) {
+            if (!quiet(view, error)) failed($("#tm-inv-list", root), error, loadInvites);
+          }
+        }
         const status = () => $("#tm-status", root);
         const update = (id, body, button, said) =>
           act(view, status(), button, () => send(view, "/api/users/" + id, "PATCH", body), () => { load(); return said; });
@@ -337,6 +367,25 @@
             if (!line.hidden) $("input", line).focus();
             return;
           }
+          if (event.target.closest("[data-copy-invite]")) {
+            const value = $("#tm-inv-link", root).value;
+            (navigator.clipboard ? navigator.clipboard.writeText(value) : Promise.reject(new Error("no clipboard")))
+              .then(() => ctx.toast("Link copied"), () => { $("#tm-inv-link", root).select(); ctx.toast("Select the link and copy it"); });
+            return;
+          }
+          if (event.target.closest("[data-hide-invite]")) {
+            const once = $("#tm-inv-once", root);
+            once.innerHTML = "";
+            once.hidden = true;
+            return;
+          }
+          const revokeInvite = event.target.closest("[data-revoke-invite]");
+          if (revokeInvite) {
+            if (revokeInvite.dataset.armed !== "1") { revokeInvite.dataset.armed = "1"; revokeInvite.textContent = "Press again to revoke"; return; }
+            act(view, $("#tm-inv-status", root), revokeInvite, () => send(view, "/api/invites/" + whole(revokeInvite.dataset.revokeInvite), "DELETE"),
+              () => { loadInvites(); return "Revoked: the link stops working now."; });
+            return;
+          }
           const remove = event.target.closest("[data-remove]");
           if (remove) {
             /* two steps, no dialog: the second press is the confirmation */
@@ -353,6 +402,25 @@
           event.preventDefault();
           const form = event.target;
           const submit = $("button[type=submit]", form);
+          if (form.id === "tm-invite") {
+            act(view, $("#tm-inv-status", root), submit, () => send(view, "/api/invites", "POST", { role: form.elements.role.value }),
+              (made) => {
+                const link = text(made && made.link);
+                const full = link.charAt(0) === "#" ? location.origin + location.pathname + link : link;
+                const once = $("#tm-inv-once", root);
+                once.hidden = false;
+                once.innerHTML = '<div class="sv-once" role="alert"><b>Send this link to one person: it is shown only now.</b>' +
+                  '<div class="wb-row"><label class="sr-only" for="tm-inv-link">The invitation link</label>' +
+                  '<input class="wb-field mono" id="tm-inv-link" readonly autocomplete="off" spellcheck="false">' +
+                  '<button type="button" class="btn btn-dark btn-sm" data-copy-invite>Copy</button>' +
+                  '<button type="button" class="btn btn-light btn-sm" data-hide-invite>Done</button></div></div>';
+                $("#tm-inv-link", root).value = full;
+                $("#tm-inv-link", root).select();
+                loadInvites();
+                return "";
+              });
+            return;
+          }
           if (form.matches("[data-reset-form]")) {
             const password = form.elements.password.value;
             if (password.length < 12) { status().textContent = "The password needs at least 12 characters."; return; }
@@ -366,6 +434,7 @@
           }
         });
         load();
+        loadInvites();
         return () => view.end();
       }
     };

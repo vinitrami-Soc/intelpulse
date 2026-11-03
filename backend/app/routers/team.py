@@ -15,7 +15,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import ApiToken, Case, CaseTicket, User
+from ..models import ApiToken, Case, CaseTicket, Invite, User
 from ..platform import audit, auth
 from ..platform.auth import Actor
 from ..platform.deps import require_member, require_session_admin
@@ -161,6 +161,8 @@ async def remove_member(user_id: int = Path(..., ge=1, le=2**63 - 1), actor: Act
     await db.execute(update(Case).where(Case.created_by == user.id).values(created_by=None))
     await db.execute(update(CaseTicket).where(CaseTicket.created_by == user.id).values(created_by=None))
     await db.execute(update(ApiToken).where(ApiToken.created_by == user.id).values(created_by=None))
+    await db.execute(update(Invite).where(Invite.created_by == user.id).values(created_by=None))
+    await db.execute(update(Invite).where(Invite.used_by == user.id).values(used_by=None))
     await audit.record(db, action="user.removed", actor=actor.label, workspace_id=actor.workspace_id,
                        target=user.username, detail={"role": user.role})
     await db.delete(user)

@@ -260,6 +260,15 @@ await page.waitForFunction(() => /Added dora/.test(document.querySelector("#tm-a
 const dora = (await api("/api/users")).body.find((m) => m.username === "dora");
 check("an admin adds a member from Team, who must choose their own password", Boolean(dora && dora.must_change_password));
 check("and Team lists them", /Dora/.test(await text("#tm-list")));
+await page.selectOption("#tm-inv-role", "analyst");
+await page.click("#tm-invite button[type=submit]");
+await page.waitForSelector("#tm-inv-link", { timeout: 5000 }).catch(() => {});
+const inviteLink = await page.$eval("#tm-inv-link", (el) => el.value).catch(() => "");
+check("an admin makes an invitation link, shown once", /#\/join\/[A-Za-z0-9_-]{20,}$/.test(inviteLink), inviteLink.slice(0, 60));
+await page.waitForFunction(() => /open/.test(document.querySelector("#tm-inv-list")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("and the invitations list it as open, without its token",
+  /open/.test(await text("#tm-inv-list")) && !(await text("#tm-inv-list")).includes(inviteLink.split("/join/")[1] || "-"));
+await page.click("[data-hide-invite]");
 
 await view("audit", "#au-list table");
 await page.click("#au-verify");
@@ -360,6 +369,26 @@ check("signing up opens the console, in a workspace of one's own",
 await view("activity", "#sv-cases .empty-state, #sv-cases table");
 check("and the new workspace holds none of Acme's cases",
   (await page.$$eval("#sv-cases tbody tr", (rows) => rows.length)) === 0 && Boolean(await page.$("#sv-cases .empty-state")));
+
+// ——————————————————————————————————————— 5c. an invitation, opened by the person it was made for
+await page.click("#c-signout");
+await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});
+await page.goto(inviteLink);
+await page.waitForFunction(() => /Join /.test(document.querySelector("#account-title")?.textContent || ""), null, { timeout: 8000 }).catch(() => {});
+check("the invitation says whose workspace it opens, and as what",
+  /Join Acme SOC/.test(await text("#account-title")) && /as an analyst/.test(await text(".account-lead")), await text("#account-title"));
+await page.fill("#account-name", "Jo");
+await page.fill("#account-username", "joan");
+await page.fill("#account-password", PASSWORD);
+await page.click("#account-submit");
+await page.waitForFunction(() => location.hash.startsWith("#/console/"), null, { timeout: 8000 }).catch(() => {});
+await page.waitForSelector("#c-who", { timeout: 5000 }).catch(() => {});
+check("joining opens the console, in the inviting workspace", /Jo/.test(await text("#c-who")) && /Acme SOC/.test(await text("#c-workspace")),
+  await text("#c-who") + " / " + await text("#c-workspace"));
+/* asked from outside the page: a 404 in the page's own console would read as a script error */
+const reused = (await fetch(ORIGIN + "/api/join/check", { method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ token: inviteLink.split("/join/")[1] }) })).status;
+check("and the link no longer works", reused === 404, String(reused));
 
 // ——————————————————————————————————————— 6. small screens and the whole run
 await page.click("#c-signout");
