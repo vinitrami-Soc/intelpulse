@@ -163,6 +163,10 @@ JSON report are the public interface.
   `workspace_budget` and `Retry-After`. `python -m app.cli rotate-key` re-seals every secret and
   every case's input under the key in `NEW_ENCRYPTION_KEY`, all or nothing, and audits it as
   `server.key_rotated` ([SECURITY.md](docs/SECURITY.md#rotating-encryption_key)).
+- **`GET /healthz`** for uptime monitors (milestone M4 begins): `200` or `503` from four checks,
+  the database, Redis, the Celery worker's heartbeat (a new `intelpulse.heartbeat` task beat runs
+  every minute) and free disk space. It names no host, path, error or version
+  ([API.md](docs/API.md#get-healthz)).
 
 ### Changed
 

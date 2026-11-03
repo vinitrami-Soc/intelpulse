@@ -22,6 +22,7 @@ from .routers import (
     alerts,
     cases,
     health,
+    healthz,
     intel,
     invites,
     lists,
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     }
     # Open to anyone: health, the published scoring model, signing in and the one-time setup.
     app.include_router(health.router, prefix="/api", responses=refusals)
+    app.include_router(healthz.router)   # /healthz, for monitors: 200 or 503
     app.include_router(account.router, prefix="/api", responses=refusals)
     app.include_router(invites.public, prefix="/api", responses=refusals)
     # Everything else needs a verified caller. Each route also names the actor it acts

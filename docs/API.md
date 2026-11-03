@@ -94,6 +94,33 @@ this on load so it can state honestly how many sources are configured.
 }
 ```
 
+## `GET /healthz`
+
+For uptime monitors: `200` when every check passes, `503` when one fails, so the status code is
+enough. Open to anyone, and it says only pass or fail: no error text, host name, path or version
+(the server's log has the reasons).
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "database": { "ok": true, "ms": 3 },
+    "redis": { "ok": true },
+    "beat": { "ok": true, "age_seconds": 41, "max_age_seconds": 300 },
+    "disk": { "ok": true, "free_percent": 62.4, "min_free_percent": 5.0 }
+  }
+}
+```
+
+| Check | Passes when |
+| --- | --- |
+| `database` | one query answers |
+| `redis` | it answers a ping; `"ok": null` (not configured) without `REDIS_URL` |
+| `beat` | the Celery worker's heartbeat, which beat schedules every minute, is at most `HEALTHZ_BEAT_MAX_AGE_SECONDS` (300) old. Without `REDIS_URL` there is no Celery and it is `null`. A server that has not yet heard one is "waiting for the first heartbeat" for that long after it starts, then fails |
+| `disk` | at least `HEALTHZ_MIN_FREE_PERCENT` (5) of the data volume is free |
+
+`GET /api/health` stays as it was: what the console shows about providers and datasets.
+
 ## `GET /api/scoring/model`
 
 Returns the live weights, authority values, thresholds and modifiers: the audit trail behind any

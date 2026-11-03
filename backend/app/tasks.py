@@ -42,6 +42,8 @@ celery_app.conf.update(
         "nvd-daily": {"task": "intelpulse.refresh_nvd", "schedule": crontab(minute=45, hour=5)},
         # tier 1 past each workspace's retention days goes, hourly (spec 6.5)
         "retention-hourly": {"task": "intelpulse.retention_sweep", "schedule": crontab(minute=51)},
+        # GET /healthz reads it: beat scheduled it, a worker ran it, the database took it
+        "heartbeat-minute": {"task": "intelpulse.heartbeat", "schedule": 60.0},
     },
 )
 
@@ -57,6 +59,19 @@ async def _sweep() -> int:
 
     async with session_scope() as session:
         return sum((await retention.sweep(session)).values())
+
+
+async def _heartbeat() -> None:
+    from .db import session_scope
+    from .routers.healthz import record_heartbeat
+
+    async with session_scope() as session:
+        await record_heartbeat(session)
+
+
+@celery_app.task(name="intelpulse.heartbeat")
+def heartbeat_task() -> None:
+    _run(_heartbeat())
 
 
 @celery_app.task(name="intelpulse.retention_sweep")
