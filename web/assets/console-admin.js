@@ -620,7 +620,8 @@
           '<form id="pf-form" class="sv-grid">' +
             field("pf-name", "Display name", 'type="text" name="display_name" maxlength="120" autocomplete="name"') +
             field("pf-email", "Email", 'type="email" name="email" maxlength="254" autocomplete="email"',
-              "Used for password resets once the server sends email.") +
+              "Where a reset link goes, once the address is confirmed.") +
+            '<p class="wb-hint" id="pf-email-state" hidden></p>' +
             '<div class="wb-row"><button type="submit" class="btn btn-dark btn-sm">Save</button></div></form>' +
           statusLine("pf-status") + "</section>" +
         '<section class="card panel sv-gap" aria-labelledby="pf-pw-h"><div class="panel-head"><h4 id="pf-pw-h">Password</h4></div>' +
@@ -640,10 +641,21 @@
               text(me.workspace && me.workspace.name);
             $("#pf-name", root).value = text(me.display_name);
             $("#pf-email", root).value = text(me.email);
+            const state = $("#pf-email-state", root);
+            state.hidden = !(me.email_enabled && me.email);
+            state.innerHTML = me.email_confirmed ? "Confirmed." : "Not confirmed yet: open the link sent to it. " +
+              '<button type="button" class="btn btn-light btn-sm" id="pf-resend">Send the link again</button>';
           } catch (error) {
             if (!quiet(view, error)) failed($("#pf-who", root), error, load);
           }
         }
+        view.on(root, "click", (event) => {
+          const resend = event.target.closest("#pf-resend");
+          if (resend) {
+            act(view, $("#pf-status", root), resend, () => send(view, "/api/profile/email/confirm", "POST"),
+              (answer) => text(answer && answer.detail));
+          }
+        });
         view.on(root, "submit", (event) => {
           event.preventDefault();
           const form = event.target;
@@ -658,6 +670,7 @@
                   const user = session().user;
                   if (who && user) who.textContent = user.displayName + " · " + (user.owner ? "owner" : user.role);
                 }, () => {});
+                load();
                 return "Saved.";
               });
           } else if (form.id === "pf-password") {

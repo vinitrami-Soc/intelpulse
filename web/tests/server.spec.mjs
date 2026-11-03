@@ -302,6 +302,12 @@ check("and the API agrees: the session is gone", anonymous === 401, String(anony
 // ——————————————————————————————————————— 4. signing in with the keyboard alone
 await page.waitForSelector("#account-username", { timeout: 5000 });
 check("the sign-in form takes the focus", await page.evaluate(() => document.activeElement && document.activeElement.id === "account-username"));
+check("a server that sends no email offers no password reset", !(await page.$("#account-to-forgot")));
+await page.evaluate(() => { location.hash = "#/forgot"; });
+await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});
+check("and its reset page leads back to sign-in", (await hash()) === "#/signin", await hash());
+await page.waitForSelector("#account-username", { timeout: 5000 }).catch(() => {});
+await page.focus("#account-username");
 await page.keyboard.type("ada");
 await page.keyboard.press("Tab");
 await page.keyboard.type("not the password");

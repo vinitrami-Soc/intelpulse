@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME, SERVER, User, Workspace
 from ..text import clean_label
-from . import audit, auth, server_settings
+from . import audit, auth, mail, server_settings
 from . import settings_store as store
 from .crypto import Box
 from .errors import ApiError
@@ -33,6 +33,8 @@ KINDS = ("individual", "organization")
 
 def _email(value: str | None) -> str | None:
     email = (value or "").strip() or None
+    if email is None and mail.enabled():
+        raise ApiError(422, "invalid", "this server sends email: give an address, to confirm it and to reset a forgotten password")
     if email is not None and (len(email) > 254 or not EMAIL_RE.match(email)):
         raise ApiError(422, "invalid", "that is not an email address")
     return email

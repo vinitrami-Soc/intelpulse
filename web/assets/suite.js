@@ -665,7 +665,7 @@
   function accountFromHash() {
     if (!serverMode()) return null;
     const first = hashParts()[0];
-    return first === "signin" || first === "setup" || first === "password" || first === "signup" || first === "join" ? first : null;
+    return ["signin", "setup", "password", "signup", "join", "forgot", "reset", "confirm"].includes(first) ? first : null;
   }
   function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
   async function signOut() {
@@ -745,6 +745,9 @@
     if (account) {
       const session = DATA_SOURCE.session || {};
       const mustChange = Boolean(session.user && session.user.mustChangePassword);
+      /* an emailed link works whoever is signed in on this browser */
+      if (account === "reset" || account === "confirm") { showAccount(account); return; }
+      if (account === "forgot" && (session.user || !session.emailEnabled)) { go(session.user ? "#/console/dashboard" : "#/signin"); return; }
       if (account === "password") {
         if (!session.user) { go("#/signin"); return; }
         if (!mustChange) { go("#/console/dashboard"); return; }

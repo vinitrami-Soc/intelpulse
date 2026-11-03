@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..models import SERVER, LoginSession, User, Workspace
-from ..platform import accounts, audit, auth, server_settings
+from ..platform import accounts, audit, auth, email_flows, mail, server_settings
 from ..platform.box import server_box
 from ..platform.deps import SESSION_COOKIE, login_throttle, require_actor
 from ..platform.errors import ApiError
@@ -54,7 +54,7 @@ async def _payload(db: AsyncSession, user: User | None, row: LoginSession | None
         "mode": "server",
         "setup_needed": setup_needed,
         "signup": not setup_needed and await server_settings.signup_open(db),
-        "email": False,
+        "email": mail.enabled(),
         "user": None if user is None else {
             "id": user.id,
             "username": user.username,
@@ -148,6 +148,7 @@ async def set_up(
             login_throttle.failed(*keys)
         raise
     login_throttle.succeeded(*keys)
+    await email_flows.send_confirmation(db, user)
     return await _open(db, response, user)
 
 
@@ -167,4 +168,68 @@ async def sign_up(
         display_name=body.display_name, organization=body.organization, email=body.email,
     )
     limiter.record(key)
+    await email_flows.send_confirmation(db, user)
     return await _open(db, response, user)
+
+
+class Forgot(BaseModel):
+    login: str = Field(..., max_length=254, description="a username or an email address")
+
+
+class Reset(BaseModel):
+    token: str = Field(..., max_length=200)
+    password: str = Field(..., max_length=1024)
+
+
+class Confirm(BaseModel):
+    token: str = Field(..., max_length=200)
+
+
+FORGOT_ANSWER = ("if an account has that username or address, and the address is confirmed, a link to reset "
+                 "its password is on its way: it works once, for one hour")
+
+
+@router.post("/password/forgot", status_code=202)
+async def forgot_password(body: Forgot, request: Request, db: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    """The same answer whether or not an account matches."""
+    if not mail.enabled():
+        raise ApiError(409, "email_off", "this server does not send email: ask an admin to set a new password")
+    key = "forgot:" + client_ip(request)
+    wait = limiter.wait(key, 5, 3600)
+    if wait:
+        raise ApiError(429, "throttled", f"too many requests from this address: try again in {wait // 60 + 1} min",
+                       {"Retry-After": str(wait)})
+    limiter.record(key)
+    await email_flows.forgot(db, body.login)
+    return {"detail": FORGOT_ANSWER}
+
+
+@router.post("/password/reset")
+async def reset_password(body: Reset, request: Request, db: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    """A new password with the emailed link: once, within the hour. Every session of the account ends."""
+    keys = ("reset:" + client_ip(request),)
+    wait = login_throttle.wait(*keys)
+    if wait > 0:
+        raise ApiError(429, "throttled", f"too many invalid links: wait {int(wait) + 1} s", {"Retry-After": str(int(wait) + 1)})
+    try:
+        await email_flows.reset(db, body.token.strip(), body.password)
+    except ApiError as exc:
+        if exc.status_code == 404:
+            login_throttle.failed(*keys)
+        raise
+    return {"detail": "password changed: sign in with it. Every session of the account has ended"}
+
+
+@router.post("/email/confirm")
+async def confirm_email(body: Confirm, request: Request, db: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    """Confirm an address with the emailed link (the page's button sends this, never the link itself)."""
+    keys = ("confirm:" + client_ip(request),)
+    wait = login_throttle.wait(*keys)
+    if wait > 0:
+        raise ApiError(429, "throttled", f"too many invalid links: wait {int(wait) + 1} s", {"Retry-After": str(int(wait) + 1)})
+    try:
+        user = await email_flows.confirm(db, body.token.strip())
+    except ApiError as exc:
+        login_throttle.failed(*keys)
+        raise exc
+    return {"detail": "address confirmed", "email": user.email or ""}

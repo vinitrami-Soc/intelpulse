@@ -322,3 +322,18 @@ class Invite(Base):
     used_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL", name="fk_invites_used_by"), nullable=True
     )
+
+
+class EmailToken(Base):
+    """A link sent by email: to confirm an address, or to reset a password. Only its SHA-256 is kept."""
+
+    __tablename__ = "email_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(16))  # confirm | reset
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(254), default="")  # the address a confirmation confirms
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
