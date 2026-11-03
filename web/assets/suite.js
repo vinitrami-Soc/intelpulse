@@ -468,6 +468,11 @@
     };
   }
 
+  /* A pane only a server has. In the demo its URL opens the overview instead
+     (paneFromHash), so this fallback is never what a reader sees. */
+  const SERVER_ONLY = new Set(["settings", "team", "tokens", "audit", "profile"]);
+  function serverOnly(name) { return serverView(name, () => PANES.get("dashboard")()); }
+
   /* A Map, not an object literal: the key comes from the URL, and a Map has no
      prototype for "#/console/constructor" or "__proto__" to reach. */
   const PANES = new Map(Object.entries({
@@ -480,7 +485,13 @@
     workbench: () => interactivePane("workbench"),
     narratives:serverView("narratives", () => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() })),
     sources:   serverView("sources", () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() })),
-    tickets:   serverView("tickets", () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() }))
+    tickets:   serverView("tickets", () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })),
+    /* the workspace's own panes (console-admin.js): a server's only */
+    settings:  serverOnly("settings"),
+    team:      serverOnly("team"),
+    tokens:    serverOnly("tokens"),
+    audit:     serverOnly("audit"),
+    profile:   serverOnly("profile")
   }));
 
   /* Grey bars standing in for the panels that are about to land. The console
@@ -633,6 +644,7 @@
     /* Known panes only: "#/console/__proto__" is a URL anyone can type, and it
        falls back to the dashboard rather than reaching anything else. */
     const name = hashParts()[1];
+    if (SERVER_ONLY.has(name) && !signedIn()) return "dashboard";
     return PANES.has(name) ? name : "dashboard";
   }
 
@@ -675,6 +687,38 @@
     const token = routeIsConsole() ? "--ground" : "--sky-top";
     const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
     if (value) meta.content = value;
+  }
+
+  /* The workspace's own panes in the sidebar: only while someone is signed in,
+     and only the ones their role opens (an analyst gets Audit and Profile).
+     Drawn again whenever who is signed in, or their role, changes. */
+  const WORKSPACE_ICONS = { settings: "i-key", team: "i-bot", tokens: "i-lock", audit: "i-shield", profile: "i-check-circle" };
+  let workspaceNavFor = null;
+  function syncWorkspaceNav() {
+    const host = $("#side-nav-full");
+    if (!host) return;
+    const user = signedIn() ? DATA_SOURCE.session.user : null;
+    const key = user ? user.username + ":" + user.role : "";
+    const drawn = $("#nav-workspace", host);
+    if (key === workspaceNavFor && (!user || drawn)) return;
+    workspaceNavFor = key;
+    if (drawn) drawn.parentNode.removeChild(drawn);
+    if (!user) return;
+    const panes = (window.IntelPulseWorkspacePanes || []).filter((pane) => !pane.admin || user.role === "admin");
+    if (!panes.length) return;
+    const group = document.createElement("div");
+    group.id = "nav-workspace";
+    group.className = "nav-workspace";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-labelledby", "nav-workspace-label");
+    group.innerHTML = '<p class="label-xs nav-workspace-label" id="nav-workspace-label">Workspace</p>' +
+      panes.map((pane) => '<button class="nav-item" data-pane="' + pane.id + '">' +
+        icon(WORKSPACE_ICONS[pane.id] || "i-grid") + "<span>" + pane.label + "</span></button>").join("");
+    host.appendChild(group);
+    $$(".nav-item", group).forEach((item) => item.addEventListener("click", () => {
+      go("#/console/" + item.dataset.pane);
+      toast(item.textContent.trim() + " opened");
+    }));
   }
 
   let shownRoute = null;
@@ -739,6 +783,7 @@
       cta.innerHTML = label + '<svg><use href="#i-arrow"/></svg>';
     });
     if (toConsole) {
+      syncWorkspaceNav();
       $$(".nav-item", $("#side-nav-full")).forEach((item) => {
         if (item.dataset.pane === pane) item.setAttribute("aria-current", "true");
         else item.removeAttribute("aria-current");

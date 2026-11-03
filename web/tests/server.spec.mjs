@@ -192,6 +192,71 @@ await view("campaigns", "#sv-campaigns .card");
 check("the campaigns view answers from the workspace", (await page.$$eval("#sv-campaigns .card", (c) => c.length)) >= 1);
 check("one h1 or none on every view: the console's titles are h3", await page.evaluate(() =>
   document.querySelectorAll("#page-console h1").length <= 1));
+
+// ——————————————————————————————————————— 2c. the workspace's own panes, as its owner
+check("the sidebar lists the workspace's panes for an admin", await page.$$eval("#nav-workspace .nav-item",
+  (items) => items.map((i) => i.dataset.pane).join(",")) === "settings,team,tokens,audit,profile");
+
+await view("settings", "#st-providers [data-provider]");
+await page.uncheck('[data-provider="otx"]');
+await page.waitForFunction(() => /Off: otx/.test(document.querySelector("#st-prov-status")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+const otx = (await api("/api/settings")).body.providers.find((p) => p.name === "otx");
+check("switching a source off in Settings turns it off on the server", otx && otx.enabled === false);
+const KEY = "suite-test-key-0000wxyz";
+await page.fill("#st-key-otx", KEY);
+await page.click('[data-key="otx"] button[type=submit]');
+await page.waitForFunction(() => /Set: /.test(document.querySelector("#st-key-otx")?.placeholder || ""), null, { timeout: 5000 }).catch(() => {});
+check("a provider key is saved, and only its last four characters come back",
+  /^Set: •+wxyz$/.test(await page.getAttribute("#st-key-otx", "placeholder") || "") &&
+  !(await page.evaluate((k) => document.documentElement.outerHTML.includes(k), KEY)));
+
+await view("tokens", "#tk-new");
+await page.fill("#tk-name", "siem-forwarder");
+await page.selectOption("#tk-scope", "ingest");
+await page.click("#tk-new button[type=submit]");
+await page.waitForSelector("#tk-value", { timeout: 5000 }).catch(() => {});
+const token = await page.$eval("#tk-value", (el) => el.value).catch(() => "");
+check("a new API token is shown once, to copy", /^ipt_/.test(token));
+const scoped = await page.evaluate(async (t) => (await fetch("/api/stats", { headers: { Authorization: "Bearer " + t } })).status, token);
+check("and it works with its scope only: ingest cannot read", scoped === 403, String(scoped));
+await page.click("[data-hide-token]");
+await view("audit", "#au-list");
+await view("tokens", "#tk-list [data-revoke], #tk-list table");
+check("once the pane closes, the token is nowhere on the page",
+  !(await page.evaluate((t) => document.documentElement.outerHTML.includes(t), token)));
+await page.click("#tk-list [data-revoke]");
+await page.click("#tk-list [data-revoke]");
+await page.waitForFunction(() => /Revoked/.test(document.querySelector("#tk-status")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+const revoked = (await api("/api/tokens")).body.find((t) => t.name === "siem-forwarder");
+check("revoking takes two presses and no dialog, and the server agrees", Boolean(revoked && revoked.revoked_at));
+
+await view("team", "#tm-add");
+await page.fill("#tm-username", "dora");
+await page.fill("#tm-name", "Dora");
+await page.fill("#tm-password", PASSWORD);
+await page.click("#tm-add button[type=submit]");
+await page.waitForFunction(() => /Added dora/.test(document.querySelector("#tm-add-status")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+const dora = (await api("/api/users")).body.find((m) => m.username === "dora");
+check("an admin adds a member from Team, who must choose their own password", Boolean(dora && dora.must_change_password));
+check("and Team lists them", /Dora/.test(await text("#tm-list")));
+
+await view("audit", "#au-list table");
+await page.click("#au-verify");
+await page.waitForFunction(() => /chain/.test(document.querySelector("#au-verdict")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("Verify the chain says the audit chain holds", /The chain holds/.test(await text("#au-verdict")), await text("#au-verdict"));
+await page.fill("#au-action", "token.");
+await page.click("#au-filter button[type=submit]");
+await page.waitForFunction(() => document.querySelectorAll("#au-list tbody tr").length >= 2 &&
+  [...document.querySelectorAll("#au-list tbody tr")].every((r) => r.textContent.includes("token.")), null, { timeout: 5000 }).catch(() => {});
+check("the audit log filters by an action's start", (await page.$$eval("#au-list tbody tr", (rows) =>
+  rows.length >= 2 && rows.every((r) => /token\.(created|revoked)/.test(r.textContent)))));
+
+await view("profile", "#pf-form");
+await page.waitForFunction(() => document.querySelector("#pf-name")?.value === "ada", null, { timeout: 5000 }).catch(() => {});
+await page.fill("#pf-name", "Ada Lovelace");
+await page.click("#pf-form button[type=submit]");
+await page.waitForFunction(() => /Ada Lovelace/.test(document.querySelector("#c-who")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("Profile changes the name, and the header follows", /Ada Lovelace/.test(await text("#c-who")), await text("#c-who"));
 await view("workbench", "#wb-input");
 
 // ——————————————————————————————————————— 3. signing out closes the console
@@ -245,6 +310,11 @@ await page.click("#account-submit");
 await page.waitForFunction(() => location.hash.startsWith("#/console/"), null, { timeout: 8000 }).catch(() => {});
 check("and then reaches the console", (await hash()).startsWith("#/console/"), await hash());
 check("as themselves", /Carl/.test(await text("#c-who")), await text("#c-who"));
+check("an analyst's sidebar has only their own panes", await page.$$eval("#nav-workspace .nav-item",
+  (items) => items.map((i) => i.dataset.pane).join(",")) === "audit,profile");
+await page.evaluate(() => { location.hash = "#/console/settings"; });
+await page.waitForSelector("#console-panels .empty-state", { timeout: 5000 }).catch(() => {});
+check("and Settings, opened by its address, says only an admin can", /Only an admin/.test(await text("#console-panels")));
 
 // ——————————————————————————————————————— 6. small screens and the whole run
 await page.click("#c-signout");

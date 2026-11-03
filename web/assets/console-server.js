@@ -650,6 +650,13 @@
     };
   }
 
+  /* The pieces the workspace panes (console-admin.js) build with, so both files
+     escape, fetch, fail and empty the same way. */
+  window.IntelPulseServerKit = {
+    esc, safeUrl, badge, when, whole, text, list, objects, count, table, cell, kpi, emptyState, failed,
+    loading, life, get, quiet, request
+  };
+
   /* name -> (session, helpers) => view. suite.js asks for a view only when signed in. */
   window.IntelPulseServerViews = {
     dashboard: (session) => overview(session),
