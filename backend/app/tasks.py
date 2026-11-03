@@ -40,6 +40,8 @@ celery_app.conf.update(
         },
         "kev-daily": {"task": "intelpulse.refresh_kev", "schedule": crontab(minute=35, hour=4)},
         "nvd-daily": {"task": "intelpulse.refresh_nvd", "schedule": crontab(minute=45, hour=5)},
+        # tier 1 past each workspace's retention days goes, hourly (spec 6.5)
+        "retention-hourly": {"task": "intelpulse.retention_sweep", "schedule": crontab(minute=51)},
     },
 )
 
@@ -47,6 +49,19 @@ celery_app.conf.update(
 def _run(coro):
     """Celery workers are synchronous; give each task its own event loop."""
     return asyncio.run(coro)
+
+
+async def _sweep() -> int:
+    from .db import session_scope
+    from .services import retention
+
+    async with session_scope() as session:
+        return sum((await retention.sweep(session)).values())
+
+
+@celery_app.task(name="intelpulse.retention_sweep")
+def retention_sweep_task() -> int:
+    return _run(_sweep())
 
 
 @celery_app.task(name="intelpulse.refresh_feodo")

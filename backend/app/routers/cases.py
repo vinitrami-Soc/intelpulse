@@ -14,10 +14,10 @@ from ..models import SERVER, AuditLog, Case, CaseInput, IndicatorResult, PushedA
 from ..platform import audit, scope
 from ..platform.auth import Actor
 from ..platform.box import server_box
-from ..platform.deps import require_actor, require_admin, require_member
+from ..platform.deps import require_actor, require_admin, require_member, require_session_admin
 from ..platform.errors import ApiError
 from ..schemas import CaseSummary, CaseUpdate
-from ..services import case_inputs, views, workflow
+from ..services import case_inputs, retention, views, workflow
 from ..services import workspace_settings as ws_settings
 from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
@@ -95,6 +95,9 @@ async def list_cases(
             closed_reason=row.closed_reason,
             closed_at=workflow.iso(row.closed_at),
             ticket_count=tickets.get(row.id, 0),
+            held=row.held,
+            input_deleted_at=workflow.iso(row.input_deleted_at),
+            created_by=row.created_by,
         )
         for row in rows
     ]
@@ -125,6 +128,8 @@ async def get_case(
         "raw_input": ((await case_inputs.read(session, case.id)) or {}).get("raw_input")
         if case_inputs.may_read_raw(actor, case) else None,
         "input_deleted_at": workflow.iso(case.input_deleted_at),
+        "held": case.held,
+        "created_by": case.created_by,
         "indicator_count": case.indicator_count,
         "indicators": [row.payload for row in rows],
         # What a SIEM pushed, when the case came in through /api/alerts; otherwise null.
@@ -206,13 +211,52 @@ async def delete_case(
     case_id: str, actor: Actor = Depends(require_admin), session: AsyncSession = Depends(get_session)
 ) -> None:
     await scope.case_in(session, actor, case_id)
+    kept = await session.get(CaseInput, case_id)
     # SQLite does not enforce the foreign keys here, so the pushed alert goes by hand: left
     # behind, it would make a re-push of the same alert point at a case that is gone.
     await session.execute(delete(PushedAlert).where(PushedAlert.case_id == case_id))
     await session.execute(delete(CaseInput).where(CaseInput.case_id == case_id))
     await session.execute(delete(Case).where(Case.id == case_id))
-    await audit.record(session, action="case.deleted", actor=actor.label,
-                       workspace_id=actor.workspace_id, target=case_id)
+    # the case can still be named: its ID, and the SHA-256 of the input it had
+    await audit.record(session, action="case.deleted", actor=actor.label, workspace_id=actor.workspace_id,
+                       target=case_id, detail={"input_sha256": kept.sha256 if kept else None})
+
+
+@router.delete("/cases/{case_id}/input", status_code=204)
+async def delete_case_input(
+    case_id: str, actor: Actor = Depends(require_member), session: AsyncSession = Depends(get_session)
+) -> None:
+    """Delete a case's tier 1 now: an analyst their own cases', an admin any. The verdict, the
+    indicators and the workflow stay. A held case keeps its input until it is released."""
+    case = await scope.case_in(session, actor, case_id)
+    if not (actor.is_admin or (case.created_by is not None and case.created_by == actor.user_id)):
+        raise ApiError(403, "forbidden", "only the analyst who made this case, or an admin, deletes its input")
+    if case.held:
+        raise ApiError(409, "held", "this case is held: an admin releases it first")
+    if await retention.delete_input(session, case, actor=actor.label) is None:
+        raise ApiError(404, "not_found", "this case has no input to delete")
+
+
+@router.post("/cases/{case_id}/hold")
+async def hold_case(case_id: str, actor: Actor = Depends(require_session_admin),
+                    session: AsyncSession = Depends(get_session)) -> dict:
+    """Keep this case's input past the retention days, until it is released."""
+    return await _set_hold(session, actor, case_id, True)
+
+
+@router.delete("/cases/{case_id}/hold")
+async def release_case(case_id: str, actor: Actor = Depends(require_session_admin),
+                       session: AsyncSession = Depends(get_session)) -> dict:
+    return await _set_hold(session, actor, case_id, False)
+
+
+async def _set_hold(session: AsyncSession, actor: Actor, case_id: str, held: bool) -> dict:
+    case = await scope.case_in(session, actor, case_id)
+    if case.held != held:
+        case.held = held
+        await audit.record(session, action="case.held" if held else "case.released", actor=actor.label,
+                           workspace_id=actor.workspace_id, target=case.id)
+    return {"case_id": case.id, "held": case.held, "input_deleted_at": workflow.iso(case.input_deleted_at)}
 
 
 @router.get("/stats")

@@ -183,6 +183,9 @@ class CaseSummary(BaseModel):
     closed_reason: str | None = None
     closed_at: str | None = None
     ticket_count: int = 0
+    held: bool = False
+    input_deleted_at: str | None = None
+    created_by: int | None = None
 
 
 class CaseUpdate(BaseModel):

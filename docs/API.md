@@ -255,7 +255,9 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 | `GET` | `/api/cases/{id}` | Full stored result including every provider payload, `alert` for a pushed alert, and the workflow: `status`, `assignee`, `closed_reason`, `closed_at`, `tickets` |
 | `PATCH` | `/api/cases/{id}` | Move a case along (a signed-in member); see below |
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
-| `DELETE` | `/api/cases/{id}` | Removes the case and its indicators (admin) |
+| `DELETE` | `/api/cases/{id}` | Delete completely (admin): the case, its indicators and its input. The audit record keeps the case ID and the input's SHA-256 |
+| `DELETE` | `/api/cases/{id}/input` | Delete the input now (tier 1): the analyst who made the case, or an admin; a signed-in member. The verdict, indicators and workflow stay. `409 held` while the case is held |
+| `POST`, `DELETE` | `/api/cases/{id}/hold` | Hold, and release (an admin, signed in): a held case keeps its input past the retention days |
 | `GET` | `/api/stats?days=90` | The overview: counts by verdict, each band by status, cases opened and closed per day, time to close; see below |
 | `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens; filters: `action` (a prefix, so `case.` is every case action), `by` (who acted), `since`, `until`, `offset` |
 | `GET` | `/api/audit/verify` | An admin: recompute the chain. `intact`, `records`, `problems`; the owner also gets which records broke it, since the chain is the whole server's |
@@ -280,7 +282,13 @@ rest of the case. A pushed alert's description and evidence are shown to every m
 team works the case from them. Once the input is deleted, `input_deleted_at` says when, and the
 report says it was deleted under the retention policy instead of quoting the evidence.
 
-Each row also carries `status`, `assignee` (`id`, `username`, `display_name` or `null`),
+**Retention.** Every hour (the Celery beat job `retention-hourly`, or `python -m app.cli sweep`
+from cron) the input of every case older than its workspace's retention days (Settings, 30 by
+default) is deleted unless the case is held, the case is marked `input_deleted_at`, and one
+`retention.swept` audit record per workspace gives the count. Holding, releasing and deleting are
+audited (`case.held`, `case.released`, `case.input_deleted` with the input's SHA-256).
+
+Each row also carries `held`, `input_deleted_at`, `created_by` (a member's id), `status`, `assignee` (`id`, `username`, `display_name` or `null`),
 `closed_reason`, `closed_at` and `ticket_count`; a 1.x client reads the fields it always did.
 
 ### The case workflow
