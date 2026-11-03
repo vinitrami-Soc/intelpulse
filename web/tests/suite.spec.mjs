@@ -739,6 +739,64 @@ check("the demo opens the overview for a server-only pane's address",
   await page.evaluate(() => !document.querySelector("#nav-workspace") && !document.querySelector("#st-providers") &&
     /Welcome back/.test(document.querySelector("#console-body h3")?.textContent || "")));
 
+/* ──────────────────────────── the product, privacy and help pages (spec 9.5) */
+const docs = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+const docErrors = [];
+const offsite = [];
+docs.on("pageerror", (e) => docErrors.push(e.message));
+docs.on("console", (m) => { if (m.type() === "error") docErrors.push("console: " + m.text()); });
+docs.on("request", (r) => { if (!r.url().startsWith(new URL(BASE).origin) && !r.url().startsWith("data:")) offsite.push(r.url()); });
+const described = new Set();
+for (const [file, label] of [["product.html", "Product"], ["privacy.html", "Privacy"], ["help.html", "Help"]]) {
+  const answer = await docs.goto(BASE + file, { waitUntil: "load" });
+  const facts = await docs.evaluate(() => ({
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.content || "",
+    h1: document.querySelectorAll("h1").length,
+    current: document.querySelector('.doc-nav [aria-current="page"]')?.textContent.trim(),
+    console: document.querySelector('.doc-nav a[href="index.html#/console"]') !== null
+  }));
+  described.add(facts.description);
+  check(file + " loads with its own title", answer.ok() && facts.title === label + " · IntelPulse", facts.title);
+  check(file + " has one h1, and its nav marks where the reader is", facts.h1 === 1 && facts.current === label,
+    facts.h1 + " h1, current " + facts.current);
+  check(file + " links back into the console", facts.console);
+  for (const width of [320, 768, 1440]) {
+    await docs.setViewportSize({ width, height: 900 });
+    const over = await docs.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    check(file + " has no sideways scroll at " + width + "px", over === 0, over + "px over");
+  }
+  await docs.setViewportSize({ width: 1440, height: 1000 });
+}
+check("each page has a description of its own", described.size === 3);
+
+await docs.keyboard.press("Tab");
+check("the first Tab on a page reaches its skip link",
+  await docs.evaluate(() => document.activeElement?.classList.contains("skip") && document.activeElement.getAttribute("href") === "#doc"));
+
+/* the theme a reader picked on the site carries over, before anything paints */
+await docs.evaluate(() => localStorage.setItem("ip:theme", JSON.stringify("dark")));
+await docs.goto(BASE + "privacy.html", { waitUntil: "domcontentloaded" });
+check("a page opens in the theme the site was left in", await docs.evaluate(() => document.documentElement.dataset.theme) === "dark");
+const linkInk = await docs.evaluate(() => {
+  const a = document.querySelector(".doc-body p a, .doc-body li a");
+  return a ? getComputedStyle(a).color : "";
+});
+check("links in a dark page take the light flame", linkInk === "rgb(255, 143, 107)", linkInk);
+await docs.evaluate(() => localStorage.removeItem("ip:theme"));
+
+for (const [hash, file] of [["#/product", "product.html"], ["#/privacy", "privacy.html"], ["#/help", "help.html"]]) {
+  await docs.goto(BASE + hash, { waitUntil: "domcontentloaded" });
+  await docs.waitForURL((url) => url.pathname.endsWith("/" + file), { timeout: 5000 }).catch(() => {});
+  check(hash + " forwards to " + file, new URL(docs.url()).pathname.endsWith("/" + file), docs.url());
+}
+await docs.goto(BASE, { waitUntil: "domcontentloaded" });
+check("the site's footer links all three pages",
+  await docs.evaluate(() => ["product.html", "privacy.html", "help.html"].every((h) => document.querySelector('footer a[href="' + h + '"]'))));
+check("the pages load nothing from another host", offsite.length === 0, offsite.slice(0, 3).join(" | "));
+check("the pages raise no script errors", docErrors.length === 0, docErrors.slice(0, 3).join(" | "));
+await docs.close();
+
 /* ───────────────────────────────────────────────────────────── errors */
 check("the page raises no script errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 

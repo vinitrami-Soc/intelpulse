@@ -40,6 +40,9 @@
     },
     set(key, value) {
       try { localStorage.setItem("intelpulse:" + key, JSON.stringify(value)); } catch (_) { /* private mode */ }
+    },
+    drop(key) {
+      try { localStorage.removeItem("intelpulse:" + key); } catch (_) { /* private mode */ }
     }
   };
 
@@ -178,8 +181,18 @@
   const SINK_LABELS = { jira: "Jira", servicenow: "ServiceNow" };
   const PAGE_SIZE = 25;
 
+  /* On a server the workspace's cases live on the server, and this browser keeps none of them:
+     a case title or an indicator left in localStorage outlives the session and is read by
+     whoever uses this browser next. Older versions kept both, so what they left goes too. */
+  function forgetLiveCases() {
+    store.drop("history");
+    store.drop("snapshots");
+    wb.history = [];
+  }
+
   function workbenchBody() {
     wb.mode = serverMode() ? "live" : "demo";
+    if (wb.mode === "live") forgetLiveCases();
     const scenarios = (DEMO && DEMO.scenarios) || [];
     return '<div class="wb" data-wb>' +
       '<div class="panel-row wb-top">' +
@@ -462,6 +475,10 @@
        mode keeps the last snapshot per indicator here and runs the identical
        comparison from the engine, so the renderer does not care which it got. */
     function attachDiffs(result) {
+      if (wb.mode === "live") {
+        if (!Array.isArray(result.diffs)) result.diffs = [];
+        return result;
+      }
       const stored = store.get("snapshots", {});
       /* a plain map with no prototype: a "__proto__" key read back from storage is just a key */
       const seen = Object.assign(Object.create(null), stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {});
@@ -483,6 +500,7 @@
     }
 
     function pushHistory(result) {
+      if (wb.mode === "live") { renderHistory(); return; }   // the server has it: GET /api/cases
       const entry = {
         case_id: result.case_id, title: result.title, verdict: result.verdict, score: result.score,
         indicator_count: result.indicators.length, mode: result.mode || wb.mode, created_at: new Date().toISOString()
@@ -1135,7 +1153,12 @@
             case_id: c.id, title: c.title, verdict: c.verdict, score: c.max_score,
             indicator_count: c.indicator_count, mode: "live", created_at: c.created_at
           }));
-        } catch (_) { /* fall back to this browser's history */ }
+        } catch (_) {
+          if (!alive) return;
+          box.innerHTML = '<div class="empty-state"><b>The workspace\'s cases did not load</b>' +
+            "<span>Open Triage history to try again.</span></div>";
+          return;
+        }
         if (!alive) return;
       }
       if (!rows.length) {

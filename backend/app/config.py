@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     data_dir: Path = DEFAULT_DATA_DIR
     # Served at / when the folder exists, so the console and the API share one origin.
     web_dir: Path | None = DEFAULT_WEB_DIR
+    # With INTELPULSE_INDEX_PUBLIC_PAGES=true, robots.txt lets search engines read the product,
+    # privacy and help pages, and sitemap.xml lists them. Off, robots.txt turns every crawler away.
+    index_public_pages: bool = Field(
+        False, validation_alias=AliasChoices("INTELPULSE_INDEX_PUBLIC_PAGES", "INDEX_PUBLIC_PAGES")
+    )
     # 32 random bytes in base64, or a file holding them. It seals raw alert
     # text, provider keys and ticket credentials; the server will not start
     # without one (`make keys` prints a fresh key).

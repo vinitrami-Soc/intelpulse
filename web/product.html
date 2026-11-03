@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product · IntelPulse</title>
+<meta name="description" content="What IntelPulse does: the indicators in an alert checked against every intelligence source in one pass, one auditable verdict and the SOC ticket. Self-hosted, for one analyst or a whole team.">
+<meta name="theme-color" content="#f6f7f9">
+<!-- A plain document: no script but assets/pages.js (the visitor's theme), nothing fetched. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Product · IntelPulse">
+<meta property="og:description" content="What IntelPulse does: the indicators in an alert checked against every intelligence source in one pass, one auditable verdict and the SOC ticket. Self-hosted, for one analyst or a whole team.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/suite.css">
+<script src="assets/pages.js"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the content</a>
+<header class="wrap doc-top">
+  <a class="brand" href="index.html">
+    <span class="mk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <b translate="no">IntelPulse</b>
+  </a>
+  <nav class="doc-nav" aria-label="About IntelPulse">
+    <a href="product.html" aria-current="page">Product</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="help.html">Help</a>
+    <a href="index.html#/console">Open the console</a>
+  </nav>
+</header>
+<main id="doc" class="wrap doc" tabindex="-1">
+<article class="doc-body">
+<p class="eyebrow">Product</p>
+<h1>One alert in, one verdict and its evidence out</h1>
+<p class="lede">IntelPulse reads the indicators in an alert, a log or a paste, asks every intelligence source your
+  workspace has turned on about each of them in one pass, and gives back a score for each indicator with the
+  arithmetic behind it, a verdict for the case, and a ticket for Jira or ServiceNow.</p>
+<div class="doc-cta">
+  <a class="btn btn-dark btn-sm" href="index.html#/console/workbench">Triage a sample alert</a>
+  <a class="btn btn-light btn-sm" href="help.html">Read how it works</a>
+</div>
+
+<h2>What it does with an alert</h2>
+<ul>
+  <li><strong>Finds the indicators.</strong> IP addresses, domains, URLs, file hashes, email addresses and CVEs, in
+    plain lists, firewall and proxy syslog, Windows events as JSON or a SIEM export, defanged
+    (<code>1.2.3[.]4</code>, <code>hxxp://</code>) or not. Private and reserved addresses are dropped before
+    anything is looked up.</li>
+  <li><strong>Asks every source at once.</strong> AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox and URLhaus with
+    your workspace's own keys, and the offline feeds the server keeps: Feodo Tracker, FireHOL, the ThreatFox dump,
+    CISA's known exploited vulnerabilities, NVD and GeoLite2. A source that fails or has no key is shown as such.</li>
+  <li><strong>Shows its arithmetic.</strong> Each score is a weighted mean of the sources that answered, raised by the
+    most authoritative single hit, and the weights are published
+    (<a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/docs/SCORING.md" target="_blank" rel="noopener noreferrer">the scoring model<span class="sr-only"> (opens GitHub in a new tab)</span></a>).</li>
+  <li><strong>Says what changed.</strong> An indicator seen before is compared with the last time: a new source
+    flagging it, a score that moved.</li>
+  <li><strong>Writes the ticket.</strong> Severity and priority, a summary, the evidence for each indicator, the
+    ATT&amp;CK techniques and the containment steps, in Markdown or JSON, or filed in Jira or ServiceNow.</li>
+</ul>
+
+<h2>For one analyst or a whole SOC</h2>
+<ul>
+  <li><strong>Workspaces.</strong> Sign up just for yourself or for your organization. A workspace sees only its own
+    cases, indicators, settings and audit records.</li>
+  <li><strong>A team.</strong> Admins invite members, set roles (admin or analyst), keep the providers' keys and the
+    trackers' credentials, and make API tokens that can only read, triage, or push alerts.</li>
+  <li><strong>A case workflow.</strong> Every case has a status, an assignee and a closing reason; the queue orders
+    open cases by priority, and the history searches all of them.</li>
+  <li><strong>Pushed alerts.</strong> A SIEM or an EDR posts its alert to <code>/api/alerts</code> and gets a triaged
+    case back.</li>
+</ul>
+
+<h2>Built to hold alert text</h2>
+<ul>
+  <li>What a case was made from (the paste, the uploaded file, a pushed alert's description and evidence) is sealed
+    with AES-256-GCM and deleted after the workspace's retention period, 30 days unless an admin sets another.</li>
+  <li>Every change is recorded in a hash-chained audit log that can prove it has not been edited.</li>
+  <li>Passwords are hashed with argon2id, sessions are protected against cross-site requests, sign-in slows down
+    after wrong passwords, and each workspace has a daily triage budget.</li>
+  <li>The pages and the API come from one server, with a strict content security policy: no script, font or
+    tracker from anywhere else.</li>
+</ul>
+<p>What it does not do: it does not block, quarantine or change anything. It reads and reports, and a person
+  decides.</p>
+
+<h2>Run it yourself</h2>
+<p>IntelPulse is open source under the MIT licence. One <code>docker compose up</code> runs it with Postgres and
+  Redis; the <a href="https://github.com/vinitrami-Soc/intelpulse#readme" target="_blank" rel="noopener noreferrer">README<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  explains the setup. The public demo runs entirely in your browser, on synthetic data.</p>
+<p class="doc-meta">Sample data on the demo uses RFC 5737 addresses and RFC 2606 names only.</p>
+</article>
+</main>
+<footer class="wrap doc-foot">
+  <span>MIT licence</span>
+  <a href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="sr-only"> (opens in a new tab)</span></a>
+</footer>
+</body>
+</html>

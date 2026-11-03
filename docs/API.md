@@ -121,6 +121,17 @@ enough. Open to anyone, and it says only pass or fail: no error text, host name,
 
 `GET /api/health` stays as it was: what the console shows about providers and datasets.
 
+## Public pages, `robots.txt` and `sitemap.xml`
+
+`/product.html`, `/privacy.html` and `/help.html` are plain documents anyone can read, each with
+its own title and description; the console's `#/product`, `#/privacy` and `#/help` forward to them.
+A self-hosted server is turned away from search engines unless its owner says otherwise:
+
+| `INTELPULSE_INDEX_PUBLIC_PAGES` | `GET /robots.txt` | `GET /sitemap.xml` |
+| --- | --- | --- |
+| `false` (default) | `Disallow: /` for every crawler | `404` |
+| `true` | allows the three pages, disallows the rest, names the sitemap | the three pages, at `PUBLIC_URL` (or the request's own address when it is not set) |
+
 ## `GET /api/scoring/model`
 
 Returns the live weights, authority values, thresholds and modifiers: the audit trail behind any

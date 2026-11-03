@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · IntelPulse</title>
+<meta name="description" content="What an IntelPulse server keeps and for how long: accounts, sealed alert text deleted after the workspace's retention period, the audit log, and the indicators sent to the providers a workspace turned on.">
+<meta name="theme-color" content="#f6f7f9">
+<!-- A plain document: no script but assets/pages.js (the visitor's theme), nothing fetched. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Privacy · IntelPulse">
+<meta property="og:description" content="What an IntelPulse server keeps and for how long: accounts, sealed alert text deleted after the workspace's retention period, the audit log, and the indicators sent to the providers a workspace turned on.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/suite.css">
+<script src="assets/pages.js"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the content</a>
+<header class="wrap doc-top">
+  <a class="brand" href="index.html">
+    <span class="mk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <b translate="no">IntelPulse</b>
+  </a>
+  <nav class="doc-nav" aria-label="About IntelPulse">
+    <a href="product.html">Product</a>
+    <a href="privacy.html" aria-current="page">Privacy</a>
+    <a href="help.html">Help</a>
+    <a href="index.html#/console">Open the console</a>
+  </nav>
+</header>
+<main id="doc" class="wrap doc" tabindex="-1">
+<article class="doc-body">
+<p class="eyebrow">Privacy</p>
+<h1>What this server keeps, and for how long</h1>
+<p class="lede">IntelPulse is self-hosted: whoever runs this server decides where it runs and who may join. This page
+  says what the software stores and sends. For anything about this particular server (its backups, its logs, the
+  law it operates under), ask its owner.</p>
+
+<h2>Your account</h2>
+<ul>
+  <li>Your username, display name and, if you give one, your email address. The address is used only to confirm it
+    and to send a password reset link, and only when the server has email set up.</li>
+  <li>Your password, as an argon2id hash: the server cannot read it back.</li>
+  <li>One cookie, <code>ip_session</code>, which keeps you signed in. It cannot be read by scripts, is not sent with
+    requests from other sites, and ends after 8 hours without use or 7 days at most. Signing out ends it.</li>
+</ul>
+
+<h2>Your cases</h2>
+<div class="table-wrap">
+<table class="doc-table">
+  <thead><tr><th scope="col">What</th><th scope="col">How it is kept</th><th scope="col">For how long</th></tr></thead>
+  <tbody>
+    <tr><td data-label="What">What a case was made from: the paste, the uploaded file's text, a pushed alert's description and evidence</td>
+      <td data-label="How it is kept">Sealed with AES-256-GCM under the server's key; read by the analyst who made the case and the workspace's
+        admins (a pushed alert's text by the whole team)</td>
+      <td data-label="For how long">The workspace's retention period, 30 days unless an admin sets 1 to 365. An admin can hold a case to keep
+        it longer, and the analyst or an admin can delete it sooner</td></tr>
+    <tr><td data-label="What">The verdict, the indicators, what each source answered, the case's status, assignee and ticket</td>
+      <td data-label="How it is kept">In the workspace's database, seen only by its members</td>
+      <td data-label="For how long">Until an admin deletes the case</td></tr>
+    <tr><td data-label="What">The audit log: who did what, and when</td>
+      <td data-label="How it is kept">Hash-chained, so an edited or removed record shows</td>
+      <td data-label="For how long">Kept. When a case is deleted, the log keeps its ID and a fingerprint (SHA-256) of its input, not the input</td></tr>
+    <tr><td data-label="What">Provider keys and tracker credentials</td>
+      <td data-label="How it is kept">Sealed with AES-256-GCM; the console shows only their last four characters</td>
+      <td data-label="For how long">Until an admin removes them</td></tr>
+  </tbody>
+</table>
+</div>
+<p>No workspace can read another's cases, settings or audit records, and the server's owner does not see a
+  workspace's cases from the Server pane.</p>
+
+<h2>What leaves the server</h2>
+<ul>
+  <li><strong>Indicators, to the sources your workspace turned on.</strong> To check an IP address, a domain, a URL
+    or a hash, the server sends that indicator, and only that, to the providers enabled in Settings (AbuseIPDB,
+    AlienVault OTX, GreyNoise, ThreatFox, URLhaus), with the workspace's own key where one is needed. Their answers
+    are cached for 24 hours, and an answer fetched with your workspace's key is cached for your workspace only.
+    The offline feeds are looked up on the server and send nothing.</li>
+  <li><strong>A ticket, to the tracker an admin set up.</strong> Filing a ticket sends it to that workspace's Jira or
+    ServiceNow.</li>
+  <li><strong>Email, if the server sends any.</strong> An address confirmation or a reset link, through the mail server
+    its owner configured.</li>
+</ul>
+<p>The pages load nothing from another site: no analytics, no advertising, no fonts or scripts from a third party.</p>
+
+<h2>Logs</h2>
+<p>Each request is logged with its method, path, status, time taken and the client's address, and API keys are
+  masked out of every log line. How long the logs are kept is up to the server's owner.</p>
+
+<h2>In this browser</h2>
+<p>The console remembers your theme (light or dark). On a server it keeps none of your cases in the browser. The
+  public demo keeps its own sample triages and allow and block lists in this browser's storage, and what you paste
+  into it never leaves the browser.</p>
+
+<p class="doc-meta">This page describes IntelPulse 2.0. The details are in the project's
+  <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/docs/SECURITY.md" target="_blank" rel="noopener noreferrer">security notes<span class="sr-only"> (opens GitHub in a new tab)</span></a>.</p>
+</article>
+</main>
+<footer class="wrap doc-foot">
+  <span>MIT licence</span>
+  <a href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="sr-only"> (opens in a new tab)</span></a>
+</footer>
+</body>
+</html>

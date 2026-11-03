@@ -167,6 +167,19 @@ JSON report are the public interface.
   the database, Redis, the Celery worker's heartbeat (a new `intelpulse.heartbeat` task beat runs
   every minute) and free disk space. It names no host, path, error or version
   ([API.md](docs/API.md#get-healthz)).
+- **Product, privacy and help pages** (`product.html`, `privacy.html`, `help.html`), each with its
+  own title and description, linked from the site's footer and the sign-in page; `#/product`,
+  `#/privacy` and `#/help` forward to them. The privacy page says what a server keeps, for how long,
+  and what it sends to the providers a workspace turned on. A server answers `robots.txt` with
+  `Disallow: /` unless `INTELPULSE_INDEX_PUBLIC_PAGES=true`, which allows the three pages and
+  serves `sitemap.xml` for them.
+
+### Fixed
+
+- **The workbench no longer keeps a server's cases in the browser.** On a server it kept the last
+  25 case titles and verdicts, and every indicator it had triaged, in `localStorage`, where they
+  outlived signing out and were shown to the next person on the same browser. The history now comes
+  from the server alone, and opening the workbench deletes what an earlier version left.
 
 ### Changed
 

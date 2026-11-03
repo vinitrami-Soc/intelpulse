@@ -105,6 +105,9 @@ check("the case history shows the case, from the workspace", /Server suite: peri
 const cases = await page.evaluate(async () => (await fetch("/api/cases", { credentials: "same-origin" })).json());
 check("the server stored it in the owner's workspace", Array.isArray(cases) && cases.some((c) => c.title === "Server suite: perimeter block"),
   Array.isArray(cases) ? cases.length + " case(s)" : JSON.stringify(cases).slice(0, 80));
+check("and this browser keeps none of the workspace's cases", await page.evaluate(() =>
+  Object.keys(localStorage).every((key) => !/^intelpulse:(history|snapshots)$/.test(key)) &&
+  !Object.values(localStorage).some((value) => /Server suite|185\.220\.101\.34/.test(value))));
 
 // ——————————————————————————————————————— 2b. every view reads the workspace's own cases
 const api = (path, init) => page.evaluate(async ([path, init]) => {
@@ -433,6 +436,10 @@ for (const width of [320, 768, 1440]) {
   }));
   check("the sign-in form fits at " + width + " px", fit.scroll <= fit.view && fit.form > 0, JSON.stringify(fit));
 }
+check("the sign-in page links to help and privacy", await page.evaluate(() =>
+  ["help.html", "privacy.html"].every((h) => document.querySelector('#page-account .account-links a[href="' + h + '"]')?.offsetParent)));
+const robots = await (await fetch(ORIGIN + "/robots.txt")).text();
+check("by default the server turns every crawler away", robots === "User-agent: *\nDisallow: /\n", JSON.stringify(robots));
 check("nothing was fetched from another host", outside.length === 0, outside.slice(0, 3).join(", "));
 check("the page policy reported nothing", cspReports.length === 0, cspReports[0] || "");
 check("no script errors, no dialogs", errors.length === 0, errors.slice(0, 3).join(" | "));
