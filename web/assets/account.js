@@ -40,7 +40,41 @@
           'type="password" name="password" autocomplete="current-password" required maxlength="1024"') +
         '<p class="wb-error" id="account-error" role="alert" hidden></p>' +
         '<div class="wb-row account-actions"><button type="submit" class="btn btn-dark" id="account-submit">Sign in</button></div>' +
-      "</form></section>";
+      "</form>" +
+      (session && session.signupOpen
+        ? '<p class="wb-hint account-alt">New here? <a class="wb-link" href="#/signup" id="account-to-signup">Create an account</a></p>'
+        : "") +
+      "</section>";
+  }
+
+  /* Sign-up, while the owner allows it: a workspace for one person, or for an organization. */
+  function signUpView() {
+    const choice = (value, title, detail, checked) =>
+      '<label class="account-choice"><input type="radio" name="kind" value="' + value + '"' + (checked ? " checked" : "") + ">" +
+        "<span><b>" + title + "</b><small>" + detail + "</small></span></label>";
+    return '<section class="card panel account-card" aria-labelledby="account-title">' +
+      '<h1 class="account-title" id="account-title">Create an account</h1>' +
+      '<p class="wb-hint account-lead">Your own workspace on this server: its cases, keys and settings are yours alone.</p>' +
+      '<form id="account-form" novalidate>' +
+        '<fieldset class="account-kind"><legend class="label-xs">Who is it for</legend>' +
+          choice("individual", "Just me", "One person, one workspace.", true) +
+          choice("organization", "My organization", "A team: you are its admin and add the others.", false) +
+        "</fieldset>" +
+        '<div id="account-org-field" hidden>' +
+          field("account-organization", "Organization",
+            'type="text" name="organization" autocomplete="organization" maxlength="120"') + "</div>" +
+        field("account-name", "Your name", 'type="text" name="display_name" autocomplete="name" maxlength="120"') +
+        field("account-username", "Username",
+          'type="text" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="64"',
+          "3 to 64 lowercase letters, digits, dots, dashes or underscores.") +
+        field("account-password", "Password",
+          'type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="1024"',
+          "At least 12 characters.") +
+        '<p class="wb-error" id="account-error" role="alert" hidden></p>' +
+        '<div class="wb-row account-actions"><button type="submit" class="btn btn-dark" id="account-submit">Create account</button></div>' +
+      "</form>" +
+      '<p class="wb-hint account-alt">Have an account? <a class="wb-link" href="#/signin">Sign in</a></p>' +
+      "</section>";
   }
 
   function setUpView() {
@@ -101,14 +135,29 @@
     if (view === "setup" && error.status === 403) return "That setup code is not right.";
     if (view === "setup" && error.status === 409) return "This server is set up already: sign in instead.";
     if (view === "password" && error.status === 403) return "The password you were given is not right.";
+    if (view === "signup" && error.status === 403) return "Sign-up is closed on this server. Ask its owner for an invitation.";
+    if (view === "signup" && error.status === 409) return "This server is not set up yet.";
+    if (view === "signup" && error.status === 429) return error.message.charAt(0).toUpperCase() + error.message.slice(1) + ".";
     if (error.status === 422) return error.message;
     return error.message || "That did not work. Try again.";
   }
 
   function render(view, root, done) {
     const data = window.IntelPulseData;
-    root.innerHTML = view === "setup" ? setUpView() : view === "password" ? passwordView() : signInView(data && data.session);
+    root.innerHTML = view === "setup" ? setUpView() : view === "password" ? passwordView()
+      : view === "signup" ? signUpView() : signInView(data && data.session);
     const form = $("#account-form", root), submit = $("#account-submit", root);
+    if (view === "signup") {
+      /* the organization's name is asked for, and required, only for an organization */
+      const org = $("#account-org-field", root), name = $("#account-organization", root);
+      form.addEventListener("change", (event) => {
+        if (event.target.name !== "kind") return;
+        const team = event.target.value === "organization";
+        org.hidden = !team;
+        name.required = team;
+        if (team) name.focus();
+      });
+    }
     const first = $("input", form);
     if (first) first.focus({ preventScroll: true });
 
@@ -121,7 +170,7 @@
           return;
         }
       }
-      if ((view === "setup" || view === "password") && String(values.password).length < 12) {
+      if ((view === "setup" || view === "password" || view === "signup") && String(values.password).length < 12) {
         showError(root, "The password needs at least 12 characters.", "account-password");
         return;
       }
@@ -131,6 +180,13 @@
       try {
         if (view === "password") {
           await data.source.changePassword(values.current, values.password);
+        } else if (view === "signup") {
+          await data.source.signUp({
+            kind: values.kind === "organization" ? "organization" : "individual",
+            organization: values.kind === "organization" ? String(values.organization || "").trim() : "",
+            display_name: String(values.display_name || "").trim(),
+            username: values.username.trim().toLowerCase(), password: values.password
+          });
         } else if (view === "setup") {
           await data.source.setUp({
             code: values.code.trim(), organization: values.organization.trim(),
@@ -144,7 +200,7 @@
         done(target);
       } catch (error) {
         const password = $("#account-password", root);
-        if (password && view !== "setup") password.value = "";
+        if (password && view !== "setup" && view !== "signup") password.value = "";
         showError(root, explain(error, view), error && error.status === 401 ? "account-password" : null);
       } finally {
         submit.disabled = false;

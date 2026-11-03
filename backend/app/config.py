@@ -105,6 +105,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_window_seconds: int = 60
     rate_limit_triage: int = 30      # enrichment spends third-party quota
+    signup_per_address_daily: int = 3  # new accounts one address may make in 24 hours
     rate_limit_write: int = 60
     rate_limit_read: int = 240
     # Only enable behind a proxy you control: otherwise any client can forge

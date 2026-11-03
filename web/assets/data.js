@@ -27,6 +27,7 @@
     const workspace = body && body.workspace && typeof body.workspace === "object" ? body.workspace : null;
     return {
       setupNeeded: body.setup_needed === true,
+      signupOpen: body.signup === true,
       user: user && text(user.username, 64) ? {
         username: text(user.username, 64),
         displayName: text(user.display_name, 120) || text(user.username, 64),
@@ -109,6 +110,12 @@
 
     async setUp(fields) {
       const body = await this.request("/api/setup", { method: "POST", body: JSON.stringify(fields) });
+      this.session = cleanSession(body || {});
+      return this.session;
+    },
+
+    async signUp(fields) {
+      const body = await this.request("/api/signup", { method: "POST", body: JSON.stringify(fields) });
       this.session = cleanSession(body || {});
       return this.session;
     },

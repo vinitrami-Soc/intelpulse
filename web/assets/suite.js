@@ -470,7 +470,7 @@
 
   /* A pane only a server has. In the demo its URL opens the overview instead
      (paneFromHash), so this fallback is never what a reader sees. */
-  const SERVER_ONLY = new Set(["settings", "team", "tokens", "audit", "profile"]);
+  const SERVER_ONLY = new Set(["settings", "team", "tokens", "audit", "profile", "server"]);
   function serverOnly(name) { return serverView(name, () => PANES.get("dashboard")()); }
 
   /* A Map, not an object literal: the key comes from the URL, and a Map has no
@@ -491,7 +491,8 @@
     team:      serverOnly("team"),
     tokens:    serverOnly("tokens"),
     audit:     serverOnly("audit"),
-    profile:   serverOnly("profile")
+    profile:   serverOnly("profile"),
+    server:    serverOnly("server")
   }));
 
   /* Grey bars standing in for the panels that are about to land. The console
@@ -664,7 +665,7 @@
   function accountFromHash() {
     if (!serverMode()) return null;
     const first = hashParts()[0];
-    return first === "signin" || first === "setup" || first === "password" ? first : null;
+    return first === "signin" || first === "setup" || first === "password" || first === "signup" ? first : null;
   }
   function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
   async function signOut() {
@@ -692,19 +693,21 @@
   /* The workspace's own panes in the sidebar: only while someone is signed in,
      and only the ones their role opens (an analyst gets Audit and Profile).
      Drawn again whenever who is signed in, or their role, changes. */
-  const WORKSPACE_ICONS = { settings: "i-key", team: "i-bot", tokens: "i-lock", audit: "i-shield", profile: "i-check-circle" };
+  const WORKSPACE_ICONS = { settings: "i-key", team: "i-bot", tokens: "i-lock", audit: "i-shield", profile: "i-check-circle",
+    server: "i-layers" };
   let workspaceNavFor = null;
   function syncWorkspaceNav() {
     const host = $("#side-nav-full");
     if (!host) return;
     const user = signedIn() ? DATA_SOURCE.session.user : null;
-    const key = user ? user.username + ":" + user.role : "";
+    const key = user ? user.username + ":" + user.role + ":" + (user.owner ? "owner" : "") : "";
     const drawn = $("#nav-workspace", host);
     if (key === workspaceNavFor && (!user || drawn)) return;
     workspaceNavFor = key;
     if (drawn) drawn.parentNode.removeChild(drawn);
     if (!user) return;
-    const panes = (window.IntelPulseWorkspacePanes || []).filter((pane) => !pane.admin || user.role === "admin");
+    const panes = (window.IntelPulseWorkspacePanes || []).filter((pane) =>
+      (!pane.admin || user.role === "admin") && (!pane.owner || user.owner));
     if (!panes.length) return;
     const group = document.createElement("div");
     group.id = "nav-workspace";
@@ -751,6 +754,7 @@
       if (session.user) { go(mustChange ? "#/password" : "#/console/dashboard"); return; }
       if (account === "setup" && !session.setupNeeded) { go("#/signin"); return; }
       if (account === "signin" && session.setupNeeded) { go("#/setup"); return; }
+      if (account === "signup" && !session.signupOpen) { go(session.setupNeeded ? "#/setup" : "#/signin"); return; }
       showAccount(account);
       return;
     }

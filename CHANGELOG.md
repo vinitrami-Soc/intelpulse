@@ -117,6 +117,14 @@ JSON report are the public interface.
   infrastructure as a cluster, the cases that share it as its members, and a cross-link wherever a
   case shares two. The campaign's cases are listed beneath it. The demo's graph is unchanged.
 
+- **Sign-up** (milestone M3 begins). While the owner allows it (off by default), anyone can create
+  an account and a workspace at `#/signup`: "Just me" (an individual workspace) or "My
+  organization" (they are its admin). `POST /api/signup` signs them in; a new workspace sees only
+  its own cases. The server takes at most 100 new workspaces a day until the owner sets another
+  number, and one address signs up at most three times in 24 hours (`SIGNUP_PER_ADDRESS_DAILY`); a
+  refused sign-up leaves nothing behind and costs no attempt. The owner's **Server** pane, and
+  `GET/PATCH /api/server`, turn sign-up on and off and set the cap.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

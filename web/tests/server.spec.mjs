@@ -208,7 +208,15 @@ check("one h1 or none on every view: the console's titles are h3", await page.ev
 
 // ——————————————————————————————————————— 2c. the workspace's own panes, as its owner
 check("the sidebar lists the workspace's panes for an admin", await page.$$eval("#nav-workspace .nav-item",
-  (items) => items.map((i) => i.dataset.pane).join(",")) === "settings,team,tokens,audit,profile");
+  (items) => items.map((i) => i.dataset.pane).join(",")) === "settings,team,tokens,audit,profile,server");
+
+await view("server", "#sv-srv-signup");
+await page.waitForFunction(() => /Sign-up is closed/.test(document.querySelector("#sv-srv-now")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("the Server pane says sign-up is closed, as it starts", /Sign-up is closed/.test(await text("#sv-srv-now")));
+await page.check("#sv-srv-signup");
+await page.click("#sv-srv button[type=submit]");
+await page.waitForFunction(() => /Sign-up is open/.test(document.querySelector("#sv-srv-now")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("the owner opens sign-up from the Server pane", (await api("/api/server")).body.signup === true);
 
 await view("settings", "#st-providers [data-provider]");
 await page.uncheck('[data-provider="otx"]');
@@ -328,6 +336,30 @@ check("an analyst's sidebar has only their own panes", await page.$$eval("#nav-w
 await page.evaluate(() => { location.hash = "#/console/settings"; });
 await page.waitForSelector("#console-panels .empty-state", { timeout: 5000 }).catch(() => {});
 check("and Settings, opened by its address, says only an admin can", /Only an admin/.test(await text("#console-panels")));
+
+// ——————————————————————————————————————— 5b. someone new signs up for a workspace of their own
+await page.click("#c-signout");
+await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});
+await page.waitForSelector("#account-to-signup", { timeout: 5000 }).catch(() => {});
+check("the sign-in page offers sign-up while the owner allows it", await visible("#account-to-signup"));
+await page.click("#account-to-signup");
+await page.waitForSelector("#account-name", { timeout: 5000 }).catch(() => {});
+check("sign-up asks who it is for, and starts at just me",
+  (await page.isChecked('input[name="kind"][value="individual"]')) && (await page.isHidden("#account-org-field")));
+await page.check('input[name="kind"][value="organization"]');
+check("an organization is asked for its name", await page.isVisible("#account-organization"));
+await page.check('input[name="kind"][value="individual"]');
+await page.fill("#account-name", "Ivy");
+await page.fill("#account-username", "ivy");
+await page.fill("#account-password", PASSWORD);
+await page.click("#account-submit");
+await page.waitForFunction(() => location.hash.startsWith("#/console/"), null, { timeout: 8000 }).catch(() => {});
+await page.waitForSelector("#c-who", { timeout: 5000 }).catch(() => {});
+check("signing up opens the console, in a workspace of one's own",
+  /Ivy/.test(await text("#c-who")) && /Ivy/.test(await text("#c-workspace")), await text("#c-who") + " / " + await text("#c-workspace"));
+await view("activity", "#sv-cases .empty-state, #sv-cases table");
+check("and the new workspace holds none of Acme's cases",
+  (await page.$$eval("#sv-cases tbody tr", (rows) => rows.length)) === 0 && Boolean(await page.$("#sv-cases .empty-state")));
 
 // ——————————————————————————————————————— 6. small screens and the whole run
 await page.click("#c-signout");
