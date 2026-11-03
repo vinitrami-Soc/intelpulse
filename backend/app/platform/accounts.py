@@ -1,7 +1,7 @@
 """Getting into IntelPulse: the owner's setup with a one-time code.
 
-Ported from PhishHawk's ``server/accounts.py``. Sign-up, invitations and the
-email flows arrive with milestone M3.
+Ported from PhishHawk's ``server/accounts.py``: the setup, and sign-up while
+the owner allows it. Invitations and the email flows follow in M3.
 
 The setup code is sealed like a provider key, never logged, and printed only by
 ``python -m app.cli setup-code`` on the operator's own terminal: whoever enters
@@ -19,13 +19,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import DEFAULT_WORKSPACE_ID, DEFAULT_WORKSPACE_NAME, SERVER, User, Workspace
 from ..text import clean_label
-from . import audit, auth
+from . import audit, auth, server_settings
 from . import settings_store as store
 from .crypto import Box
 from .errors import ApiError
 
 SETUP_KEY = "setup_code"
 EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]+$")
+
+
+KINDS = ("individual", "organization")
+
+
+def _email(value: str | None) -> str | None:
+    email = (value or "").strip() or None
+    if email is not None and (len(email) > 254 or not EMAIL_RE.match(email)):
+        raise ApiError(422, "invalid", "that is not an email address")
+    return email
 
 
 def _new_code() -> str:
@@ -75,9 +85,7 @@ async def set_up(
     name = clean_label(organization, 120)
     if not name:
         raise ApiError(422, "invalid", "the organization needs a name")
-    email = (email or "").strip() or None
-    if email is not None and (len(email) > 254 or not EMAIL_RE.match(email)):
-        raise ApiError(422, "invalid", "that is not an email address")
+    email = _email(email)
     if workspace is None:  # a database built without the 0002 migration's default row
         workspace = Workspace(id=DEFAULT_WORKSPACE_ID, name=DEFAULT_WORKSPACE_NAME, kind="organization")
         db.add(workspace)
@@ -92,4 +100,50 @@ async def set_up(
     workspace.name = name
     await store.set_secret(db, box, SERVER, SETUP_KEY, "")
     await audit.record(db, action="server.setup", actor=user.username, workspace_id=SERVER, target=name)
+    return user
+
+
+async def sign_up(
+    db: AsyncSession,
+    *,
+    kind: str,
+    username: str,
+    password: str,
+    display_name: str = "",
+    organization: str = "",
+    email: str | None = None,
+) -> User:
+    """A new workspace and its admin: "just me" (individual) or "my organization".
+
+    Only while the owner allows it, and only up to the server's daily cap of new
+    workspaces. The account is checked before anything is made, so a refused
+    sign-up leaves nothing behind.
+    """
+    if await needs_setup(db):
+        raise ApiError(409, "not_set_up", "this server is not set up yet")
+    if not await server_settings.signup_open(db):
+        raise ApiError(403, "signup_closed", "sign-up is closed on this server: ask its owner for an invitation")
+    if kind not in KINDS:
+        raise ApiError(422, "invalid", "kind is individual or organization")
+    shown = clean_label(display_name, 120)
+    name = clean_label(organization, 120) if kind == "organization" else (shown or username)
+    if not name:
+        raise ApiError(422, "invalid", "the organization needs a name")
+    email = _email(email)
+    if await server_settings.signups_today(db) >= await server_settings.signup_cap(db):
+        raise ApiError(429, "signup_cap", "this server takes no more sign-ups today: try again tomorrow")
+    workspace = Workspace(name=name, kind=kind)
+    db.add(workspace)
+    await db.flush()
+    try:
+        user = await auth.create_user(db, username, password, role="admin", workspace_id=workspace.id,
+                                      display_name=shown, email=email)
+    except auth.AuthError as exc:
+        await db.rollback()
+        raise ApiError(422, "invalid", str(exc)) from exc
+    await audit.record(db, action="workspace.created", actor=user.username, workspace_id=workspace.id,
+                       target=name, detail={"kind": kind})
+    # the owner's trail says that someone signed up, not who triages what
+    await audit.record(db, action="server.signup", actor=user.username, workspace_id=SERVER,
+                       target=str(workspace.id), detail={"kind": kind})
     return user

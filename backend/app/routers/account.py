@@ -14,11 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..db import get_session
 from ..models import SERVER, LoginSession, User, Workspace
-from ..platform import accounts, audit, auth
+from ..platform import accounts, audit, auth, server_settings
 from ..platform.box import server_box
 from ..platform.deps import SESSION_COOKIE, login_throttle, require_actor
 from ..platform.errors import ApiError
-from ..security import client_ip
+from ..security import client_ip, limiter
 
 router = APIRouter(tags=["account"])
 
@@ -37,12 +37,23 @@ class SetUp(BaseModel):
     email: str | None = Field(None, max_length=254)
 
 
+class SignUp(BaseModel):
+    model_config = {"extra": "forbid"}
+    kind: str = Field(..., max_length=20, description="`individual` (just me) or `organization`")
+    username: str = Field(..., max_length=64)
+    password: str = Field(..., max_length=1024)
+    display_name: str = Field("", max_length=200)
+    organization: str = Field("", max_length=200)
+    email: str | None = Field(None, max_length=254)
+
+
 async def _payload(db: AsyncSession, user: User | None, row: LoginSession | None) -> dict[str, Any]:
     workspace = await db.get(Workspace, user.workspace_id) if user else None
+    setup_needed = user is None and await accounts.needs_setup(db)
     return {
         "mode": "server",
-        "setup_needed": user is None and await accounts.needs_setup(db),
-        "signup": False,  # sign-up arrives with milestone M3
+        "setup_needed": setup_needed,
+        "signup": not setup_needed and await server_settings.signup_open(db),
         "email": False,
         "user": None if user is None else {
             "id": user.id,
@@ -137,4 +148,23 @@ async def set_up(
             login_throttle.failed(*keys)
         raise
     login_throttle.succeeded(*keys)
+    return await _open(db, response, user)
+
+
+@router.post("/signup", status_code=201)
+async def sign_up(
+    body: SignUp, request: Request, response: Response, db: AsyncSession = Depends(get_session)
+) -> dict[str, Any]:
+    """A new workspace and its admin, signed in: only while the owner allows sign-up."""
+    key = "signup:" + client_ip(request)
+    limit = settings.signup_per_address_daily
+    wait = limiter.wait(key, limit, 86_400)
+    if wait:
+        raise ApiError(429, "throttled", f"too many sign-ups from this address: try again in {wait // 3600 + 1} h",
+                       {"Retry-After": str(wait)})
+    user = await accounts.sign_up(
+        db, kind=body.kind, username=body.username.strip().lower(), password=body.password,
+        display_name=body.display_name, organization=body.organization, email=body.email,
+    )
+    limiter.record(key)
     return await _open(db, response, user)

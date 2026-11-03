@@ -1507,3 +1507,16 @@ button { font-family: inherit; cursor: pointer; }
 }
 .sv-pick { margin: 0 0 12px; }
 .sv-pick .label-xs { margin-right: 4px; }
+
+/* sign-up: the two kinds of workspace, as large choices */
+.account-kind { border: 0; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; }
+.account-kind legend { padding: 0; margin-bottom: 6px; }
+.account-choice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line-2);
+  border-radius: var(--r-sm); cursor: pointer; }
+.account-choice:has(input:checked) { border-color: var(--flame); box-shadow: 0 0 0 3px var(--flame-wash); }
+.account-choice input { margin-top: 3px; accent-color: var(--flame); width: 16px; height: 16px; }
+.account-choice span { display: grid; gap: 2px; }
+.account-choice small { color: var(--ink-3); font-size: 12px; }
+.account-alt { margin-top: 14px; }
+.sv-wide-check { grid-column: 1 / -1; }
+@media (pointer: coarse) { .account-choice { min-height: 44px; } }

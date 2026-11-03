@@ -76,6 +76,20 @@ class SlidingWindowLimiter:
         hits.append(now)
         return True, limit - len(hits), 0
 
+    def wait(self, key: str, limit: int, window: float) -> int:
+        """Seconds until `key` may act again (0: now), recording nothing. With record(), a
+        limit that counts only what succeeded: a form sent back with a typo costs nothing."""
+        now = time.monotonic()
+        hits = self._hits.get(key)
+        if not hits:
+            return 0
+        while hits and hits[0] < now - window:
+            hits.popleft()
+        return max(1, int(hits[0] + window - now) + 1) if len(hits) >= limit else 0
+
+    def record(self, key: str) -> None:
+        self._hits.setdefault(key, deque()).append(time.monotonic())
+
 
 limiter = SlidingWindowLimiter()
 

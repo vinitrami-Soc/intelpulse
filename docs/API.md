@@ -8,7 +8,7 @@ Everything is JSON unless stated; `POST /api/triage/report?fmt=markdown` returns
 ## Signing in and API tokens
 
 Every `/api` route needs a caller except `GET /api/health`, `GET /api/scoring/model`,
-`GET`/`POST /api/session` and `POST /api/setup`. Everything a caller reads or writes belongs to
+`GET`/`POST /api/session`, `POST /api/setup` and `POST /api/signup`. Everything a caller reads or writes belongs to
 their workspace; another workspace's case, list entry or token answers `404`, exactly like one that
 does not exist.
 
@@ -23,6 +23,22 @@ curl -s -c cookies.txt -X POST localhost:8000/api/setup -H 'Content-Type: applic
 
 That makes the owner's account, the admin of the organization that holds every case from before
 the upgrade (renamed to `organization`), and signs them in. The code then stops working.
+
+**Sign-up**, while the owner allows it (off by default), makes a new workspace and its admin, and
+signs them in:
+
+```bash
+curl -s -c cookies.txt -X POST localhost:8000/api/signup -H 'Content-Type: application/json' -d '{
+  "kind": "organization", "organization": "Fjord CERT", "username": "olaf",
+  "display_name": "Olaf", "password": "at least twelve characters"}'
+```
+
+`kind` is `individual` ("just me": the workspace is named after the person) or `organization`
+(which needs `organization`). `GET /api/session` says whether sign-up is open (`signup`). Refusals:
+`403 signup_closed`, `409 not_set_up` before the setup, `422` for a bad field or a taken username
+(nothing is created), and `429` when the server's daily cap of new workspaces is reached
+(`signup_cap`) or one address has signed up three times in 24 hours (`SIGNUP_PER_ADDRESS_DAILY`); a
+refused sign-up costs the address nothing.
 
 **A person** signs in with `POST /api/session` (`{"username", "password"}`) and gets the cookie
 `ip_session` (`HttpOnly`, `SameSite=Strict`, `Secure`) and a `csrf` token. Every `POST`, `PATCH` or
@@ -307,6 +323,16 @@ owner's account; nobody changes their own role, disables or removes themselves; 
 cannot be removed or demoted. While an admin-set password stands, the session reaches only
 `/api/profile` and sign-out (`403`, `"error": "password_change_required"` elsewhere), and the
 console opens `#/password`.
+
+## Server settings
+
+The server's own settings are the owner's alone (a signed-in owner; no API token, and not the 1.x
+`API_TOKEN`). They hold nothing of any workspace's cases.
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/api/server` | `signup`, `signup_daily_cap` (100 until changed), `signups_today` (new workspaces in the last 24 hours), and how many `workspaces` and `users` the server holds |
+| `PATCH` | `/api/server` | `{"signup": true, "signup_daily_cap": 20}`; send only what changes. Audited as `server.updated` |
 
 ## Workspace settings
 

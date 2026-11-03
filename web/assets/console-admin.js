@@ -24,6 +24,7 @@
     request(path, { method, body: body === undefined ? undefined : JSON.stringify(body), signal: view.signal });
   const session = () => (window.IntelPulseData && window.IntelPulseData.session) || {};
   const isAdmin = () => Boolean(session().user && session().user.role === "admin");
+  const isOwner = () => Boolean(session().user && session().user.owner);
 
   /* A form's fields as text, trimmed; a password is left exactly as typed. */
   function fields(form) {
@@ -603,7 +604,58 @@
     };
   }
 
+  /* ─────────────────────────────────────────── Server (the owner's) */
+  function server() {
+    return {
+      title: "Server",
+      sub: "Who may sign up, and how many a day.",
+      body: () => !isOwner()
+        ? '<section class="card panel">' + emptyState("Only the owner of this server can change it",
+            "The owner set it up; ask them.") + "</section>"
+        : '<section class="card panel" aria-labelledby="sv-srv-h"><div class="panel-head"><h4 id="sv-srv-h">Sign-up</h4></div>' +
+            '<div class="wb-hint" id="sv-srv-now">' + loading + "</div>" +
+            '<form id="sv-srv" class="sv-grid">' +
+              '<label class="sv-check sv-wide-check"><input type="checkbox" name="signup" id="sv-srv-signup"> ' +
+                "Anyone who opens this server may create an account and a workspace</label>" +
+              field("sv-srv-cap", "New workspaces a day, at most", 'type="number" name="signup_daily_cap" min="0" max="100000" inputmode="numeric" required',
+                "For the whole server. 0 stops sign-up for today without closing it.") +
+              '<div class="wb-row"><button type="submit" class="btn btn-dark btn-sm">Save</button></div></form>' +
+            statusLine("sv-srv-status") +
+            '<p class="wb-hint">Each address may sign up three times a day. A new workspace sees only its own cases, ' +
+              "and you do not see theirs.</p></section>",
+      mount(root) {
+        if (!isOwner()) return null;
+        const view = life();
+        function show(s) {
+          $("#sv-srv-signup", root).checked = Boolean(s.signup);
+          $("#sv-srv-cap", root).value = whole(s.signup_daily_cap);
+          $("#sv-srv-now", root).textContent = (s.signup ? "Sign-up is open. " : "Sign-up is closed. ") +
+            whole(s.signups_today) + " new workspace(s) in the last 24 hours; " + whole(s.workspaces) + " workspace(s) and " +
+            whole(s.users) + " account(s) on this server.";
+        }
+        async function load() {
+          try {
+            const s = await get(view, "/api/server");
+            if (view.alive && s) show(s);
+          } catch (error) {
+            if (!quiet(view, error)) failed($("#sv-srv-now", root), error, load);
+          }
+        }
+        view.on($("#sv-srv", root), "submit", (event) => {
+          event.preventDefault();
+          const form = event.target;
+          act(view, $("#sv-srv-status", root), $("button[type=submit]", form), () => send(view, "/api/server", "PATCH", {
+            signup: $("#sv-srv-signup", root).checked, signup_daily_cap: whole($("#sv-srv-cap", root).value)
+          }), (answer) => { show(answer || {}); return answer && list(answer.changed).length ? "Saved." : "Nothing changed."; });
+        });
+        load();
+        return () => view.end();
+      }
+    };
+  }
+
   Object.assign(views, {
+    server: () => server(),
     settings: () => settings(),
     team: () => team(),
     tokens: () => tokens(),
@@ -611,12 +663,13 @@
     profile: () => profile()
   });
 
-  /* Which of these a person sees in the sidebar: an admin all five, an analyst their own two. */
+  /* Which of these a person sees in the sidebar: the owner all six, an admin five, an analyst their own two. */
   window.IntelPulseWorkspacePanes = [
     { id: "settings", label: "Settings", admin: true },
     { id: "team", label: "Team", admin: true },
     { id: "tokens", label: "API tokens", admin: true },
     { id: "audit", label: "Audit log", admin: false },
-    { id: "profile", label: "Profile", admin: false }
+    { id: "profile", label: "Profile", admin: false },
+    { id: "server", label: "Server", admin: true, owner: true }
   ];
 })();
