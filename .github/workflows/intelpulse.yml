@@ -189,7 +189,8 @@ jobs:
       - name: Smoke test
         run: |
           code="$(docker compose -f deploy/compose.yml exec -T app python -m app.cli setup-code | tail -1)"
-          python3 deploy/smoke.py http://127.0.0.1:8000 --setup-code "$code"
+          # a password for this run's throwaway owner, never printed
+          SMOKE_PASSWORD="$(openssl rand -hex 16)" python3 deploy/smoke.py http://127.0.0.1:8000 --setup-code "$code"
       - name: Back up and restore
         run: |
           ./deploy/backup.sh

@@ -87,7 +87,8 @@ the environment instead of asking.
 ## 3. Check it
 
 ```bash
-python3 deploy/smoke.py https://intel.example.org --owner <owner's username> --password '<password>'
+read -rs SMOKE_PASSWORD && export SMOKE_PASSWORD        # the owner's password, kept out of the history
+python3 deploy/smoke.py https://intel.example.org --owner <owner's username>
 ```
 
 The smoke test checks `/healthz` (and waits for the worker's first heartbeat on a server that has

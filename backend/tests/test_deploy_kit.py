@@ -83,7 +83,7 @@ def test_the_smoke_test_needs_nothing_but_the_standard_library():
     spec = importlib.util.spec_from_file_location("smoke", DEPLOY / "smoke.py")
     source = (DEPLOY / "smoke.py").read_text(encoding="utf-8")
     imports = {line.split()[1].split(".")[0] for line in source.splitlines() if line.startswith(("import ", "from "))}
-    assert imports <= {"__future__", "argparse", "json", "secrets", "sys", "time", "urllib", "typing"}, imports
+    assert imports <= {"__future__", "argparse", "json", "os", "secrets", "sys", "time", "urllib", "typing"}, imports
     assert spec is not None
 
 

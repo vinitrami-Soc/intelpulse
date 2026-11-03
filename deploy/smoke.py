@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Sign up, triage, get a verdict: the deploy kit's smoke test (docs/DEPLOY.md).
 
-    python3 deploy/smoke.py https://intel.example.org --owner ada --password '...'
-    python3 deploy/smoke.py http://127.0.0.1:8000 --setup-code 1234-5678-9012   # a new server
+    SMOKE_PASSWORD='...' python3 deploy/smoke.py https://intel.example.org --owner ada
+    SMOKE_PASSWORD='...' python3 deploy/smoke.py http://127.0.0.1:8000 --setup-code XXXX-XXXX-XXXX-XXXX
 
 Against a server that is set up, it signs in as the owner. Against a new one, with the setup
-code, it makes the owner itself (the username and password it chose are printed, so keep them).
+code, it makes the owner (`--owner`, "owner" unless given) with the password you chose. The
+password comes from SMOKE_PASSWORD, or --password, and is never printed.
 Then it opens sign-up for a moment, signs up a new individual account, triages a sample alert as
 that account, checks the verdict and the stored case, and puts sign-up back the way it was. The
 smoke account stays, a workspace of its own with one case in it: an admin can see it in the Server
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import secrets
 import sys
 import time
@@ -87,13 +89,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="IntelPulse smoke test: sign up, triage, verdict")
     parser.add_argument("base", help="the server's address, e.g. https://intel.example.org")
     parser.add_argument("--setup-code", help="for a new server: the code from `python -m app.cli setup-code`")
-    parser.add_argument("--owner", help="the owner's username, for a server that is set up")
-    parser.add_argument("--password", help="the owner's password")
+    parser.add_argument("--owner", default="owner", help="the owner's username (owner)")
+    parser.add_argument("--password", help="the owner's password; SMOKE_PASSWORD keeps it out of the shell's history")
     parser.add_argument("--heartbeat-wait", type=int, default=150, metavar="SECONDS",
                         help="how long a just-started server may wait for its first heartbeat (150)")
     args = parser.parse_args()
-    if not args.setup_code and not (args.owner and args.password):
-        parser.error("give --setup-code for a new server, or --owner and --password")
+    password = args.password or os.environ.get("SMOKE_PASSWORD", "")
+    if not password:
+        parser.error("set SMOKE_PASSWORD (or pass --password): the owner's password, or the one to give a new owner")
 
     try:
         probe = Client(args.base)
@@ -110,15 +113,13 @@ def main() -> int:
 
         owner = Client(args.base)
         if args.setup_code:
-            password = secrets.token_urlsafe(18)
             status, made = owner.call("POST", "/api/setup", {
-                "code": args.setup_code.strip(), "username": "owner", "password": password,
+                "code": args.setup_code.strip(), "username": args.owner, "password": password,
                 "organization": "Smoke test organization",
             })
-            expect("the setup code makes the owner", status == 201, made if status != 201 else "")
-            print(f"      the owner is 'owner' with password {password}: keep it, or change it in Profile")
+            expect("the setup code makes the owner", status == 201, made if status != 201 else args.owner)
         else:
-            status, opened = owner.call("POST", "/api/session", {"username": args.owner, "password": args.password})
+            status, opened = owner.call("POST", "/api/session", {"username": args.owner, "password": password})
             expect("the owner signs in", status == 200, opened if status != 200 else "")
 
         status, server = owner.call("GET", "/api/server")
