@@ -31,7 +31,7 @@ WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 def client_ip(request: Request) -> str:
-    """Client address, honouring X-Forwarded-For only when explicitly trusted.
+    """Client address, honouring a forwarded address only when explicitly trusted.
 
     Behind a reverse proxy the socket address is the proxy, so the limiter must
     read the forwarded header — but trusting that header when there is no proxy
@@ -43,9 +43,12 @@ def client_ip(request: Request) -> str:
             if named:
                 return named
         else:
+            # The last entry: the one the proxy in front of us appended. Every entry before it is
+            # whatever the client sent, since nginx, Traefik and Cloudflare append rather than replace.
             forwarded = request.headers.get("x-forwarded-for", "")
-            if forwarded:
-                return forwarded.split(",")[0].strip()
+            last = forwarded.split(",")[-1].strip() if forwarded else ""
+            if last:
+                return last
     return request.client.host if request.client else "unknown"
 
 

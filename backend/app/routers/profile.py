@@ -17,7 +17,7 @@ from ..db import get_session
 from ..models import EmailToken, User, Workspace, utcnow
 from ..platform import audit, auth, email_flows, mail
 from ..platform.auth import Actor
-from ..platform.deps import require_member
+from ..platform.deps import login_throttle, require_member
 from ..platform.errors import ApiError
 from ..text import clean_label
 
@@ -44,6 +44,20 @@ async def _profile(db: AsyncSession, user: User) -> dict:
     }
 
 
+async def _confirm_password(db: AsyncSession, user: User, sent: str | None) -> None:
+    """The account's own password, before what a stolen session could use to keep the account:
+    a new password, or a new address for the reset link. Wrong guesses slow down as at sign-in."""
+    key = "user:" + user.username
+    wait = login_throttle.wait(key)
+    if wait > 0:
+        raise ApiError(429, "throttled", f"too many wrong passwords: wait {int(wait) + 1} s",
+                       {"Retry-After": str(int(wait) + 1)})
+    if await auth.check_login(db, user.username, sent or "") is None:
+        login_throttle.failed(key)
+        raise ApiError(403, "wrong_password", "the current password is not right")
+    login_throttle.succeeded(key)
+
+
 @router.get("/profile")
 async def read_profile(actor: Actor = Depends(require_member), db: AsyncSession = Depends(get_session)) -> dict:
     return await _profile(db, await db.get(User, actor.user_id))
@@ -68,6 +82,7 @@ async def update_profile(body: ProfileUpdate, actor: Actor = Depends(require_mem
         if email is not None and not EMAIL_RE.match(email):
             raise ApiError(422, "invalid", "that is not an email address")
         if email != user.email:
+            await _confirm_password(db, user, given.get("current_password"))
             user.email = email
             user.email_confirmed_at = None
             changed.append("email")
@@ -75,8 +90,7 @@ async def update_profile(body: ProfileUpdate, actor: Actor = Depends(require_mem
             await email_flows.send_confirmation(db, user)
     if given.get("new_password"):
         current = given.get("current_password") or ""
-        if await auth.check_login(db, user.username, current) is None:
-            raise ApiError(403, "wrong_password", "the current password is not right")
+        await _confirm_password(db, user, current)
         if current == given["new_password"]:
             raise ApiError(422, "invalid", "choose a password that is not the current one")
         try:

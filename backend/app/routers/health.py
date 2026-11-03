@@ -6,6 +6,8 @@ must never look like a triage run where all six answered.
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter
 from sqlalchemy import func, select
 
@@ -17,6 +19,7 @@ from ..models import Case, CveRecord, FeedEntry
 from ..schemas import HealthResponse, ProviderStatus
 
 router = APIRouter(tags=["system"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -28,8 +31,9 @@ async def health() -> HealthResponse:
             feed_rows = (await session.execute(select(func.count(FeedEntry.id)))).scalar_one()
             cve_rows = (await session.execute(select(func.count(CveRecord.cve_id)))).scalar_one()
             case_rows = (await session.execute(select(func.count(Case.id)))).scalar_one()
-    except Exception as exc:  # pragma: no cover
-        database = f"error: {exc}"
+    except Exception:  # noqa: BLE001 - anyone may read this: the reason goes to the log only
+        logger.exception("health: the database did not answer")
+        database = "error"
 
     providers = [
         ProviderStatus(

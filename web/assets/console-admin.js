@@ -619,9 +619,11 @@
           '<p class="wb-hint" id="pf-who"></p>' +
           '<form id="pf-form" class="sv-grid">' +
             field("pf-name", "Display name", 'type="text" name="display_name" maxlength="120" autocomplete="name"') +
-            field("pf-email", "Email", 'type="email" name="email" maxlength="254" autocomplete="email"',
+            field("pf-email", "Email", 'type="email" name="email" maxlength="254" autocomplete="email" spellcheck="false" inputmode="email"',
               "Where a reset link goes, once the address is confirmed.") +
             '<p class="wb-hint" id="pf-email-state" hidden></p>' +
+            field("pf-email-password", "Current password", 'type="password" name="current_password" maxlength="1024" autocomplete="current-password"',
+              "Needed to change the email address, since a reset link goes there.") +
             '<div class="wb-row"><button type="submit" class="btn btn-dark btn-sm">Save</button></div></form>' +
           statusLine("pf-status") + "</section>" +
         '<section class="card panel sv-gap" aria-labelledby="pf-pw-h"><div class="panel-head"><h4 id="pf-pw-h">Password</h4></div>' +
@@ -633,6 +635,7 @@
           statusLine("pf-pw-status") + "</section>",
       mount(root) {
         const view = life();
+        let email = "";
         async function load() {
           try {
             const me = await get(view, "/api/profile");
@@ -640,7 +643,8 @@
             $("#pf-who", root).textContent = text(me.username) + " · " + (me.owner ? "owner" : text(me.role)) + " in " +
               text(me.workspace && me.workspace.name);
             $("#pf-name", root).value = text(me.display_name);
-            $("#pf-email", root).value = text(me.email);
+            $("#pf-email", root).value = email = text(me.email);
+            $("#pf-email-password", root).value = "";
             const state = $("#pf-email-state", root);
             state.hidden = !(me.email_enabled && me.email);
             state.innerHTML = me.email_confirmed ? "Confirmed." : "Not confirmed yet: open the link sent to it. " +
@@ -662,8 +666,17 @@
           const submit = $("button[type=submit]", form);
           const values = fields(form);
           if (form.id === "pf-form") {
+            const change = { display_name: values.display_name };
+            if ((values.email || "") !== email) {
+              if (!values.current_password) {
+                $("#pf-status", root).textContent = "Enter your current password to change the email address.";
+                $("#pf-email-password", root).focus();
+                return;
+              }
+              Object.assign(change, { email: values.email || null, current_password: values.current_password });
+            }
             act(view, $("#pf-status", root), submit,
-              () => send(view, "/api/profile", "PATCH", { display_name: values.display_name, email: values.email || null }),
+              () => send(view, "/api/profile", "PATCH", change),
               () => {
                 window.IntelPulseData.source.refresh().then(() => {
                   const who = document.getElementById("c-who");

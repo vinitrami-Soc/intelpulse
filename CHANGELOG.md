@@ -197,6 +197,20 @@ JSON report are the public interface.
   outlived signing out and were shown to the next person on the same browser. The history now comes
   from the server alone, and opening the workbench deletes what an earlier version left.
 
+### Security
+
+The November review round, in [SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md):
+
+- **A trusted `X-Forwarded-For` is read from its last entry**, the one the proxy in front appended;
+  the first is the client's to choose, which let every request claim a fresh address past the rate
+  limits and the sign-in throttle.
+- **Changing the email address needs the current password**, throttled like sign-in. A stolen
+  session could otherwise point the reset link at its own mailbox and keep the account.
+- **`/docs` and `/redoc` are off in production** (`ENVIRONMENT=production`) unless `API_DOCS=true`:
+  they load scripts from a CDN onto the origin where an admin's session lives.
+- **`/api/health` no longer names the database's error**, and **the tunnel's token reaches
+  `cloudflared` alone** (`deploy/tunnel.env`).
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

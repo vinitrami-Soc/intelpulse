@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # --- service ---------------------------------------------------------
     app_name: str = "IntelPulse"
     environment: str = "development"
+    # /docs and /redoc load Swagger's and ReDoc's scripts from a CDN onto this origin, where a
+    # signed-in admin's session lives. Unset: on, except with ENVIRONMENT=production.
+    # /openapi.json is always served: it is data, not script.
+    api_docs: bool | None = None
     log_level: str = "INFO"
     # The dashboards allowed to call this API from a browser: the compose web
     # service, the local dev server and the published demo. "*" used to be the

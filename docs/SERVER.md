@@ -111,5 +111,6 @@ Set in `deploy/.env` (which `setup.sh` writes) and applied with `docker compose 
 | `CORS_ORIGINS` | the local development addresses and the public demo | other origins whose pages may call the API |
 | `INTELPULSE_INDEX_PUBLIC_PAGES` | `false` | let search engines read the product, privacy and help pages |
 | `HEALTHZ_BEAT_MAX_AGE_SECONDS`, `HEALTHZ_MIN_FREE_PERCENT` | `300`, `5` | when `/healthz` fails |
+| `API_DOCS` | off with `ENVIRONMENT=production` | `/docs` and `/redoc`, which load scripts from a CDN; `/openapi.json` is always served |
 | `CACHE_TTL_SECONDS` | `86400` | how long a provider's answer is reused |
 | `LOG_LEVEL`, `JSON_LOGS` | `INFO`, `true` | logging |
