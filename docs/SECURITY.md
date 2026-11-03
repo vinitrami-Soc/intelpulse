@@ -154,12 +154,14 @@ Per-client sliding windows, sized by what an endpoint actually costs:
 Exceeding a bucket returns `429` with `Retry-After` and `X-RateLimit-*`.
 `X-Forwarded-For` is **ignored unless `TRUST_FORWARDED_FOR=true`**: trusting it
 without a proxy in front hands every attacker an unlimited supply of
-identities. Behind Cloudflare, even trusting it is wrong: Cloudflare appends
-the client to whatever `X-Forwarded-For` the client sent, so the first entry
-is the client's to choose. `CLIENT_IP_HEADER=CF-Connecting-IP` reads the one
-header Cloudflare alone sets instead; the deploy kit sets it, and publishes
-the app on `127.0.0.1` only, so nothing but the tunnel can reach the app to
-forge that header either.
+identities. Trusted, its **last** entry is the client: nginx, Traefik and
+Cloudflare append the address they saw to whatever the client sent, so every
+entry before the last is the client's to choose (it was the first until the
+November review, R1 in [SECURITY-REVIEW.md](SECURITY-REVIEW.md)). Behind
+Cloudflare, `CLIENT_IP_HEADER=CF-Connecting-IP` reads the one header Cloudflare
+alone sets instead; the deploy kit sets it, and publishes the app on
+`127.0.0.1` only, so nothing but the tunnel can reach the app to forge that
+header either.
 
 Triage spends the server's provider quota, which every workspace shares, so
 the triage routes and `POST /api/alerts` also pass two budgets
@@ -336,6 +338,14 @@ lookalike host, is still refused (`tests/test_behind_a_proxy.py`).
   use API tokens instead. The hostile-server test also plays the session
   (a person's and a workspace's names as markup) and checks that no credential
   reaches `localStorage` or `sessionStorage`.
+* **No CDN script on a server's origin.** `/docs` and `/redoc` load Swagger UI
+  and ReDoc from a CDN, onto the origin where an admin's session lives; with
+  `ENVIRONMENT=production` (the deploy kit's) they are off unless
+  `API_DOCS=true`. `/openapi.json` stays.
+* **What keeps an account asks for its password.** A new password and a new
+  email address (where the reset link goes) both need the current password,
+  and wrong guesses slow down as at sign-in, so a stolen session cannot turn
+  itself into the account.
 * **No case in the browser.** On a server the workbench keeps none of the
   workspace's cases in `localStorage`: the case history comes from
   `GET /api/cases` and the "what changed" comparison from the API. Until 2.0 it

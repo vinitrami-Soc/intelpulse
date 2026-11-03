@@ -63,8 +63,9 @@ git checkout v2.0.0            # or stay on main
 ```
 
 `setup.sh` asks for the address (`https://intel.example.org`) and the tunnel token (press Enter for
-none). It writes `deploy/.env` with a fresh `ENCRYPTION_KEY` and database password, readable by you
-alone; builds the image; starts everything; waits for the server; and prints:
+none). It writes `deploy/.env` with a fresh `ENCRYPTION_KEY` and database password, and the token
+to `deploy/tunnel.env`, which only `cloudflared` reads; both are readable by you alone. It builds the
+image; starts everything; waits for the server; and prints:
 
 ```
 IntelPulse is running. To make the owner's account, open
@@ -115,8 +116,9 @@ too, with whatever you already use (restic, rclone, a provider's snapshots).
 
 **Keep `ENCRYPTION_KEY` apart from the dumps.** Every case's input and every stored credential in a
 dump is sealed with it: a dump without the key cannot be read, by you or by anyone who takes it, and
-the key cannot be recovered. Keep a copy of `deploy/.env` in a password manager, not beside the
-backups.
+the key cannot be recovered. Keep a copy of `deploy/.env` (and `deploy/tunnel.env`) in a password
+manager, not beside the backups. The rest of a dump is not sealed: accounts and their password
+hashes, verdicts, indicators and the audit log. Guard the dumps as you would the database.
 
 ## 5. Restore
 

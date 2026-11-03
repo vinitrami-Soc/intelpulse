@@ -45,6 +45,13 @@ from .services import workspace_settings
 from .web import ConsoleFiles
 
 configure_logging(settings.log_level, json_logs=settings.json_logs)
+
+
+def docs_enabled() -> bool:
+    """API_DOCS when set; otherwise on everywhere but production (see config.api_docs)."""
+    if settings.api_docs is not None:
+        return settings.api_docs
+    return settings.environment.lower() not in ("production", "prod")
 logger = logging.getLogger("intelpulse")
 
 DESCRIPTION = """
@@ -67,7 +74,8 @@ def create_app() -> FastAPI:
         title=f"{settings.app_name} API",
         description=DESCRIPTION,
         version="1.0.1",
-        docs_url="/docs",
+        docs_url="/docs" if docs_enabled() else None,
+        redoc_url="/redoc" if docs_enabled() else None,
         openapi_url="/openapi.json",
     )
 
@@ -190,7 +198,7 @@ def create_app() -> FastAPI:
             return JSONResponse(
                 {
                     "name": settings.app_name,
-                    "docs": "/docs",
+                    "docs": "/docs" if docs_enabled() else "/openapi.json",
                     "health": "/api/health",
                     "triage": "POST /api/triage",
                 }

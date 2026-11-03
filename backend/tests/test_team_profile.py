@@ -140,7 +140,8 @@ async def test_members_that_cannot_be_added(team, body):
 # -- one's own profile ---------------------------------------------------------------
 async def test_a_member_changes_their_name_and_email(team):
     _ada, _adam, bea = team
-    answer = await bea.patch("/api/profile", json={"display_name": "Bea Torres", "email": "bea@acme.example"})
+    answer = await bea.patch("/api/profile", json={"display_name": "Bea Torres", "email": "bea@acme.example",
+                                                   "current_password": PASSWORD})
     assert answer.status_code == 200 and answer.json()["display_name"] == "Bea Torres"
     assert (await bea.patch("/api/profile", json={"email": "not-an-address"})).status_code == 422
 

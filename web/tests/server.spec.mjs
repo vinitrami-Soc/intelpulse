@@ -315,6 +315,15 @@ await page.fill("#pf-name", "Ada Lovelace");
 await page.click("#pf-form button[type=submit]");
 await page.waitForFunction(() => /Ada Lovelace/.test(document.querySelector("#c-who")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
 check("Profile changes the name, and the header follows", /Ada Lovelace/.test(await text("#c-who")), await text("#c-who"));
+await page.fill("#pf-email", "ada@acme.example");
+await page.click("#pf-form button[type=submit]");
+check("a new email address asks for the current password first",
+  /current password/.test(await text("#pf-status")) && await page.evaluate(() => document.activeElement?.id === "pf-email-password"),
+  await text("#pf-status"));
+await page.fill("#pf-email-password", PASSWORD);
+await page.click("#pf-form button[type=submit]");
+await page.waitForFunction(() => /Saved/.test(document.querySelector("#pf-status")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("and with it the address is changed", (await api("/api/profile")).body.email === "ada@acme.example");
 await view("workbench", "#wb-input");
 
 // ——————————————————————————————————————— 3. signing out closes the console

@@ -108,7 +108,7 @@ async def test_the_session_says_whether_email_is_on(browser, mailbox, monkeypatc
 
 
 async def test_a_new_address_is_confirmed_through_the_page_s_button(ada, mailbox):
-    changed = await ada.patch("/api/profile", json={"email": "ada.l@example.org"})
+    changed = await ada.patch("/api/profile", json={"email": "ada.l@example.org", "current_password": PASSWORD})
     assert changed.status_code == 200 and changed.json()["email_confirmed"] is False
     assert len(mailbox.messages) == 1 and mailbox.messages[0]["to"] == ["ada.l@example.org"]
     assert mailbox.messages[0]["body"].count("https://intelpulse.example.org/#/confirm/") == 1
@@ -120,9 +120,9 @@ async def test_a_new_address_is_confirmed_through_the_page_s_button(ada, mailbox
 
 
 async def test_a_link_for_an_old_address_confirms_nothing(ada, mailbox):
-    await ada.patch("/api/profile", json={"email": "first@example.org"})
+    await ada.patch("/api/profile", json={"email": "first@example.org", "current_password": PASSWORD})
     old = mailbox.links("confirm")[0]
-    await ada.patch("/api/profile", json={"email": "second@example.org"})
+    await ada.patch("/api/profile", json={"email": "second@example.org", "current_password": PASSWORD})
     assert (await ada.post("/api/email/confirm", json={"token": old})).status_code == 404
     assert (await ada.get("/api/profile")).json()["email_confirmed"] is False
 
@@ -212,7 +212,7 @@ async def test_with_email_on_setup_and_sign_up_need_an_address(people, mailbox):
 
 
 async def test_a_confirmation_can_be_sent_again_three_times_an_hour(ada, mailbox):
-    await ada.patch("/api/profile", json={"email": "ada.l@example.org"})
+    await ada.patch("/api/profile", json={"email": "ada.l@example.org", "current_password": PASSWORD})
     for _ in range(2):
         assert (await ada.post("/api/profile/email/confirm")).status_code == 202
     assert (await ada.post("/api/profile/email/confirm")).status_code == 429

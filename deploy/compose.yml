@@ -84,8 +84,10 @@ services:
   tunnel:
     image: cloudflare/cloudflared:2025.11.1
     command: ["tunnel", "--no-autoupdate", "run"]
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    # TUNNEL_TOKEN, in its own file: the app, worker and beat read .env, and have no use for it
+    env_file:
+      - path: tunnel.env
+        required: false
     depends_on:
       app: {condition: service_healthy}
     restart: unless-stopped

@@ -59,7 +59,6 @@ else
     echo "# no shared 1.x token: scripts use API tokens made in the console"
     echo "API_TOKEN="
     if [ -n "$token" ]; then
-      echo "CLOUDFLARE_TUNNEL_TOKEN=$token"
       echo "COMPOSE_PROFILES=tunnel"
       echo "# Cloudflare names the client in CF-Connecting-IP; the app is published on 127.0.0.1 only"
       echo "TRUST_FORWARDED_FOR=true"
@@ -71,6 +70,12 @@ else
   } > "$env_file"
   chmod 600 "$env_file"
   say "Wrote deploy/.env (readable by you alone)."
+  if [ -n "$token" ]; then
+    # its own file, read by cloudflared alone: the app has no use for it
+    printf 'TUNNEL_TOKEN=%s\n' "$token" > "$here/tunnel.env"
+    chmod 600 "$here/tunnel.env"
+    say "Wrote deploy/tunnel.env (readable by you alone)."
+  fi
 fi
 
 port="$(sed -n 's/^APP_PORT=//p' "$env_file" | tail -1)"
