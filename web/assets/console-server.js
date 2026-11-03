@@ -483,39 +483,110 @@
     };
   }
 
-  /* ─────────────────────────────────────────── Campaigns (the list; the graph draws them next) */
-  function campaigns() {
+  /* ─────────────────────────────────────────── Campaign graph */
+  /* A campaign as the graph component draws it (console-panes.js, the same one the
+     demo uses): the campaign is the hub, each thing its cases share is a cluster,
+     and a cluster's members are the cases that share it. Two clusters are linked
+     when a case shares both. Every number is made here; every text is the
+     server's and is escaped, or set as text, where the graph draws it. */
+  const GRAPH_KIND = { malware: "malware", indicator: "ioc", infrastructure: "infra" };
+  const verdictIn = (v) => (BANDS.includes(v) ? v : "informational");
+  function graphData(c) {
+    const titleOf = new Map(objects(c.cases).map((k) => [text(k.id), text(k.title) || text(k.id).slice(0, 8)]));
+    const total = Math.max(1, whole(c.case_count));
+    const now = new Date().getFullYear();
+    const year = (iso) => { const y = parseInt(text(iso).slice(0, 4), 10); return y >= 1970 && y <= now + 1 ? y : now; };
+    const clusters = objects(c.links).slice(0, 12).map((l, i) => {
+      const ids = list(l.cases).map(text).filter(Boolean);
+      return { id: "k" + i, label: text(l.value) || "shared", kind: GRAPH_KIND[l.kind] || "infra",
+        pct: Math.max(1, Math.min(100, Math.round((ids.length / total) * 100))), seen: year(l.first_seen),
+        nodes: Math.min(12, ids.length), sev: verdictIn(l.verdict), ids: ids };
+    });
+    const links = [];
+    clusters.forEach((a, i) => clusters.slice(i + 1).forEach((b) => {
+      if (a.ids.some((id) => b.ids.includes(id))) links.push([a.id, b.id]);
+    }));
+    const members = {};
+    clusters.forEach((k) => { members[k.id] = k.ids.slice(0, 12).map((id) => titleOf.get(id) || id.slice(0, 8)); });
+    const years = Array.from(new Set(clusters.map((k) => k.seen))).sort((a, b) => a - b);
+    const label = text(c.label) || "Campaign";
     return {
-      title: "Campaigns",
+      hub: { label: label, sub: count(c.case_count, "case"), seen: years.length ? years[0] : year(c.first_seen), sev: verdictIn(c.verdict) },
+      title: label + " · what this campaign is built from",
+      aria: "Relationship graph of the campaign " + label + " in this workspace",
+      note: "From this workspace's cases of the last 90 days. A cluster is something two or more of them share; its members are those cases.",
+      clusters: clusters.map((k) => ({ id: k.id, label: k.label, kind: k.kind, pct: k.pct, seen: k.seen, nodes: k.nodes, sev: k.sev })),
+      links: links, years: years.length ? years : [now], members: members
+    };
+  }
+
+  function campaignCases(c) {
+    return '<section class="card panel sv-card sv-gap" aria-labelledby="sv-cc-h">' +
+      '<div class="panel-head"><h4 id="sv-cc-h">Its cases</h4>' + badge(c.verdict) + "</div>" +
+      '<p class="wb-hint">' + count(c.case_count, "case") + ", " + esc(when(c.first_seen)) + " to " + esc(when(c.last_seen)) + ". Shared: " +
+        objects(c.links).slice(0, 6).map((l) => "<strong>" + esc(l.value) + "</strong> (" + esc(l.kind) + ", " +
+          count(list(l.cases).length, "case") + ")").join(", ") + ".</p>" +
+      table(["Case", "Verdict", "Status", "Opened"], objects(c.cases).map((k) => "<tr>" +
+        cell("Case", esc(k.title), "sv-wide") + cell("Verdict", badge(k.verdict)) +
+        cell("Status", esc(STATUS[k.status] || "")) + cell("Opened", esc(when(k.created_at)), "mono") + "</tr>")) +
+      "</section>";
+  }
+
+  function campaigns() {
+    const graph = window.IntelPulsePanes && window.IntelPulsePanes.graph;
+    return {
+      title: "Campaign graph",
       sub: "Cases that share a family or infrastructure.",
       body: () => '<div id="sv-campaigns">' + loading + "</div>",
-      mount(root) {
+      mount(root, ctx) {
         const view = life();
+        let found = [], unmountGraph = null;
+        const leaveGraph = () => {
+          if (!unmountGraph) return;
+          const done = unmountGraph;
+          unmountGraph = null;
+          try { done(); } catch (_) { /* the graph is going either way */ }
+        };
+
+        function show(index) {
+          leaveGraph();
+          const c = found[index] || found[0];
+          const host = $("#sv-graph", root);
+          if (graph && host) {
+            const data = graphData(c);
+            host.innerHTML = graph.body(data);
+            unmountGraph = graph.mount(host, ctx, data) || null;
+          }
+          $("#sv-campaign-cases", root).innerHTML = campaignCases(c);
+        }
+
         async function load() {
           try {
             const body = await get(view, "/api/campaigns");
             if (!view.alive) return;
-            const found = objects(body && body.campaigns);
-            $("#sv-campaigns", root).innerHTML = found.length
-              ? found.map((c) => '<section class="card panel sv-card">' +
-                  '<div class="panel-head"><h4>' + esc(c.label) + "</h4>" + badge(c.verdict) + "</div>" +
-                  '<p class="wb-hint">' + count(c.case_count, "case") + ", " + esc(when(c.first_seen)) + " to " +
-                    esc(when(c.last_seen)) + ". Shared: " +
-                    objects(c.links).slice(0, 6).map((l) => "<strong>" + esc(l.value) + "</strong> (" + esc(l.kind) + ", " +
-                      count(list(l.cases).length, "case") + ")").join(", ") + ".</p>" +
-                  table(["Case", "Verdict", "Status", "Opened"], objects(c.cases).map((k) => "<tr>" +
-                    cell("Case", esc(k.title), "sv-wide") + cell("Verdict", badge(k.verdict)) +
-                    cell("Status", esc(STATUS[k.status] || "")) + cell("Opened", esc(when(k.created_at)), "mono") + "</tr>")) +
-                "</section>").join("")
-              : '<section class="card panel">' + emptyState("No campaign yet",
-                  "Two cases become a campaign when they share a malware family, an indicator or infrastructure " +
-                  "such as an ASN. " + toWorkbench) + "</section>";
+            found = objects(body && body.campaigns);
+            const box = $("#sv-campaigns", root);
+            if (!found.length) {
+              box.innerHTML = '<section class="card panel">' + emptyState("No campaign yet",
+                "Two cases become a campaign when they share a malware family, an indicator or infrastructure " +
+                "such as an ASN. " + toWorkbench) + "</section>";
+              return;
+            }
+            box.innerHTML = (found.length > 1
+              ? '<div class="wb-row sv-pick"><label class="label-xs" for="sv-pick">Campaign</label>' +
+                '<select class="wb-field sv-select" id="sv-pick">' + found.map((c, i) => '<option value="' + i + '">' +
+                  esc(c.label) + " · " + count(c.case_count, "case") + " · " + esc(c.verdict) + "</option>").join("") + "</select></div>"
+              : "") +
+              '<div id="sv-graph"></div><div id="sv-campaign-cases"></div>';
+            const pick = $("#sv-pick", root);
+            if (pick) view.on(pick, "change", () => show(whole(pick.value)));
+            show(0);
           } catch (error) {
             if (!quiet(view, error)) failed($("#sv-campaigns", root), error, load);
           }
         }
         load();
-        return () => view.end();
+        return () => { leaveGraph(); view.end(); };
       }
     };
   }

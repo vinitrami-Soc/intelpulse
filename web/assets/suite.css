@@ -1505,3 +1505,5 @@ button { font-family: inherit; cursor: pointer; }
 @media (pointer: coarse) {
   .sv-switch, .sv-check { min-height: 44px; display: inline-flex; align-items: center; }
 }
+.sv-pick { margin: 0 0 12px; }
+.sv-pick .label-xs { margin-right: 4px; }

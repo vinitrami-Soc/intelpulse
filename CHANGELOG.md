@@ -111,6 +111,12 @@ JSON report are the public interface.
   admin) and Profile (name, email, password). An analyst sees Audit and Profile only. Removing a
   member or revoking a token takes a second press instead of a dialog. The demo has none of them.
 
+- **The campaign graph on a server's own campaigns.** The graph component draws any dataset now,
+  not only the bundled one: on a server it draws the workspace's campaign (picked from a list when
+  there are several), with the campaign as the hub, each shared family, indicator or piece of
+  infrastructure as a cluster, the cases that share it as its members, and a cross-link wherever a
+  case shares two. The campaign's cases are listed beneath it. The demo's graph is unchanged.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
