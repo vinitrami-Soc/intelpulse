@@ -15,7 +15,7 @@ import logging
 from collections.abc import Iterable
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from ..db import session_scope
 from ..models import CveRecord, FeedEntry, FeedRun
@@ -334,11 +334,11 @@ async def feed_status() -> list[dict]:
         runs = (
             await session.execute(select(FeedRun).order_by(FeedRun.ran_at.desc()).limit(50))
         ).scalars().all()
-        counts = {}
-        entries = (await session.execute(select(FeedEntry.feed))).scalars().all()
-        for feed in entries:
-            counts[feed] = counts.get(feed, 0) + 1
-        cve_count = len((await session.execute(select(CveRecord.cve_id))).scalars().all())
+        # counted by the database: these tables hold whole feeds
+        counts = dict((await session.execute(
+            select(FeedEntry.feed, func.count(FeedEntry.id)).group_by(FeedEntry.feed)
+        )).all())
+        cve_count = (await session.execute(select(func.count(CveRecord.cve_id)))).scalar_one()
 
     latest: dict[str, dict] = {}
     for run in runs:

@@ -238,7 +238,7 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 | `PATCH` | `/api/cases/{id}` | Move a case along (a signed-in member); see below |
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
 | `DELETE` | `/api/cases/{id}` | Removes the case and its indicators (admin) |
-| `GET` | `/api/stats` | Counts by verdict and the most frequent malware families |
+| `GET` | `/api/stats?days=90` | The overview: counts by verdict, each band by status, cases opened and closed per day, time to close; see below |
 | `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens; filters: `action` (a prefix, so `case.` is every case action), `by` (who acted), `since`, `until`, `offset` |
 | `GET` | `/api/audit/verify` | An admin: recompute the chain. `intact`, `records`, `problems`; the owner also gets which records broke it, since the chain is the whole server's |
 
@@ -273,6 +273,23 @@ curl -s -X PATCH localhost:8000/api/cases/$CASE -b cookies.txt -H "X-CSRF-Token:
   Every change is audited as `case.updated` with what each field was and became.
 * A ticket raised for the case (`POST /api/cases/{id}/ticket`, or `ticket` on a pushed alert) is
   kept with it and listed under `tickets`.
+
+## The console's views
+
+What each console view draws (spec 9.2), read from the caller's workspace only. Any caller that
+reads reaches them: a session of any role, an API token with the `read` or `triage` scope, and the
+1.x `API_TOKEN` (in the default organization). Each view scans a bounded window, newest first, and
+says so with `truncated` when there was more.
+
+| Method | Path | Returns |
+| --- | --- | --- |
+| `GET` | `/api/stats?days=90` | The 1.x fields, plus `bands` (each verdict, most severe first, with its `new`, `in_progress` and `closed` counts), `by_status`, `open`, `unassigned_open`, `assigned_to_me_open` (a session; `null` for a token), `distinct_indicators`, `pushed_alerts`, `tickets`, `trend` (one `{date, opened, closed}` per UTC day, oldest first) and `time_to_close` (`cases`, `mean_seconds`, `median_seconds` over the cases closed in the window) |
+| `GET` | `/api/indicators` | Each indicator once: its latest `verdict`, `score` and `confidence`, `first_seen`, `last_seen`, how many `cases` name it, `latest_case_id`, `malware_families`, and `flagged_by` (the providers whose last answer leaned malicious: a signal of 0.5 or more). Filters `q` (part of the value), `type`, `verdict` (the latest); `sort` is `last_seen` (default), `score` or `cases`; `limit` (up to 200), `offset` |
+| `GET` | `/api/campaigns?days=90` | Cases joined when they share a malware family or infrastructure: an indicator, or a relation's target (an ASN, IP, domain, URL or hash; never a country). Only an indicator scored `low` or above joins cases. Each campaign has `label` (its most shared family, else its most shared link), `verdict`, `score`, `first_seen`, `last_seen`, `cases` and `links` (what is shared, by which cases). The newest 500 cases are considered |
+| `GET` | `/api/assets` | The hosts and people pushed alerts named (`kind`: `host` for host, hostname, device and the like; `user` for user, account and the like; any other kind as sent), each with `alerts`, `cases`, `case_ids`, `open_cases`, the highest `verdict` and `score`, `first_seen`, `last_seen`. Filters `kind`, `q`; `limit` (up to 500). The newest 2,000 alerts are considered; empty until an integration pushes alerts |
+| `GET` | `/api/sources?days=7` | Each provider: `enabled`, `needs_key`, `key_set` (`null` when it needs none), `ready`, and over the window `queries`, `answered`, `errors`, `rate_limited`, `skipped`, `median_latency_ms` (cached answers left out) and `last_error`. Also `feeds`: the shared offline feeds and their last refresh |
+| `GET` | `/api/tickets` | Every Jira or ServiceNow ticket raised for a case, newest first: `sink`, `key`, `url`, `created_at`, `created_by`, the `case`, and its `report` downloads. Filter `sink`; `limit`, `offset` |
+| `GET` | `/api/narratives?days=90` | Each recent case's ATT&CK techniques grouped by tactic, in the order an intrusion runs (reconnaissance first, impact last). A technique carries `evidence` (the indicators behind it, with the providers that `named_by` it, or `inferred` from tags and families) and `from_alert` when a pushed alert named it. Cases with no technique are left out; the newest 200 cases are considered, `limit` up to 100 |
 
 ## Team and profile
 
