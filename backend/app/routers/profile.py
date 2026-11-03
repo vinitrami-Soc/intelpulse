@@ -6,14 +6,16 @@ account, and clears the "choose a new password" flag an admin's reset sets.
 from __future__ import annotations
 
 import re
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import User, Workspace
-from ..platform import audit, auth
+from ..models import EmailToken, User, Workspace, utcnow
+from ..platform import audit, auth, email_flows, mail
 from ..platform.auth import Actor
 from ..platform.deps import require_member
 from ..platform.errors import ApiError
@@ -36,6 +38,7 @@ async def _profile(db: AsyncSession, user: User) -> dict:
     workspace = await db.get(Workspace, user.workspace_id)
     return {
         "id": user.id, "username": user.username, "display_name": user.display_name, "email": user.email,
+        "email_confirmed": user.email_confirmed_at is not None, "email_enabled": mail.enabled(),
         "role": user.role, "owner": user.owner, "must_change_password": user.must_change_password,
         "workspace": {"id": workspace.id, "name": workspace.name, "kind": workspace.kind} if workspace else None,
     }
@@ -68,6 +71,8 @@ async def update_profile(body: ProfileUpdate, actor: Actor = Depends(require_mem
             user.email = email
             user.email_confirmed_at = None
             changed.append("email")
+            await db.flush()
+            await email_flows.send_confirmation(db, user)
     if given.get("new_password"):
         current = given.get("current_password") or ""
         if await auth.check_login(db, user.username, current) is None:
@@ -86,3 +91,22 @@ async def update_profile(body: ProfileUpdate, actor: Actor = Depends(require_mem
         await audit.record(db, action="profile.updated", actor=actor.label, workspace_id=actor.workspace_id,
                            target=user.username, detail={"changed": changed})
     return {**await _profile(db, user), "changed": changed}
+
+
+@router.post("/profile/email/confirm", status_code=202)
+async def send_confirmation_again(actor: Actor = Depends(require_member), db: AsyncSession = Depends(get_session)) -> dict:
+    """Mail the confirmation link again for the account's address."""
+    user = await db.get(User, actor.user_id)
+    if not mail.enabled():
+        raise ApiError(409, "email_off", "this server does not send email")
+    if not user.email:
+        raise ApiError(422, "invalid", "add an address first")
+    if user.email_confirmed_at is not None:
+        return {"detail": "this address is confirmed already"}
+    recent = (await db.execute(select(func.count(EmailToken.id)).where(
+        EmailToken.user_id == user.id, EmailToken.purpose == "confirm",
+        EmailToken.created_at >= utcnow() - timedelta(hours=1)))).scalar_one()
+    if recent >= 3:
+        raise ApiError(429, "throttled", "three links in an hour: look for the ones already sent")
+    await email_flows.send_confirmation(db, user)
+    return {"detail": "a confirmation link is on its way to " + user.email}

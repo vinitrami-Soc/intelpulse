@@ -107,6 +107,14 @@ class Settings(BaseSettings):
     rate_limit_triage: int = 30      # enrichment spends third-party quota
     signup_per_address_daily: int = 3  # new accounts one address may make in 24 hours
     public_url: str = ""  # where people reach this server, for the links it hands out
+    # Email (optional): with SMTP_HOST, SMTP_FROM and PUBLIC_URL set, addresses are confirmed and
+    # forgotten passwords reset by email. Without them an admin sets a member's password.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_tls: str = "starttls"  # starttls | ssl | none
     rate_limit_write: int = 60
     rate_limit_read: int = 240
     # Only enable behind a proxy you control: otherwise any client can forge

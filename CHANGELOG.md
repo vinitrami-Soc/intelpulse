@@ -132,6 +132,15 @@ JSON report are the public interface.
   the same answer, and guessing is slowed down. Migration 0005 adds the `invites` table.
   `PUBLIC_URL`, when set, is where the links point.
 
+- **Email, when the operator configures it** (`SMTP_HOST`, `SMTP_FROM`, `PUBLIC_URL`). A new or
+  changed address gets a confirmation link whose page confirms with a button, so a mail scanner
+  confirms nothing. "Forgot your password?" on the sign-in page sends a reset link to a confirmed
+  address only, answering the same whether or not an account matches; the link works once, for an
+  hour, and the new password ends every session of the account. Setup and sign-up then ask for an
+  address. Without email nothing changes: an admin sets a member's password. Migration 0006 adds
+  `email_tokens`. Delivery uses the standard library's SMTP client; a mail server that is down
+  changes no answer.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

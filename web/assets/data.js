@@ -28,6 +28,7 @@
     return {
       setupNeeded: body.setup_needed === true,
       signupOpen: body.signup === true,
+      emailEnabled: body.email === true,
       user: user && text(user.username, 64) ? {
         username: text(user.username, 64),
         displayName: text(user.display_name, 120) || text(user.username, 64),
@@ -131,6 +132,23 @@
       const body = await this.request("/api/join", { method: "POST", body: JSON.stringify(fields) });
       this.session = cleanSession(body || {});
       return this.session;
+    },
+
+    /* The email flows: each answer is the server's sentence, shown as text. */
+    async forgot(login) {
+      const body = await this.request("/api/password/forgot", { method: "POST", body: JSON.stringify({ login }) });
+      return text(body && body.detail, 300);
+    },
+
+    async resetPassword(token, password) {
+      await this.request("/api/password/reset", { method: "POST", body: JSON.stringify({ token, password }) });
+      /* every session of the account has ended, this browser's too if it was that account's */
+      this.session = Object.assign({}, this.session, { user: null, csrf: "" });
+    },
+
+    async confirmEmail(token) {
+      const body = await this.request("/api/email/confirm", { method: "POST", body: JSON.stringify({ token }) });
+      return text(body && body.email, 254);
     },
 
     async changePassword(current, next) {

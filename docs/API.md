@@ -8,8 +8,9 @@ Everything is JSON unless stated; `POST /api/triage/report?fmt=markdown` returns
 ## Signing in and API tokens
 
 Every `/api` route needs a caller except `GET /api/health`, `GET /api/scoring/model`,
-`GET`/`POST /api/session`, `POST /api/setup`, `POST /api/signup`, `POST /api/join/check` and
-`POST /api/join`. Everything a caller reads or writes belongs to
+`GET`/`POST /api/session`, `POST /api/setup`, `POST /api/signup`, `POST /api/join/check`,
+`POST /api/join`, and the email links' `POST /api/password/forgot`, `POST /api/password/reset` and
+`POST /api/email/confirm`. Everything a caller reads or writes belongs to
 their workspace; another workspace's case, list entry or token answers `404`, exactly like one that
 does not exist.
 
@@ -339,6 +340,23 @@ owner's account; nobody changes their own role, disables or removes themselves; 
 cannot be removed or demoted. While an admin-set password stands, the session reaches only
 `/api/profile` and sign-out (`403`, `"error": "password_change_required"` elsewhere), and the
 console opens `#/password`.
+
+## Email (optional)
+
+With `SMTP_HOST`, `SMTP_FROM` and `PUBLIC_URL` set (and `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+`SMTP_TLS` = `starttls`, `ssl` or `none` as the mail server needs), `GET /api/session` says
+`"email": true`, setup and sign-up ask for an address, and:
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/email/confirm` | `{"token"}` from the link mailed when an address is given or changed. The link opens `#/confirm/<token>`, whose button sends this: a mail scanner that follows links confirms nothing. A link made for an address that has since changed confirms nothing |
+| `POST` | `/api/profile/email/confirm` | A signed-in member: mail the confirmation again (three in an hour) |
+| `POST` | `/api/password/forgot` | `{"login"}`, a username or an address: `202` with the same answer whether or not an account matches. A link goes only to a confirmed address, at most three an hour per account, and five requests an hour per caller address |
+| `POST` | `/api/password/reset` | `{"token", "password"}`: the link works once, for one hour; every session of the account ends. A password too short keeps the link working |
+
+A used, expired or unknown link is `404` with the same words, and wrong links from one address are
+slowed down. Only each link's SHA-256 is stored. Without email the forgot route answers
+`409 email_off`, and an admin sets a member's password (the owner sets an admin's).
 
 ## Server settings
 
