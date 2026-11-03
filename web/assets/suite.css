@@ -1019,8 +1019,8 @@ button { font-family: inherit; cursor: pointer; }
 .wb-starters { display: grid; gap: 8px; }
 .wb-starter {
   display: grid; gap: 3px; text-align: left; font: inherit; color: var(--ink);
-  background: var(--ground); border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 11px 12px; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast);
+  background: var(--ground-2); border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: 12px 13px; cursor: pointer; transition: border-color var(--t-fast), transform var(--t-fast);
 }
 .wb-starter:hover { border-color: var(--flame); transform: translateY(-1px); }
 .wb-starter b { font-size: 13px; font-weight: 600; }
@@ -1032,16 +1032,18 @@ button { font-family: inherit; cursor: pointer; }
 .wb-conn.err { color: var(--sev-high); }
 
 .wb-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+/* Shaped and filled like .pill-sev, so a tag, a technique and a verdict are
+   one family wherever they appear: neutral, azure for ATT&CK, flame for malware. */
 .wb-chip {
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
-  font: 500 11.5px var(--sans); color: var(--ink-2); background: var(--ground-2);
-  border: 1px solid var(--line); border-radius: var(--r-full); padding: 3px 9px;
+  font: 600 11px var(--sans); color: var(--ink-2); background: var(--ground-2);
+  border: 0; border-radius: var(--r-full); padding: 4px 10px;
   overflow-wrap: anywhere;
 }
 .wb-chip b { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
-.wb-chip.on { color: var(--sev-ok); border-color: color-mix(in srgb, var(--sev-ok) 36%, transparent); background: var(--sev-ok-bg); }
-.wb-chip.malware { color: var(--flame-ink-2); border-color: color-mix(in srgb, var(--flame) 26%, transparent); background: var(--flame-wash); }
-.wb-chip.attack { color: var(--azure-ink); border-color: color-mix(in srgb, var(--azure) 36%, transparent); background: var(--azure-wash); }
+.wb-chip.on { color: var(--sev-ok); background: var(--sev-ok-bg); }
+.wb-chip.malware { color: var(--flame-ink-2); background: var(--flame-wash); }
+.wb-chip.attack { color: var(--azure-ink); background: var(--azure-wash); }
 
 /* One label column for the whole indicator card: the key-value rows, the
    diff and the evidence bars all start their values at the same x. */
@@ -1057,15 +1059,15 @@ button { font-family: inherit; cursor: pointer; }
    glyph stays: severity is never carried by colour alone. */
 .wb-badge {
   display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; white-space: nowrap;
-  font: 600 11px var(--sans); letter-spacing: .01em;
-  padding: 4px 10px 4px 9px; border-radius: var(--r-full); border: 1px solid transparent;
+  font: 600 10.5px var(--sans); letter-spacing: .01em;
+  padding: 3px 9px 3px 8px; border-radius: var(--r-full); border: 0;
 }
 .wb-badge svg { width: 8px; height: 8px; fill: currentColor; }
 .wb-badge.critical { background: var(--ink); color: var(--paper); }
-.wb-badge.high { background: var(--flame-wash); color: var(--flame-ink-2); border-color: color-mix(in srgb, var(--flame) 22%, transparent); }
-.wb-badge.medium { background: var(--ground-2); color: var(--ink-2); border-color: var(--line); }
+.wb-badge.high { background: var(--flame-wash); color: var(--flame-ink-2); }
+.wb-badge.medium { background: var(--ground-2); color: var(--ink-2); }
 .wb-badge.low { background: var(--azure-wash); color: var(--azure-ink); }
-.wb-badge.informational { background: var(--ground-2); color: var(--ink-3); border-color: var(--line); }
+.wb-badge.informational { background: var(--ground-2); color: var(--ink-3); }
 .wb-badge.allowlisted { background: var(--sev-ok-bg); color: var(--sev-ok); }
 
 /* ─── results ─── */
@@ -1077,26 +1079,50 @@ button { font-family: inherit; cursor: pointer; }
 .wb-summary { font-size: 14px; line-height: 1.6; color: var(--ink-2); }
 .wb-mode-note { margin-left: auto; }
 
-.wb-ioc-list { display: grid; gap: 8px; }
-.wb-ioc { border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--paper); min-width: 0; }
-.wb-ioc.open { border-color: color-mix(in srgb, var(--flame) 40%, var(--line)); }
-.wb-ioc-top {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; width: 100%;
-  padding: 10px 12px; font: inherit; color: inherit; text-align: left;
-  background: none; border: 0; border-radius: var(--r-sm); cursor: pointer;
+/* ─── every indicator: the overview's "Latest" table, rows that open ───
+   Same header type, same row rule and hover, same pills; the open row's
+   detail is drawn in the overview's tiles rather than boxes inside boxes. */
+.wb-ioc-list { display: grid; min-width: 0; }
+.wb-ioc-head, .wb-ioc-top {
+  display: grid; align-items: center; gap: 10px;
+  grid-template-columns: 14px minmax(0, 2.2fr) minmax(56px, .7fr) minmax(108px, 1fr) minmax(0, 1.2fr) 44px;
 }
-.wb-ioc-top:hover { background: var(--ground-2); }
+.wb-ioc-head { padding: 8px 10px; border-bottom: 1px solid var(--line);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.wb-ioc-head span:last-child { text-align: right; }
+.wb-ioc { border-bottom: 1px solid var(--line); min-width: 0; }
+.wb-ioc-top {
+  width: 100%; padding: 11px 10px; font: inherit; font-size: 12.5px; color: inherit; text-align: left;
+  background: none; border: 0; border-radius: 0; cursor: pointer; transition: background-color var(--t-fast);
+}
+.wb-ioc-top:hover, .wb-ioc.open .wb-ioc-top { background: var(--ground-2); }
 .wb-chev { width: 14px; height: 14px; flex: 0 0 14px; stroke: var(--ink-3); fill: none; stroke-width: 2.1;
   transition: transform var(--t-fast) var(--ease); }
 .wb-ioc.open .wb-chev { transform: rotate(90deg); }
-.wb-type { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3);
-  border: 1px solid var(--line); padding: 2px 6px; border-radius: 5px; background: var(--ground-2); }
-.wb-value { flex: 1 1 160px; min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
-.wb-score { font: 650 16px var(--mono); min-width: 36px; text-align: right; }
-.wb-ioc-detail { border-top: 1px solid var(--line); padding: 16px; display: grid; gap: 18px; min-width: 0; }
+.wb-type { color: var(--ink-2); }
+.wb-value { min-width: 0; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.wb-verdict, .wb-flagged { min-width: 0; }
+.wb-flagged { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-score { font: 650 14px var(--mono); text-align: right; }
+.wb-ioc-detail { padding: 16px 10px 20px 34px; display: grid; gap: 18px; min-width: 0; }
 .wb-ioc-detail > .chart, .wb-ioc-detail .wb-chips { margin-top: 0; }
 .wb-ioc-detail[hidden] { display: none; }
 .wb-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 3px; }
+
+/* The overview's state tiles: a filled block, a label, a figure. */
+.wb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.wb-tile { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 12px 14px;
+  border-radius: var(--r-sm); background: var(--ground-2); }
+.wb-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.wb-tile-val { font: 600 22px var(--mono); letter-spacing: -.03em; line-height: 1; }
+.wb-tile-val small { font-size: 13px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
+.wb .wb-tile .meter { width: 100%; }   /* outranks .wb .meter, which is 72px */
+.wb-tile .wb-kv { grid-template-columns: auto minmax(0, 1fr); }
+.wb-context code { font-size: 12px; line-height: 1.55; color: var(--ink); }
+.wb-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 6px; }
+.wb-steps li { counter-increment: step; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: baseline;
+  padding: 10px 12px; border-radius: var(--r-sm); background: var(--ground-2); font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.wb-steps li::before { content: counter(step); font: 600 11px var(--mono); color: var(--flame-ink); }
 
 .wb-diff-tag { font: 650 10px var(--sans); text-transform: uppercase; letter-spacing: .06em;
   padding: 2px 8px; border-radius: var(--r-full); border: 1px solid var(--line-2); color: var(--ink-2); }
@@ -1105,11 +1131,11 @@ button { font-family: inherit; cursor: pointer; }
 
 /* auto-fit, not auto-fill: one source gets the whole row instead of a
    200px column with a sentence wrapped a word a line beside empty space. */
-.wb-source-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-.wb-source { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px 14px; background: var(--ground); min-width: 0; display: grid; gap: 8px; align-content: start; }
-.wb-source-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.wb-source-name { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.wb-state { font: 600 10.5px var(--sans); color: var(--ink-3); background: var(--ground-2); border-radius: var(--r-full); padding: 2px 8px; white-space: nowrap; flex: 0 0 auto; }
+.wb-src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+.wb-src { border-radius: var(--r-sm); padding: 12px 14px; background: var(--ground-2); min-width: 0; display: grid; gap: 8px; align-content: start; }
+.wb-src-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.wb-src-name { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.wb-state { font: 600 10.5px var(--sans); color: var(--ink-3); background: var(--paper); border-radius: var(--r-full); padding: 3px 9px; white-space: nowrap; flex: 0 0 auto; }
 .wb-state.ok { color: var(--sev-ok); background: var(--sev-ok-bg); }
 .wb-state.error, .wb-state.rate_limited { color: var(--flame-ink-2); background: var(--flame-wash); }
 .wb-facts { display: grid; }
@@ -1356,7 +1382,15 @@ button { font-family: inherit; cursor: pointer; }
 
 @media (max-width: 720px) {
   .wb { --wb-label: 92px; }
-  .wb-ioc-detail { padding: 12px; gap: 16px; }
+  .wb-ioc-head { display: none; }
+  .wb-ioc-top { grid-template-columns: 14px minmax(0, 1fr) auto 36px;
+    grid-template-areas: "chev value verdict score"; }
+  .wb-ioc-top .wb-chev { grid-area: chev; }
+  .wb-ioc-top .wb-value { grid-area: value; }
+  .wb-ioc-top .wb-verdict { grid-area: verdict; }
+  .wb-ioc-top .wb-score { grid-area: score; }
+  .wb-ioc-top .wb-type, .wb-ioc-top .wb-flagged { display: none; }
+  .wb-ioc-detail { padding: 12px 10px 16px; gap: 16px; }
   .wb-fact { grid-template-columns: 96px minmax(0, 1fr); }
   .wb-kv { grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .wb-kv dd { margin-bottom: 6px; }
@@ -1376,7 +1410,8 @@ button { font-family: inherit; cursor: pointer; }
   .cg-node .cg-dot, .cg-svg .cg-node, .cg-svg .cg-edge, .cg-svg .cg-labels text, .page-console #console-side { transition: none; }
 }
 @media (forced-colors: active) {
-  .wb-badge, .wb-chip, .wb-diff-tag { border: 1px solid CanvasText; }
+  .wb-badge, .wb-chip, .wb-diff-tag, .wb-state { border: 1px solid CanvasText; }
+  .wb-ioc, .wb-tile, .wb-src, .wb-steps li, .wb-starter { border: 1px solid CanvasText; }
   .wb .bar-fill, .wb .meter i, .wb .coverage i, .cg-key i, .cg-dot-key, .cg-share-bar i { forced-color-adjust: none; }
   .cg-share-bar { border: 1px solid CanvasText; }
 }
@@ -1448,6 +1483,16 @@ button { font-family: inherit; cursor: pointer; }
 .account-card { width: min(460px, 100%); margin-inline: auto; padding: 24px; }
 .account-title { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
 .account-lead { margin-top: 6px; }
+.account-demo { margin-top: 18px; padding: 14px 16px; border-radius: var(--r-sm); background: var(--ground-2); display: grid; gap: 6px; }
+.account-demo > b { font-size: 13.5px; font-weight: 600; }
+.account-demo > span { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.account-demo-list { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.account-demo-list li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; font-size: 12px; color: var(--ink-3); }
+.account-demo-list b { color: var(--ink); font-weight: 600; }
+.account-off { margin-top: 16px; }
+.account-off fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.account-off input:disabled { opacity: .55; cursor: not-allowed; }
+@media (forced-colors: active) { .account-demo { border: 1px solid CanvasText; } }
 .account-field { display: grid; gap: 6px; margin-top: 14px; }
 .account-field .wb-field { width: 100%; flex: none; }
 .account-field .wb-hint { margin-top: 0; }

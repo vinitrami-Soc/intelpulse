@@ -539,7 +539,7 @@
           (signedIn()
             ? '<span class="status-pill account-who" id="c-who"></span>' +
               '<button class="btn btn-light btn-sm" id="c-signout" type="button">Sign out</button>'
-            : "") +
+            : serverMode() ? "" : '<a class="btn btn-light btn-sm" id="c-signin" href="#/signin">Sign in</a>') +
           '<button class="round-btn" id="c-collapse" aria-label="Collapse sidebar">' + icon("i-sidebar") + "</button>" +
         "</div>" +
       "</header>" + '<div class="route" id="console-panels">' + skeleton() + "</div>";
@@ -663,9 +663,10 @@
   function serverMode() { return Boolean(DATA_SOURCE && DATA_SOURCE.server); }
   function signedIn() { return serverMode() && Boolean(DATA_SOURCE.session && DATA_SOURCE.session.user); }
   function accountFromHash() {
-    if (!serverMode()) return null;
     const first = hashParts()[0];
-    return ["signin", "setup", "password", "signup", "join", "forgot", "reset", "confirm"].includes(first) ? first : null;
+    if (!["signin", "setup", "password", "signup", "join", "forgot", "reset", "confirm"].includes(first)) return null;
+    /* The demo has no server to hold an account: every way in is one honest page. */
+    return serverMode() ? first : "demo";
   }
   function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
   async function signOut() {
@@ -748,6 +749,9 @@
     const parts = hashParts();
     if (parts.length === 1 && Object.hasOwn(DOC_PAGES, parts[0])) { location.replace(DOC_PAGES[parts[0]]); return; }
     const account = accountFromHash();
+    /* Sign in on the site's nav: there is nothing to sign in to once someone is. */
+    $$("[data-signin-link]").forEach((link) => { link.hidden = signedIn(); });
+    if (account === "demo") { showAccount("demo"); return; }
     if (account) {
       const session = DATA_SOURCE.session || {};
       const mustChange = Boolean(session.user && session.user.mustChangePassword);

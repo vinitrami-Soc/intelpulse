@@ -50,6 +50,36 @@
       "</section>";
   }
 
+  /* The demo, on GitHub Pages or from disk, has no server to hold an account, so
+     it never pretends to sign anyone in. The page looks like the real one (the
+     form is there, switched off) and says plainly where accounts live. */
+  const DEPLOY_GUIDE = "https://github.com/vinitrami-Soc/intelpulse/blob/main/docs/DEPLOY.md";
+  function demoView() {
+    const item = (title, detail) => "<li><b>" + title + "</b><span>" + detail + "</span></li>";
+    return '<section class="card panel account-card" aria-labelledby="account-title">' +
+      '<h1 class="account-title" id="account-title">Sign in to IntelPulse</h1>' +
+      '<p class="wb-hint account-lead">This is the demo. It runs in your browser on synthetic data, and there is no server here to hold an account.</p>' +
+      '<div class="account-demo" role="note"><b>Accounts live on your own server</b>' +
+        "<span>Run IntelPulse for your team with one script, and you sign in there as its owner.</span>" +
+        '<ul class="account-demo-list">' +
+          item("Workspaces", "each sees only its own cases") +
+          item("A team", "invitations, admins and analysts, one queue") +
+          item("API tokens", "so a SIEM can push alerts in") +
+          item("An audit log", "that shows a record edited or removed") +
+        "</ul></div>" +
+      '<form id="account-form" class="account-off" aria-describedby="account-off-why" novalidate>' +
+        "<fieldset disabled>" +
+          field("account-username", "Username", 'type="text" name="username" autocomplete="off"') +
+          field("account-password", "Password", 'type="password" name="password" autocomplete="off"') +
+        "</fieldset>" +
+        '<p class="wb-hint" id="account-off-why">Signing in needs an IntelPulse server, so the form is off in the demo.</p>' +
+      "</form>" +
+      '<div class="wb-row account-actions">' +
+        '<a class="btn btn-dark" id="account-demo-go" href="#/console/workbench">Continue with the demo</a>' +
+        '<a class="btn btn-light" href="' + DEPLOY_GUIDE + '" target="_blank" rel="noopener noreferrer">Run your own server ↗</a>' +
+      "</div></section>";
+  }
+
   /* Sign-up, while the owner allows it: a workspace for one person, or for an organization. */
   function signUpView() {
     const choice = (value, title, detail, checked) =>
@@ -230,6 +260,11 @@
 
   async function render(view, root, done) {
     const data = window.IntelPulseData;
+    if (view === "demo") {
+      root.innerHTML = demoView();
+      $("#account-demo-go", root).focus({ preventScroll: true });
+      return;
+    }
     let invite = null;
     if (view === "join") {
       const token = inviteToken();

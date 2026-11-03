@@ -7,6 +7,26 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+### Changed
+
+- **The workbench matches the rest of the console.** Its indicator list reads as the overview's
+  table (indicator, type, verdict, flagged by, score), with the same pills, row rules and hover; an
+  open indicator's confidence, sources and change since the last triage are the overview's tiles;
+  tags, techniques and malware are pills of the same family; and the containment steps are numbered.
+
+### Fixed
+
+- The evidence cards under an indicator sat at the right of their columns with gaps beside them:
+  they shared the class `.wb-source` with the pane header's mode label, whose `margin-left: auto`
+  moved every card. They are `.wb-src` now, and a check pins that each card fills its column.
+
+### Added
+
+- **Sign in in the demo.** The site's nav, the phone menu and the console's header offer Sign in on
+  GitHub Pages too. The demo has no server to hold an account, so `#/signin` there shows the sign-in
+  page with its form switched off, says that accounts live on your own server, and leads back into
+  the demo or to the deploy guide.
+
 ## [2.0.0] - 2026-11-03
 
 IntelPulse becomes a multi-user web app: a server that a person or a whole SOC signs in to, with

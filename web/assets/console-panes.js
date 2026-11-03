@@ -570,8 +570,8 @@
       const tone = diff.escalated ? "worse" : diff.de_escalated ? "better" : "same";
       const when = diff.previous_at ? formatWhen(diff.previous_at) : null;
       const delta = diff.score_delta > 0 ? "+" + diff.score_delta : diff.score_delta < 0 ? String(diff.score_delta) : "0";
-      return '<div class="chart wb-diff"><div class="chart-head">' +
-          '<span class="chart-title">Since the last triage' + (when ? " · " + esc(when) : "") + "</span>" +
+      return '<div class="wb-tile wb-diff"><div class="wb-tile-head">' +
+          '<span class="label-xs">Since the last triage' + (when ? " · " + esc(when) : "") + "</span>" +
           /* Not a severity badge: "worse" is a direction of travel, not a verdict. */
           '<span class="wb-diff-tag ' + tone + '">' +
             (!diff.changed ? "no change" : diff.escalated ? "worse" : diff.de_escalated ? "better" : "changed") + "</span>" +
@@ -587,13 +587,30 @@
         "</dl></div>";
     }
 
+    /* The overview's "ThreatFox + 4": the source that weighed most among those
+       that flagged the indicator (a signal of 0.5 or more), and how many more did. */
+    function flaggedBy(indicator) {
+      const flagged = (indicator.evidence || []).filter((row) => Number(row && row.signal) >= 0.5)
+        .sort((a, b) => (Number(b.weighted) || 0) - (Number(a.weighted) || 0));
+      if (!flagged.length) return '<span class="wb-muted">none flagged</span>';
+      const lead = String(flagged[0].provider || "");
+      const named = (indicator.sources || []).find((s) => s && s.provider === lead);
+      const label = named && named.label ? String(named.label).replace(/\s*\([^)]*\)$/, "") : lead.replace(/_/g, " ");
+      return esc(label) + (flagged.length > 1 ? " + " + (flagged.length - 1) : "");
+    }
+
     function renderIndicators(result) {
       const sorted = result.indicators.slice().sort((a, b) => b.score - a.score);
       const visible = wb.showAll ? sorted : sorted.slice(0, PAGE_SIZE);
       const hidden = sorted.length - visible.length;
       q("#wb-count").textContent = sorted.length + " indicator" + (sorted.length === 1 ? "" : "s");
 
-      q("#wb-iocs").innerHTML = '<div class="wb-ioc-list">' + visible.map((indicator, index) => {
+      /* The list reads as the overview's table: one row an indicator, the same
+         columns, the same pills. The header is for the eye; each row's button
+         already names everything in it. */
+      q("#wb-iocs").innerHTML = '<div class="wb-ioc-list">' +
+        '<div class="wb-ioc-head" aria-hidden="true"><span></span><span>Indicator</span><span>Type</span>' +
+          "<span>Verdict</span><span>Flagged by</span><span>Score</span></div>" + visible.map((indicator, index) => {
         const factLine = ([key, value]) => {
           const text = String(Array.isArray(value) ? value.join(", ") : value !== null && typeof value === "object" ? JSON.stringify(value) : value);
           /* Machine data stays monospaced; a sentence (a CVE description, a
@@ -610,7 +627,9 @@
             .filter(([, v]) => v !== null && v !== "" && v !== undefined && !(Array.isArray(v) && !v.length))
             .slice(0, 8).map(factLine).join("");
           const href = safeUrl(s.reference);
-          return '<div class="wb-source"><div class="wb-source-head"><span class="wb-source-name">' + esc(s.label || s.provider) + "</span>" +
+          /* .wb-src, not .wb-source: that is the pane header's mode label, and its
+             margin-left: auto pushed every evidence card to the right of its column. */
+          return '<div class="wb-src"><div class="wb-src-head"><span class="wb-src-name">' + esc(s.label || s.provider) + "</span>" +
             '<span class="wb-state ' + esc(s.status) + '">' + esc(s.status) +
               (s.cached ? " · cached" : "") + (s.latency_ms ? " · " + esc(s.latency_ms) + "ms" : "") + "</span></div>" +
             (s.error ? '<div class="wb-hint">' + esc(s.error) + "</div>" : "") +
@@ -623,19 +642,25 @@
         return '<article class="wb-ioc' + (open ? " open" : "") + '" data-ioc="' + esc(indicator.value) + '">' +
           '<button type="button" class="wb-ioc-top" aria-expanded="' + open + '" aria-controls="' + id + '">' +
             '<svg class="wb-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' +
-            '<span class="wb-type">' + esc(indicator.type) + "</span>" +
             '<span class="wb-value">' + esc(indicator.value) + "</span>" +
-            badge(indicator.verdict) +
+            '<span class="wb-type">' + esc(indicator.type) + "</span>" +
+            '<span class="wb-verdict">' + badge(indicator.verdict) + "</span>" +
+            '<span class="wb-flagged">' + flaggedBy(indicator) + "</span>" +
             '<span class="wb-score num">' + esc(indicator.score) + "</span>" +
           "</button>" +
           '<div class="wb-ioc-detail" id="' + id + '"' + (open ? "" : " hidden") + ">" +
-            '<dl class="wb-kv">' +
-              "<dt>confidence</dt><dd>" + Math.round((indicator.confidence || 0) * 100) + "% " +
-                C.meter(indicator.confidence) + ' <span class="wb-muted">' + esc(indicator.providers_answered) + "/" +
-                esc(indicator.providers_queried) + " sources answered</span></dd>" +
-              (indicator.context ? '<dt>log context</dt><dd class="wb-mono">' + esc(indicator.context) + "</dd>" : "") +
-            "</dl>" +
-            diffPanel((result.diffs || []).find((d) => d.value === indicator.value)) +
+            /* Tiles, as the overview draws its state row: a label, a figure, a line. */
+            '<div class="wb-tiles">' +
+              '<div class="wb-tile"><span class="label-xs">Confidence</span>' +
+                '<b class="wb-tile-val num">' + Math.round((indicator.confidence || 0) * 100) + "%</b>" +
+                C.meter(indicator.confidence) + "</div>" +
+              '<div class="wb-tile"><span class="label-xs">Sources answered</span>' +
+                '<b class="wb-tile-val num">' + esc(indicator.providers_answered) + '<small>/' + esc(indicator.providers_queried) + "</small></b>" +
+                C.coverageStrip(indicator.sources) + "</div>" +
+              diffPanel((result.diffs || []).find((d) => d.value === indicator.value)) +
+            "</div>" +
+            (indicator.context ? '<div class="wb-tile wb-context"><span class="label-xs">Log context</span>' +
+              '<code class="wb-mono">' + esc(indicator.context) + "</code></div>" : "") +
             C.contributionChart(indicator.evidence, { title: "Why this score" }) +
             ((indicator.modifiers || []).length
               ? '<div class="chart"><div class="chart-head"><span class="chart-title">Modifiers applied</span></div>' +
@@ -646,11 +671,11 @@
                 (indicator.attack_techniques || []).map((t) => linkOrText(t.url, t.id + " · " + t.name, "wb-chip attack")).join("") +
                 (indicator.tags || []).map((t) => '<span class="wb-chip">' + esc(t) + "</span>").join("") + "</div></div>" : "") +
             (sources ? '<div class="chart"><div class="chart-head"><span class="chart-title">Evidence by source</span>' +
-              '<span class="wb-muted">' + (indicator.sources || []).length + " asked</span></div>" +
-              '<div class="wb-source-grid">' + sources + "</div></div>" : "") +
+              '<span class="label-xs">' + (indicator.sources || []).length + " asked</span></div>" +
+              '<div class="wb-src-grid">' + sources + "</div></div>" : "") +
             ((indicator.containment || []).length
               ? '<div class="chart"><div class="chart-head"><span class="chart-title">Recommended containment</span></div>' +
-                '<ul class="wb-list">' + indicator.containment.map((a) => "<li>" + esc(a) + "</li>").join("") + "</ul></div>" : "") +
+                '<ol class="wb-steps">' + indicator.containment.map((a) => "<li>" + esc(a) + "</li>").join("") + "</ol></div>" : "") +
             '<div class="wb-row wb-actions">' +
               '<button type="button" class="btn btn-light btn-sm" data-copy="' + esc(indicator.value) + '">Copy</button>' +
               '<button type="button" class="btn btn-light btn-sm" data-list="allow" data-value="' + esc(indicator.value) + '" data-type="' + esc(indicator.type) + '">Allowlist</button>' +
