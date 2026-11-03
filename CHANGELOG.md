@@ -7,6 +7,18 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-03
+
+IntelPulse becomes a multi-user web app: a server that a person or a whole SOC signs in to, with
+workspaces that see only their own cases, alert text sealed and deleted on schedule, a hash-chained
+audit log, and a kit to run it behind a Cloudflare Tunnel. The GitHub Pages demo keeps working as it
+did, in the browser on synthetic data. Upgrading from 1.x: set `ENCRYPTION_KEY` (`make keys`), start
+the server (the migrations run, and keep every row), and make the owner's account with the code
+`python -m app.cli setup-code` prints. The 1.x `API_TOKEN` still works for the first organization,
+and goes in 3.0. The design is in
+[the v2 spec](docs/superpowers/specs/2026-11-02-intelpulse-v2-web-design.md); the review round is
+[SECURITY-REVIEW.md](docs/SECURITY-REVIEW.md).
+
 ### Added
 
 - `POST /api/alerts`: webhook ingestion, so a SIEM can push an alert and get back a triaged case. The
@@ -185,6 +197,8 @@ JSON report are the public interface.
 
 ### Fixed
 
+- **A time to close under a minute** read "1 min" on the overview's card while the caption beside it
+  said "0 s"; the card says seconds too now.
 - **Sign-up on Postgres.** The default organization is inserted as workspace 1, which Postgres does
   not count against the id sequence, so the first workspace made after it (the first sign-up)
   failed on the primary key with a 500. Migration 0009 moves every id sequence past its table's
@@ -305,6 +319,7 @@ author's portfolio repository, and its full history moved here with it.
   workbench, the site and console, phones and tablets, and hostile input.
   `pip-audit` runs weekly.
 
-[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v2.0.0
 [1.0.1]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.0

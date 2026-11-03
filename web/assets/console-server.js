@@ -55,10 +55,13 @@
     return d + " d" + (h % 24 ? " " + (h % 24) + " h" : "");
   }
 
-  /* The same, to one unit, for a number that has to fit a card: "45 min", "15 h", "2 d". */
+  /* The same, to one unit, for a number that has to fit a card: "45 s", "45 min", "15 h", "2 d".
+     Under a minute it says seconds, as the caption beside it does: a card reading "1 min" over a
+     caption reading "0 s" contradicted itself. */
   function shortDuration(seconds) {
     const s = whole(seconds);
-    if (s < 3600) return Math.max(1, Math.round(s / 60)) + " min";
+    if (s < 60) return s + " s";
+    if (s < 3600) return Math.round(s / 60) + " min";
     if (s < 172800) return Math.round(s / 3600) + " h";
     return Math.round(s / 86400) + " d";
   }

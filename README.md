@@ -15,6 +15,7 @@
 - **One metric:** 100% precision and 100% recall extracting 9,325 indicators from a 3,400 line, 15 format test corpus that the project generates ([method and caveats](docs/EXTRACTION-BENCHMARK.md)).
 - **Demo** ([live, nothing to install](https://vinitrami-soc.github.io/intelpulse/web/#/console/workbench)): ![A sample EDR alert triaged in the workbench: the verdict, the evidence per source, the scoring math, the relationship graph and the generated ticket](docs/screenshots/demo.gif)
 - **Run it:** `git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse && make keys && docker compose up --build`, then open http://localhost:8000 (no API keys needed; sources without one report `skipped`).
+- **For a team (2.0):** accounts, workspaces and roles; sign-up, invitations and email reset; alert text sealed and deleted after each workspace's retention period; a hash-chained audit log; and a deploy kit with Postgres behind a Cloudflare Tunnel ([DEPLOY.md](docs/DEPLOY.md), [security review](docs/SECURITY-REVIEW.md)).
 
 ---
 
@@ -35,6 +36,18 @@
 <p align="center">
   <img src="docs/screenshots/triage.png" width="49%" alt="The analyst workbench, inside the console">
   <img src="docs/screenshots/campaign-graph.png" width="49%" alt="The campaign graph">
+</p>
+
+On a server, every view reads the workspace's own cases, and the workspace's panes sit beside them
+(sample data, RFC 5737 addresses):
+
+<p align="center">
+  <img src="docs/screenshots/server-overview.png" width="49%" alt="The overview of a workspace: open cases, awaiting triage, closed in 90 days, time to close, and the latest indicators with their verdicts">
+  <img src="docs/screenshots/server-queue.png" width="49%" alt="The triage queue: open cases worst first, each with its verdict, assignee and status">
+</p>
+<p align="center">
+  <img src="docs/screenshots/server-settings.png" width="49%" alt="Workspace settings: each intelligence source, whether it needs a key, and whether it is on">
+  <img src="docs/screenshots/server-team.png" width="49%" alt="The team: members, roles and invitations">
 </p>
 
 ---
@@ -284,10 +297,10 @@ The September 2026 OWASP audit (thirteen findings, each reproduced, fixed and pi
   escaped and defanged, so a title or a vendor string cannot write a section.
 * **Dependencies are audited.** `make audit`; the pins moved forward when `pip-audit` found advisories
   in the originals.
-* **Nothing is overstated.** Authentication is one shared token, not users and roles: the design
-  target is a deployment behind the SOC's own boundary, and the roadmap says so. Unconfigured or
-  failing sources are reported as `skipped`/`error`, never as "clean", and every report states its
-  source coverage.
+* **Nothing is overstated.** Unconfigured or failing sources are reported as `skipped`/`error`,
+  never as "clean", and every report states its source coverage. What 2.0 leaves open (an
+  in-process rate limiter, an audit chain without a secret, and the rest) is listed in the
+  [review's residual risk](docs/SECURITY-REVIEW.md#residual-risk).
 * Secrets live in `.env` only; the API container runs as an unprivileged user with a healthcheck.
 * Containment guidance is defensive only: block, hunt, isolate, revoke, patch.
 
@@ -304,11 +317,14 @@ Wrong verdicts, missed indicators, new sources and fixes are welcome: see
 
 ## Roadmap
 
-- [ ] VirusTotal and Shodan providers (keys already read from config)
-- [ ] STIX 2.1 / MISP export alongside Markdown and JSON
 - [x] Webhook ingestion so a SIEM can push alerts directly (`POST /api/alerts`, see [docs/API.md](docs/API.md))
-- [ ] Per-analyst identity (OIDC) and roles for multi-user deployments; today it is one shared token
-- [ ] Redis-backed rate limiting for multi-replica deployments (the interface is already one method)
+- [x] Accounts, workspaces and roles, sealed alert text with retention, an audit chain, and a deploy kit (2.0)
+- [ ] New providers: MalwareBazaar, VirusTotal, Shodan InternetDB, EPSS, RDAP, urlscan.io
+- [ ] Notifications: Slack, Teams, PagerDuty, signed webhooks
+- [ ] STIX 2.1 and MISP export alongside Markdown and JSON
+- [ ] SIEM adapters, an External Dynamic List for firewalls, and the PhishHawk handoff
+- [ ] Single sign-on (OIDC)
+- [ ] Prometheus metrics, and a shared rate limiter for multi-replica deployments
 
 ---
 
