@@ -108,7 +108,7 @@ the endpoints 1.x had, and is deprecated. Details: [docs/API.md](docs/API.md#sig
 ```bash
 make install                 # venv + dependencies
 make keys                    # once: ENCRYPTION_KEY in .env
-make test                    # 465 tests, no network required
+make test                    # 489 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -210,7 +210,7 @@ API address or token is typed into the page: the session cookie and its CSRF tok
 ## Testing
 
 ```bash
-make test        # 465 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 489 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 59 node tests: engine parity, console model, design and asset guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and

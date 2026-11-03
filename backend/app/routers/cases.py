@@ -17,7 +17,7 @@ from ..platform.box import server_box
 from ..platform.deps import require_actor, require_admin, require_member
 from ..platform.errors import ApiError
 from ..schemas import CaseSummary, CaseUpdate
-from ..services import workflow
+from ..services import views, workflow
 from ..services import workspace_settings as ws_settings
 from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
@@ -212,8 +212,13 @@ async def delete_case(
 
 
 @router.get("/stats")
-async def stats(actor: Actor = Depends(require_actor), session: AsyncSession = Depends(get_session)) -> dict:
-    """Numbers for the dashboard header, for the caller's workspace."""
+async def stats(
+    days: int = Query(90, ge=1, le=365, description="how many days the trend covers"),
+    actor: Actor = Depends(require_actor),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Numbers for the overview, for the caller's workspace: each verdict band by status,
+    cases opened and closed per day, and how long closing a case takes."""
     ws = actor.workspace_id
     total = (await session.execute(select(func.count(Case.id)).where(Case.workspace_id == ws))).scalar_one()
     indicators = (
@@ -242,6 +247,7 @@ async def stats(actor: Actor = Depends(require_actor), session: AsyncSession = D
         "indicators": indicators,
         "cases_by_verdict": by_verdict,
         "top_malware_families": sorted(families.items(), key=lambda kv: kv[1], reverse=True)[:8],
+        **await views.overview(session, ws, user_id=actor.user_id, days=days),
     }
 
 

@@ -17,7 +17,7 @@ from .platform import accounts
 from .platform.box import server_box
 from .platform.deps import require_actor
 from .platform.errors import ApiError
-from .routers import account, alerts, cases, health, intel, lists, profile, team, tokens, triage
+from .routers import account, alerts, cases, health, intel, lists, profile, team, tokens, triage, views
 from .routers import settings as settings_router
 from .security import (
     BodySizeLimitMiddleware,
@@ -112,7 +112,7 @@ def create_app() -> FastAPI:
     # Everything else needs a verified caller. Each route also names the actor it acts
     # for; this router-wide check is the backstop that makes a forgotten one a 401, not a leak.
     signed_in = [Depends(require_actor)]
-    for module in (triage, alerts, cases, lists, intel, tokens, settings_router, team, profile):
+    for module in (triage, alerts, cases, lists, intel, tokens, settings_router, team, profile, views):
         app.include_router(module.router, prefix="/api", responses=refusals, dependencies=signed_in)
 
     @app.on_event("startup")

@@ -84,6 +84,15 @@ JSON report are the public interface.
 - **The audit log** gains filters (`action` prefix, `by`, `since`, `until`, `offset`) and
   `GET /api/audit/verify` for admins: whether the chain holds, and for the owner which records broke
   it.
+- **The data behind every console view**, from the caller's workspace only: `GET /api/indicators`
+  (each indicator once, with its latest verdict, first and last seen, its cases and the providers
+  that flagged it), `/api/campaigns` (cases joined by a shared malware family or infrastructure),
+  `/api/assets` (the hosts and people pushed alerts named), `/api/sources` (each provider's switch,
+  key, errors, rate limits and median latency over 7 days, and the shared feeds), `/api/tickets` and
+  `/api/narratives` (each case's ATT&CK techniques in tactic order, with their evidence).
+  `GET /api/stats` adds each verdict band by status, a 90-day trend of cases opened and closed, and
+  the mean and median time to close. A feed's status counts its rows in the database instead of
+  loading them.
 
 ### Changed
 
