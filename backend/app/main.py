@@ -23,6 +23,7 @@ from .routers import (
     cases,
     health,
     intel,
+    invites,
     lists,
     profile,
     server,
@@ -122,10 +123,11 @@ def create_app() -> FastAPI:
     # Open to anyone: health, the published scoring model, signing in and the one-time setup.
     app.include_router(health.router, prefix="/api", responses=refusals)
     app.include_router(account.router, prefix="/api", responses=refusals)
+    app.include_router(invites.public, prefix="/api", responses=refusals)
     # Everything else needs a verified caller. Each route also names the actor it acts
     # for; this router-wide check is the backstop that makes a forgotten one a 401, not a leak.
     signed_in = [Depends(require_actor)]
-    for module in (triage, alerts, cases, lists, intel, tokens, settings_router, team, profile, views, server):
+    for module in (triage, alerts, cases, lists, intel, tokens, settings_router, team, profile, views, server, invites):
         app.include_router(module.router, prefix="/api", responses=refusals, dependencies=signed_in)
 
     @app.on_event("startup")

@@ -8,7 +8,8 @@ Everything is JSON unless stated; `POST /api/triage/report?fmt=markdown` returns
 ## Signing in and API tokens
 
 Every `/api` route needs a caller except `GET /api/health`, `GET /api/scoring/model`,
-`GET`/`POST /api/session`, `POST /api/setup` and `POST /api/signup`. Everything a caller reads or writes belongs to
+`GET`/`POST /api/session`, `POST /api/setup`, `POST /api/signup`, `POST /api/join/check` and
+`POST /api/join`. Everything a caller reads or writes belongs to
 their workspace; another workspace's case, list entry or token answers `404`, exactly like one that
 does not exist.
 
@@ -317,6 +318,21 @@ says so with `truncated` when there was more.
 | `DELETE` | `/api/users/{id}` | admin, signed in | The account goes; their cases and audit records stay, unattributed |
 | `GET` | `/api/profile` | the person | Their own account and workspace |
 | `PATCH` | `/api/profile` | the person | `display_name`, `email`, and `current_password` with `new_password`, which ends every other session |
+
+**Invitations** (an organization's admin, signed in; an individual workspace takes none):
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `POST` | `/api/invites` | `{"role": "analyst"}` or `"admin"`: a one-use link, good for 7 days. The answer carries `token` and `link` (`#/join/<token>`, on `PUBLIC_URL` when it is set) once; only the token's SHA-256 is kept |
+| `GET` | `/api/invites` | Newest first, with `state` (`open`, `used`, `expired`), who made it and who used it; never a token |
+| `DELETE` | `/api/invites/{id}` | Revoke an open invitation (`409` once it is used: remove the member instead) |
+| `POST` | `/api/join/check` | Anyone with the link: `{"token"}` answers the workspace's name and the role |
+| `POST` | `/api/join` | `{"token", "username", "display_name", "password"}` makes the account in that workspace and role and signs it in; the link then stops working |
+
+An unknown, used, revoked or expired link gets the same `404`, and three of them from one address
+slow the next attempts down like failed sign-ins. The token travels in the body, never in a URL a log
+would keep. Making, revoking and using an invitation are audited (`invite.created`,
+`invite.revoked`, `invite.used`).
 
 Rules that hold whatever the request says: only the owner sets an admin's password or changes the
 owner's account; nobody changes their own role, disables or removes themselves; the owner's account

@@ -125,6 +125,13 @@ JSON report are the public interface.
   refused sign-up leaves nothing behind and costs no attempt. The owner's **Server** pane, and
   `GET/PATCH /api/server`, turn sign-up on and off and set the cap.
 
+- **Invitations.** An organization's admin makes a one-use link for an analyst or an admin in the
+  Team pane (`POST /api/invites`), good for seven days and shown once; only its SHA-256 is kept.
+  Whoever opens `#/join/<token>` sees the workspace and the role, chooses their own username and
+  password, and is signed in (`POST /api/join`). An unknown, used, revoked or expired link gets
+  the same answer, and guessing is slowed down. Migration 0005 adds the `invites` table.
+  `PUBLIC_URL`, when set, is where the links point.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

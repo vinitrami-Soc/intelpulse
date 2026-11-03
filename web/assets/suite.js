@@ -665,7 +665,7 @@
   function accountFromHash() {
     if (!serverMode()) return null;
     const first = hashParts()[0];
-    return first === "signin" || first === "setup" || first === "password" || first === "signup" ? first : null;
+    return first === "signin" || first === "setup" || first === "password" || first === "signup" || first === "join" ? first : null;
   }
   function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
   async function signOut() {
