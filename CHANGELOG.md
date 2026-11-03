@@ -75,6 +75,16 @@ JSON report are the public interface.
   trackers a workspace has. The client that delivers a ticket may reach that workspace's tracker host
   and no other. Tracker settings from 1.x's environment move into the first organization once.
 
+- **Team and profile.** `/api/users`: every member sees the workspace's members (to assign cases);
+  an admin adds members, changes roles, disables, resets passwords and removes accounts, under
+  rules no request can lift (only the owner touches an admin's password or the owner's account,
+  nobody demotes or disables themselves). A member given a password by an admin must choose their
+  own at the next sign-in (the console's `#/password`). `/api/profile` changes one's own name,
+  email and password (the current one required; every other session ends).
+- **The audit log** gains filters (`action` prefix, `by`, `since`, `until`, `offset`) and
+  `GET /api/audit/verify` for admins: whether the chain holds, and for the owner which records broke
+  it.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

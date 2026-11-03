@@ -239,7 +239,8 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 | `GET` | `/api/cases/{id}/report?fmt=markdown\|json` | Regenerates the ticket from stored evidence |
 | `DELETE` | `/api/cases/{id}` | Removes the case and its indicators (admin) |
 | `GET` | `/api/stats` | Counts by verdict and the most frequent malware families |
-| `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens |
+| `GET` | `/api/audit?limit=50` | The hash-chained trail of triages, list changes, sign-ins and tokens; filters: `action` (a prefix, so `case.` is every case action), `by` (who acted), `since`, `until`, `offset` |
+| `GET` | `/api/audit/verify` | An admin: recompute the chain. `intact`, `records`, `problems`; the owner also gets which records broke it, since the chain is the whole server's |
 
 ### Search and filters
 
@@ -272,6 +273,23 @@ curl -s -X PATCH localhost:8000/api/cases/$CASE -b cookies.txt -H "X-CSRF-Token:
   Every change is audited as `case.updated` with what each field was and became.
 * A ticket raised for the case (`POST /api/cases/{id}/ticket`, or `ticket` on a pushed alert) is
   kept with it and listed under `tickets`.
+
+## Team and profile
+
+| Method | Path | Who | Notes |
+| --- | --- | --- | --- |
+| `GET` | `/api/users` | any member, signed in | The workspace's members (an analyst needs them to assign a case); an admin also sees email, last sign-in and `must_change_password` |
+| `POST` | `/api/users` | admin, signed in | `{"username", "display_name", "role", "password"}`: the member must choose their own password at the first sign-in |
+| `PATCH` | `/api/users/{id}` | admin, signed in | `display_name`, `role`, `disabled`, `password` (a reset: their sessions end and they choose a new one at the next sign-in) |
+| `DELETE` | `/api/users/{id}` | admin, signed in | The account goes; their cases and audit records stay, unattributed |
+| `GET` | `/api/profile` | the person | Their own account and workspace |
+| `PATCH` | `/api/profile` | the person | `display_name`, `email`, and `current_password` with `new_password`, which ends every other session |
+
+Rules that hold whatever the request says: only the owner sets an admin's password or changes the
+owner's account; nobody changes their own role, disables or removes themselves; the owner's account
+cannot be removed or demoted. While an admin-set password stands, the session reaches only
+`/api/profile` and sign-out (`403`, `"error": "password_change_required"` elsewhere), and the
+console opens `#/password`.
 
 ## Workspace settings
 

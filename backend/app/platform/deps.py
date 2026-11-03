@@ -44,6 +44,12 @@ TRIAGE_WRITES = frozenset({
     "app.routers.triage.triage_report",      # POST /api/triage/report
 })
 INGEST_WRITES = frozenset({"app.routers.alerts.receive_alert"})  # POST /api/alerts
+# All a session may reach while its password must change (an admin set it).
+WHILE_CHANGING_PASSWORD = frozenset({
+    "app.routers.profile.read_profile",
+    "app.routers.profile.update_profile",
+    "app.routers.account.sign_out",
+})
 
 login_throttle = auth.LoginThrottle()
 
@@ -113,6 +119,9 @@ async def require_actor(request: Request, db: AsyncSession = Depends(get_session
         request.state.principal = actor.label
     if not token_allows(actor.scope, request.method, endpoint_name(request)):
         raise forbidden(f"this API token's scope ({actor.scope}) does not cover {request.method} {request.url.path}")
+    if actor.must_change_password and endpoint_name(request) not in WHILE_CHANGING_PASSWORD:
+        raise ApiError(403, "password_change_required",
+                       "choose a new password first: an admin set this one (PATCH /api/profile)")
     if actor.via == "session" and request.method in WRITE_METHODS:
         sent = request.headers.get(CSRF_HEADER, "")
         if not sent or not hmac.compare_digest(sent.encode(), actor.csrf.encode()):

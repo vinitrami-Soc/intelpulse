@@ -133,7 +133,32 @@ await page.keyboard.press("Enter");
 await page.waitForFunction(() => location.hash.startsWith("#/console/"), null, { timeout: 8000 }).catch(() => {});
 check("signing in returns to the page that sent the visitor away", (await hash()) === "#/console/workbench", await hash());
 
-// ——————————————————————————————————————— 5. small screens and the whole run
+// ——————————————————————————————————————— 5. a member an admin made chooses their own password
+const made = await page.evaluate(async (password) => {
+  const csrf = (await (await fetch("/api/session", { credentials: "same-origin" })).json()).csrf;
+  const response = await fetch("/api/users", {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+    body: JSON.stringify({ username: "carl", display_name: "Carl", password })
+  });
+  return response.status;
+}, PASSWORD);
+check("the owner adds a member", made === 201, String(made));
+await page.click("#c-signout");
+await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});
+await page.fill("#account-username", "carl");
+await page.fill("#account-password", PASSWORD);
+await page.click("#account-submit");
+await page.waitForFunction(() => location.hash === "#/password", null, { timeout: 8000 }).catch(() => {});
+check("a member with an admin-set password is sent to choose their own", (await hash()) === "#/password", await hash());
+await page.fill("#account-current", PASSWORD);
+await page.fill("#account-password", "carl's very own passphrase");
+await page.click("#account-submit");
+await page.waitForFunction(() => location.hash.startsWith("#/console/"), null, { timeout: 8000 }).catch(() => {});
+check("and then reaches the console", (await hash()).startsWith("#/console/"), await hash());
+check("as themselves", /Carl/.test(await text("#c-who")), await text("#c-who"));
+
+// ——————————————————————————————————————— 6. small screens and the whole run
 await page.click("#c-signout");
 await page.waitForFunction(() => location.hash === "#/signin", null, { timeout: 5000 }).catch(() => {});
 for (const width of [320, 768, 1440]) {

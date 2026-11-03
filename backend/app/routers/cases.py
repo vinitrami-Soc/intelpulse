@@ -248,18 +248,31 @@ async def stats(actor: Actor = Depends(require_actor), session: AsyncSession = D
 @router.get("/audit")
 async def audit_log(
     limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0, le=2**63 - 1),
+    action: str | None = Query(None, max_length=80, description="an action, or its start: `case.` for every case action"),
+    by: str | None = Query(None, max_length=120, description="who acted: a username, `token:<name>` or `api-token`"),
+    since: datetime | None = None,
+    until: datetime | None = None,
     actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """An analyst sees their own actions, an admin (or a token) the whole workspace, the
     owner the server's records too (setup, feed refreshes, failed sign-ins)."""
-    query = select(AuditLog).order_by(AuditLog.id.desc()).limit(limit)
+    query = select(AuditLog).order_by(AuditLog.id.desc()).limit(limit).offset(offset)
     if actor.via == "session" and actor.owner:
         query = query.where(or_(AuditLog.workspace_id == actor.workspace_id, AuditLog.workspace_id == SERVER))
     else:
         query = query.where(AuditLog.workspace_id == actor.workspace_id)
     if actor.via == "session" and not actor.is_admin:
         query = query.where(AuditLog.actor == actor.label)
+    if action:
+        query = query.where(AuditLog.action.startswith(action, autoescape=True))
+    if by:
+        query = query.where(AuditLog.actor == by)
+    if since:
+        query = query.where(AuditLog.created_at >= since)
+    if until:
+        query = query.where(AuditLog.created_at < until)
     rows = (await session.execute(query)).scalars().all()
     return [
         {
@@ -272,3 +285,18 @@ async def audit_log(
         }
         for row in rows
     ]
+
+
+@router.get("/audit/verify")
+async def verify_audit(actor: Actor = Depends(require_admin), session: AsyncSession = Depends(get_session)) -> dict:
+    """Recompute the hash chain. The chain is the whole server's, so only its owner (or the
+    1.x token) is told which records are wrong; another admin learns whether it holds."""
+    problems = await audit.verify(session)
+    count = (await session.execute(select(func.count(AuditLog.id)))).scalar_one()
+    answer = {"intact": not problems, "records": count, "problems": len(problems)}
+    if actor.owner or actor.via == "legacy":
+        answer["details"] = problems[:100]
+    await audit.record(session, action="audit.verified", actor=actor.label, workspace_id=actor.workspace_id,
+                       detail={"intact": not problems})
+    return answer
+

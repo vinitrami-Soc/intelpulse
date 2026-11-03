@@ -66,6 +66,22 @@
       "</form></section>";
   }
 
+  function passwordView() {
+    return '<section class="card panel account-card" aria-labelledby="account-title">' +
+      '<h1 class="account-title" id="account-title">Choose your own password</h1>' +
+      '<p class="wb-hint account-lead">An admin set the password you signed in with. Choose one only you know ' +
+        "before you go on; every other session of your account ends.</p>" +
+      '<form id="account-form" novalidate>' +
+        field("account-current", "The password you were given",
+          'type="password" name="current" autocomplete="current-password" required maxlength="1024"') +
+        field("account-password", "New password",
+          'type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="1024"',
+          "At least 12 characters.") +
+        '<p class="wb-error" id="account-error" role="alert" hidden></p>' +
+        '<div class="wb-row account-actions"><button type="submit" class="btn btn-dark" id="account-submit">Save and continue</button></div>' +
+      "</form></section>";
+  }
+
   function showError(root, message, focusId) {
     const box = $("#account-error", root);
     box.textContent = message;
@@ -84,13 +100,14 @@
     if (error.status === 429) return error.message;
     if (view === "setup" && error.status === 403) return "That setup code is not right.";
     if (view === "setup" && error.status === 409) return "This server is set up already: sign in instead.";
+    if (view === "password" && error.status === 403) return "The password you were given is not right.";
     if (error.status === 422) return error.message;
     return error.message || "That did not work. Try again.";
   }
 
   function render(view, root, done) {
     const data = window.IntelPulseData;
-    root.innerHTML = view === "setup" ? setUpView() : signInView(data && data.session);
+    root.innerHTML = view === "setup" ? setUpView() : view === "password" ? passwordView() : signInView(data && data.session);
     const form = $("#account-form", root), submit = $("#account-submit", root);
     const first = $("input", form);
     if (first) first.focus({ preventScroll: true });
@@ -104,7 +121,7 @@
           return;
         }
       }
-      if (view === "setup" && String(values.password).length < 12) {
+      if ((view === "setup" || view === "password") && String(values.password).length < 12) {
         showError(root, "The password needs at least 12 characters.", "account-password");
         return;
       }
@@ -112,7 +129,9 @@
       submit.setAttribute("aria-busy", "true");
       showError(root, "");
       try {
-        if (view === "setup") {
+        if (view === "password") {
+          await data.source.changePassword(values.current, values.password);
+        } else if (view === "setup") {
           await data.source.setUp({
             code: values.code.trim(), organization: values.organization.trim(),
             username: values.username.trim().toLowerCase(), password: values.password

@@ -639,7 +639,7 @@
   function accountFromHash() {
     if (!serverMode()) return null;
     const first = hashParts()[0];
-    return first === "signin" || first === "setup" ? first : null;
+    return first === "signin" || first === "setup" || first === "password" ? first : null;
   }
   function wayIn() { return DATA_SOURCE.session && DATA_SOURCE.session.setupNeeded ? "#/setup" : "#/signin"; }
   async function signOut() {
@@ -684,7 +684,14 @@
     const account = accountFromHash();
     if (account) {
       const session = DATA_SOURCE.session || {};
-      if (session.user) { go("#/console/dashboard"); return; }
+      const mustChange = Boolean(session.user && session.user.mustChangePassword);
+      if (account === "password") {
+        if (!session.user) { go("#/signin"); return; }
+        if (!mustChange) { go("#/console/dashboard"); return; }
+        showAccount(account);
+        return;
+      }
+      if (session.user) { go(mustChange ? "#/password" : "#/console/dashboard"); return; }
       if (account === "setup" && !session.setupNeeded) { go("#/signin"); return; }
       if (account === "signin" && session.setupNeeded) { go("#/setup"); return; }
       showAccount(account);
@@ -693,6 +700,11 @@
     if (serverMode() && routeIsConsole() && !signedIn()) {
       window.IntelPulseAccount.remember(location.hash);
       go(wayIn());
+      return;
+    }
+    if (serverMode() && routeIsConsole() && DATA_SOURCE.session.user.mustChangePassword) {
+      window.IntelPulseAccount.remember(location.hash);
+      go("#/password");
       return;
     }
     $("#page-account").hidden = true;
