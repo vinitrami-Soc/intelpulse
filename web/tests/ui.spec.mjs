@@ -191,6 +191,32 @@ check("every severity badge carries its label, not just a colour",
 check("the run lands in the history list",
   await page.evaluate(() => document.querySelector("#wb-history").textContent.includes("95")));
 
+/* The list reads as the overview's table, and the evidence cards fill their
+   columns: each card was named .wb-source, the pane header's mode label too,
+   and that label's margin-left: auto pushed every card to the right of its cell. */
+const layout = await page.evaluate(() => {
+  const head = document.querySelector("#wb-iocs .wb-ioc-head");
+  const grid = document.querySelector("#wb-iocs .wb-ioc.open .wb-src-grid");
+  const cards = grid ? Array.from(grid.children) : [];
+  const columns = grid ? getComputedStyle(grid).gridTemplateColumns.split(" ").map(parseFloat) : [];
+  return {
+    head: head ? [...head.children].map((s) => s.textContent.trim()).filter(Boolean).join(" ") : "",
+    flagged: document.querySelector("#wb-iocs .wb-ioc.open .wb-flagged")?.textContent.trim() || "",
+    cards: cards.length,
+    widths: cards.map((c) => Math.round(c.getBoundingClientRect().width)),
+    column: Math.round(columns[0] || 0),
+    tiles: document.querySelectorAll("#wb-iocs .wb-ioc.open .wb-tile").length
+  };
+});
+check("the indicator list has the overview's columns",
+  layout.head === "Indicator Type Verdict Flagged by Score", layout.head);
+check("each indicator says who flagged it, as the overview's table does",
+  /^ThreatFox \+ \d+$/.test(layout.flagged), layout.flagged);
+check("every evidence card fills its grid column",
+  layout.cards > 1 && layout.widths.every((w) => Math.abs(w - layout.column) <= 1),
+  layout.widths.join(", ") + " in " + layout.column + "px columns");
+check("the open indicator's facts are tiles", layout.tiles >= 3, layout.tiles + " tiles");
+
 // ——————————————————————————————— 5. the chart has a table equivalent
 await page.click("#wb-iocs [data-table-toggle]");
 await page.waitForTimeout(200);

@@ -797,6 +797,37 @@ check("the pages load nothing from another host", offsite.length === 0, offsite.
 check("the pages raise no script errors", docErrors.length === 0, docErrors.slice(0, 3).join(" | "));
 await docs.close();
 
+/* ────────────────────────────────────────── sign-in, in the demo
+   The demo has no server to hold an account. Sign in is offered all the same,
+   on the site and in the console, and says so instead of pretending. */
+await page.goto(BASE + "#/console/surface", { waitUntil: "domcontentloaded" });
+await page.waitForSelector("#c-signin", { timeout: 5000 }).catch(() => {});
+check("the console's header offers Sign in in the demo",
+  await page.evaluate(() => document.querySelector("#c-signin")?.getAttribute("href") === "#/signin"));
+check("the site's nav offers Sign in",
+  await page.evaluate(() => [...document.querySelectorAll("[data-signin-link]")].some((a) => a.getAttribute("href") === "#/signin")));
+await page.click("#c-signin");
+await page.waitForSelector("#page-account:not([hidden]) #account-title", { timeout: 5000 }).catch(() => {});
+const demoSignIn = await page.evaluate(() => ({
+  title: document.querySelector("#account-title")?.textContent || "",
+  note: document.querySelector(".account-demo")?.textContent || "",
+  off: [...document.querySelectorAll("#account-form input")].every((i) => i.matches(":disabled")),
+  inputs: document.querySelectorAll("#account-form input").length,
+  back: document.querySelector("#account-demo-go")?.getAttribute("href"),
+  guide: document.querySelector('.account-actions a[target="_blank"]')?.getAttribute("rel") || ""
+}));
+check("#/signin in the demo opens the sign-in page", demoSignIn.title === "Sign in to IntelPulse", demoSignIn.title);
+check("it says accounts live on your own server", /your own server/.test(demoSignIn.note), demoSignIn.note.slice(0, 60));
+check("its form is there, and off", demoSignIn.inputs === 2 && demoSignIn.off, demoSignIn.inputs + " inputs");
+check("it leads back into the demo and to the deploy guide",
+  demoSignIn.back === "#/console/workbench" && /noopener/.test(demoSignIn.guide), demoSignIn.back + " · " + demoSignIn.guide);
+await page.click("#account-demo-go");
+/* the hash changes first and the route draws on hashchange, so wait for the drawing */
+await page.waitForFunction(() => location.hash === "#/console/workbench" && document.querySelector("#page-account").hidden,
+  null, { timeout: 5000 }).catch(() => {});
+check("Continue with the demo opens the workbench",
+  await page.evaluate(() => location.hash === "#/console/workbench" && document.querySelector("#page-account").hidden));
+
 /* ───────────────────────────────────────────────────────────── errors */
 check("the page raises no script errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 
