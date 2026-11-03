@@ -7,6 +7,19 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+### Added
+
+- **About and Terms pages**, beside Product, Privacy and Help: `about.html` (why IntelPulse exists,
+  what it holds to, who builds it, its releases, how to report a wrong verdict or a security issue)
+  and `terms.html` (the MIT licence in plain words, the demo, fair use, the intelligence providers'
+  own terms, verdicts as decision support, running your own server, no warranty). Every page's nav,
+  the site's footer and the sign-in page link them; `#/about` and `#/terms` forward to them; a
+  server offers them to search engines with the other public pages when its owner allows it.
+
+### Fixed
+
+- `SECURITY.md` listed 1.0.x as the supported version after 2.0 was released.
+
 ### Changed
 
 - **The workbench matches the rest of the console.** Its indicator list reads as the overview's

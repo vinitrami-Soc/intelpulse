@@ -22,7 +22,7 @@ from starlette.types import Scope
 from .config import settings
 
 # The documents anyone may read, and a search engine index when the owner allows it (spec 9.5).
-PUBLIC_PAGES = ("product.html", "privacy.html", "help.html")
+PUBLIC_PAGES = ("product.html", "privacy.html", "help.html", "about.html", "terms.html")
 
 
 def servable(path: str) -> bool:

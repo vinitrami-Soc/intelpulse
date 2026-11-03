@@ -123,8 +123,9 @@ enough. Open to anyone, and it says only pass or fail: no error text, host name,
 
 ## Public pages, `robots.txt` and `sitemap.xml`
 
-`/product.html`, `/privacy.html` and `/help.html` are plain documents anyone can read, each with
-its own title and description; the console's `#/product`, `#/privacy` and `#/help` forward to them.
+`/product.html`, `/privacy.html`, `/help.html`, `/about.html` and `/terms.html` are plain documents
+anyone can read, each with its own title and description; the console's `#/product`, `#/privacy`,
+`#/help`, `#/about` and `#/terms` forward to them.
 A self-hosted server is turned away from search engines unless its owner says otherwise:
 
 | `INTELPULSE_INDEX_PUBLIC_PAGES` | `GET /robots.txt` | `GET /sitemap.xml` |

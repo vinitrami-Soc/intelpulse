@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About · IntelPulse</title>
+<meta name="description" content="Why IntelPulse exists, what it holds to (show the arithmetic, private by design, yours to run), who builds it, its releases, and how to report a wrong verdict, a bug or a security issue.">
+<meta name="theme-color" content="#f6f7f9">
+<!-- A plain document: no script but assets/pages.js (the visitor's theme), nothing fetched. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="About · IntelPulse">
+<meta property="og:description" content="Why IntelPulse exists, what it holds to (show the arithmetic, private by design, yours to run), who builds it, its releases, and how to report a wrong verdict, a bug or a security issue.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/suite.css">
+<script src="assets/pages.js"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the content</a>
+<header class="wrap doc-top">
+  <a class="brand" href="index.html">
+    <span class="mk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <b translate="no">IntelPulse</b>
+  </a>
+  <nav class="doc-nav" aria-label="About IntelPulse">
+    <a href="product.html">Product</a>
+    <a href="about.html" aria-current="page">About</a>
+    <a href="help.html">Help</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
+    <a href="index.html#/console">Open the console</a>
+  </nav>
+</header>
+<main id="doc" class="wrap doc" tabindex="-1">
+<article class="doc-body">
+<p class="eyebrow">About</p>
+<h1>Built for the analyst with forty alerts in the queue</h1>
+<p class="lede">IntelPulse is an open-source threat intelligence workbench. It reads the indicators in an alert,
+  asks every intelligence source a workspace has turned on about each of them at once, and gives back a verdict
+  with the arithmetic behind it. It is built and maintained by Vinit Rami, under the MIT licence.</p>
+<div class="doc-cta">
+  <a class="btn btn-dark btn-sm" href="index.html#/console/workbench">Try the demo</a>
+  <a class="btn btn-light btn-sm" href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Read the code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+</div>
+
+<h2>Why it exists</h2>
+<p>An alert names a handful of indicators. Checking each by hand means pasting it into five or six vendor sites,
+  weighing what each one said in its own format, and writing it up: about twenty minutes an alert, at forty alerts
+  a shift. That is where triage time goes, and where an indicator gets missed, because the fifth tab is the one
+  skipped at 3 a.m. IntelPulse does that pass in one request, and shows its working.</p>
+
+<h2>What it holds to</h2>
+<ul>
+  <li><strong>Show the arithmetic.</strong> Every score opens to what each source said, how much it counts, and
+    the sum. A verdict nobody can explain is a verdict nobody should act on.</li>
+  <li><strong>A source that is down is not a clean source.</strong> A lookup that timed out is left out of the
+    score rather than counted as a pass, and the confidence says how much of the picture answered.</li>
+  <li><strong>Private by design.</strong> Alert text is sealed and deleted on a schedule, nothing loads from
+    another host, and an indicator goes only to the sources a workspace turned on. The
+    <a href="privacy.html">privacy page</a> lists what is kept.</li>
+  <li><strong>Yours to run.</strong> A server is one script to set up, with no account anywhere but on it.</li>
+  <li><strong>Measured, not claimed.</strong> 1,144 automated checks run on every change, and the extraction
+    benchmark says plainly that its test corpus is the project's own.</li>
+</ul>
+
+<h2>Who builds it</h2>
+<p>IntelPulse is written by <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Vinit
+  Rami<span class="sr-only"> (opens in a new tab)</span></a>, who builds defensive security tools with an
+  offensive-security background. Its sibling, <a href="https://github.com/vinitrami-Soc/phishhawk" target="_blank"
+  rel="noopener noreferrer">PhishHawk<span class="sr-only"> (opens GitHub in a new tab)</span></a>, triages reported phishing email.</p>
+
+<h2>Releases</h2>
+<div class="table-wrap">
+<table class="doc-table">
+  <thead><tr><th scope="col">Version</th><th scope="col">Released</th><th scope="col">What it brought</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Version">2.0</td><td data-label="Released">3 November 2026</td>
+      <td data-label="What it brought">A self-hosted web app for a whole SOC: accounts and workspaces, a case queue,
+        sealed alert text, a hash-chained audit log, and a deploy kit</td></tr>
+    <tr><td data-label="Version">1.0</td><td data-label="Released">24 September 2026</td>
+      <td data-label="What it brought">The workbench: extraction, eight sources in one pass, explainable scoring,
+        tickets for Jira and ServiceNow</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Every change is in the <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/CHANGELOG.md" target="_blank"
+  rel="noopener noreferrer">changelog<span class="sr-only"> (opens GitHub in a new tab)</span></a>.</p>
+
+<h2>Get in touch</h2>
+<ul>
+  <li><strong>A wrong verdict, a bug or an idea:</strong> <a href="https://github.com/vinitrami-Soc/intelpulse/issues" target="_blank"
+    rel="noopener noreferrer">open an issue<span class="sr-only"> (opens GitHub in a new tab)</span></a>. A verdict you think is wrong is the most useful report
+    there is.</li>
+  <li><strong>A security issue:</strong> report it privately, as the <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/SECURITY.md"
+    target="_blank" rel="noopener noreferrer">security policy<span class="sr-only"> (opens GitHub in a new tab)</span></a> asks, never in a public issue.</li>
+  <li><strong>Code:</strong> contributions are welcome, and <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/CONTRIBUTING.md"
+    target="_blank" rel="noopener noreferrer">CONTRIBUTING.md<span class="sr-only"> (opens GitHub in a new tab)</span></a> says how.</li>
+</ul>
+<p class="doc-meta">Product names on these pages belong to their owners. IntelPulse is not affiliated with any
+  intelligence provider it can query. See the <a href="terms.html">terms of use</a>.</p>
+</article>
+</main>
+<footer class="wrap doc-foot">
+  <span>MIT licence</span>
+  <a href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="sr-only"> (opens in a new tab)</span></a>
+</footer>
+</body>
+</html>

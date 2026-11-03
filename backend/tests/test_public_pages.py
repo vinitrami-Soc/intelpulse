@@ -1,4 +1,4 @@
-"""The product, privacy and help pages (spec 9.5): served to anyone, each with its own title and
+"""The product, privacy, help, about and terms pages (spec 9.5): served to anyone, each with its own title and
 description, and offered to search engines only when the owner sets INTELPULSE_INDEX_PUBLIC_PAGES."""
 from __future__ import annotations
 
@@ -35,12 +35,13 @@ async def test_by_default_every_crawler_is_turned_away(browser):
     assert (await browser.get("/sitemap.xml")).status_code == 404
 
 
-async def test_with_indexing_on_the_three_pages_are_offered(browser, monkeypatch):
+async def test_with_indexing_on_the_public_pages_are_offered(browser, monkeypatch):
     monkeypatch.setattr(settings, "index_public_pages", True)
     monkeypatch.setattr(settings, "public_url", "https://intel.example.org/")
     robots = (await browser.get("/robots.txt")).text
     assert robots.splitlines() == ["User-agent: *", "Allow: /product.html", "Allow: /privacy.html",
-                                   "Allow: /help.html", "Disallow: /", "Sitemap: https://intel.example.org/sitemap.xml"]
+                                   "Allow: /help.html", "Allow: /about.html", "Allow: /terms.html", "Disallow: /",
+                                   "Sitemap: https://intel.example.org/sitemap.xml"]
     sitemap = await browser.get("/sitemap.xml")
     assert sitemap.status_code == 200 and sitemap.headers["content-type"].startswith("application/xml")
     locs = re.findall(r"<loc>([^<]+)</loc>", sitemap.text)

@@ -747,7 +747,8 @@ docs.on("pageerror", (e) => docErrors.push(e.message));
 docs.on("console", (m) => { if (m.type() === "error") docErrors.push("console: " + m.text()); });
 docs.on("request", (r) => { if (!r.url().startsWith(new URL(BASE).origin) && !r.url().startsWith("data:")) offsite.push(r.url()); });
 const described = new Set();
-for (const [file, label] of [["product.html", "Product"], ["privacy.html", "Privacy"], ["help.html", "Help"]]) {
+for (const [file, label] of [["product.html", "Product"], ["privacy.html", "Privacy"], ["help.html", "Help"],
+  ["about.html", "About"], ["terms.html", "Terms"]]) {
   const answer = await docs.goto(BASE + file, { waitUntil: "load" });
   const facts = await docs.evaluate(() => ({
     title: document.title,
@@ -768,7 +769,7 @@ for (const [file, label] of [["product.html", "Product"], ["privacy.html", "Priv
   }
   await docs.setViewportSize({ width: 1440, height: 1000 });
 }
-check("each page has a description of its own", described.size === 3);
+check("each page has a description of its own", described.size === 5, described.size + " descriptions");
 
 await docs.keyboard.press("Tab");
 check("the first Tab on a page reaches its skip link",
@@ -785,14 +786,16 @@ const linkInk = await docs.evaluate(() => {
 check("links in a dark page take the light flame", linkInk === "rgb(255, 143, 107)", linkInk);
 await docs.evaluate(() => localStorage.removeItem("ip:theme"));
 
-for (const [hash, file] of [["#/product", "product.html"], ["#/privacy", "privacy.html"], ["#/help", "help.html"]]) {
+for (const [hash, file] of [["#/product", "product.html"], ["#/privacy", "privacy.html"], ["#/help", "help.html"],
+  ["#/about", "about.html"], ["#/terms", "terms.html"]]) {
   await docs.goto(BASE + hash, { waitUntil: "domcontentloaded" });
   await docs.waitForURL((url) => url.pathname.endsWith("/" + file), { timeout: 5000 }).catch(() => {});
   check(hash + " forwards to " + file, new URL(docs.url()).pathname.endsWith("/" + file), docs.url());
 }
 await docs.goto(BASE, { waitUntil: "domcontentloaded" });
-check("the site's footer links all three pages",
-  await docs.evaluate(() => ["product.html", "privacy.html", "help.html"].every((h) => document.querySelector('footer a[href="' + h + '"]'))));
+check("the site's footer links all five pages",
+  await docs.evaluate(() => ["product.html", "privacy.html", "help.html", "about.html", "terms.html"]
+    .every((h) => document.querySelector('footer a[href="' + h + '"]'))));
 check("the pages load nothing from another host", offsite.length === 0, offsite.slice(0, 3).join(" | "));
 check("the pages raise no script errors", docErrors.length === 0, docErrors.slice(0, 3).join(" | "));
 await docs.close();

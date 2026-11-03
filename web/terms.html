@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms · IntelPulse</title>
+<meta name="description" content="The terms of use for IntelPulse and its demo: the MIT licence, fair use, the intelligence providers' own terms, verdicts as decision support, running your own server, and no warranty.">
+<meta name="theme-color" content="#f6f7f9">
+<!-- A plain document: no script but assets/pages.js (the visitor's theme), nothing fetched. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Terms · IntelPulse">
+<meta property="og:description" content="The terms of use for IntelPulse and its demo: the MIT licence, fair use, the intelligence providers' own terms, verdicts as decision support, running your own server, and no warranty.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/suite.css">
+<script src="assets/pages.js"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the content</a>
+<header class="wrap doc-top">
+  <a class="brand" href="index.html">
+    <span class="mk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <b translate="no">IntelPulse</b>
+  </a>
+  <nav class="doc-nav" aria-label="About IntelPulse">
+    <a href="product.html">Product</a>
+    <a href="about.html">About</a>
+    <a href="help.html">Help</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html" aria-current="page">Terms</a>
+    <a href="index.html#/console">Open the console</a>
+  </nav>
+</header>
+<main id="doc" class="wrap doc" tabindex="-1">
+<article class="doc-body">
+<p class="eyebrow">Terms</p>
+<h1>Terms of use</h1>
+<p class="lede">These terms cover the IntelPulse software and its public demo, and are meant to be read in one
+  sitting. They are not legal advice. A server someone else runs is theirs, and they may set terms of their own.</p>
+
+<h2>1. The software</h2>
+<p>IntelPulse is free and open source under the <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/LICENSE" target="_blank"
+  rel="noopener noreferrer">MIT licence<span class="sr-only"> (opens GitHub in a new tab)</span></a>. You may use, copy, change and share it, commercially too,
+  as long as the copyright and licence notice go with it. The licence text is what governs; this page only
+  explains it.</p>
+
+<h2>2. The demo</h2>
+<ul>
+  <li>The demo runs in your browser on synthetic data. It has no server and no accounts, and it sends nothing you
+    paste anywhere.</li>
+  <li>It keeps your recent demo cases and lists in your browser's own storage, on your device, until you clear
+    them. GitHub, which hosts the demo's files, may keep its own request logs under its own terms.</li>
+  <li>It is for trying IntelPulse. Its verdicts come from a bundled sample dataset, not from live intelligence,
+    so do not act on them.</li>
+</ul>
+
+<h2>3. Using it fairly</h2>
+<ul>
+  <li>Use IntelPulse on alerts, logs and indicators you are allowed to handle, to defend systems you are
+    responsible for.</li>
+  <li>Do not use it to attack, scan or harass anyone, or to break the law where you or your server are.</li>
+  <li>Stay within the terms and the rate limits of every intelligence provider you connect.</li>
+</ul>
+
+<h2>4. Intelligence providers</h2>
+<p>IntelPulse can query AbuseIPDB, AlienVault OTX, GreyNoise, ThreatFox and URLhaus with API keys a workspace adds
+  itself, and it reads offline datasets such as MaxMind GeoLite2, FireHOL, Feodo Tracker, CISA's catalogue of
+  known exploited vulnerabilities and NVD. Each has terms of its own, and using a key or a dataset means accepting
+  them. IntelPulse is not affiliated with, endorsed or sponsored by any of them; their names are used only to say
+  what it connects to.</p>
+
+<h2>5. A verdict supports a decision</h2>
+<p>A score is a weighted composite of what the sources said, and a source can be wrong, late or missing.
+  IntelPulse shows its working so that an analyst can check it. Review a verdict before you block, isolate or
+  report anything on the strength of it, and treat a low-confidence verdict as provisional.</p>
+
+<h2>6. Running your own server</h2>
+<p>Whoever runs an IntelPulse server is responsible for it: who may sign in, the data its workspaces bring, its
+  keys and backups, and the law it operates under. The <a href="privacy.html">privacy page</a> says what the
+  software itself stores and sends, and the <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/docs/DEPLOY.md" target="_blank"
+  rel="noopener noreferrer">deploy guide<span class="sr-only"> (opens GitHub in a new tab)</span></a> how to run it safely.</p>
+
+<h2>7. No warranty</h2>
+<p>As the MIT licence says, IntelPulse is provided "as is", without warranty of any kind, and its authors are not
+  liable for any claim, damages or other liability arising from it or its use. Keep your own backups, and try a
+  change on a test server before relying on it.</p>
+
+<h2>8. Changes and questions</h2>
+<p>These terms can change with a release; the date below says when they last did, and every change is in the
+  project's history. For a question about them, <a href="https://github.com/vinitrami-Soc/intelpulse/issues" target="_blank"
+  rel="noopener noreferrer">open an issue<span class="sr-only"> (opens GitHub in a new tab)</span></a>. Report a security issue privately, as the
+  <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">security policy<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  asks.</p>
+<p class="doc-meta">Last updated 3 November 2026, for IntelPulse 2.0.</p>
+</article>
+</main>
+<footer class="wrap doc-foot">
+  <span>MIT licence</span>
+  <a href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="sr-only"> (opens in a new tab)</span></a>
+</footer>
+</body>
+</html>
