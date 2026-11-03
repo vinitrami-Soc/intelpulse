@@ -173,9 +173,25 @@ JSON report are the public interface.
   and what it sends to the providers a workspace turned on. A server answers `robots.txt` with
   `Disallow: /` unless `INTELPULSE_INDEX_PUBLIC_PAGES=true`, which allows the three pages and
   serves `sitemap.xml` for them.
+- **The deploy kit** (`deploy/`, [DEPLOY.md](docs/DEPLOY.md), [SERVER.md](docs/SERVER.md)): Compose
+  with Postgres 16, Redis 7, the app, the worker, beat and a Cloudflare Tunnel; `setup.sh` (writes
+  `deploy/.env` with fresh secrets, never over existing ones, starts everything, prints the setup
+  code), `update.sh`, `backup.sh`, `restore.sh`, and `smoke.py`, which signs an account up, triages a
+  sample and checks the verdict against any address. The containers run read-only with no
+  capabilities, and the app is published on `127.0.0.1` only. CI runs the kit on Docker on every
+  pull request: setup, the smoke test, a backup and a restore. `CLIENT_IP_HEADER` reads the client's
+  address from one trusted header (`CF-Connecting-IP` behind the tunnel), and a write from the
+  origin of `PUBLIC_URL` counts as the server's own, since behind a tunnel the app sees `http://`.
 
 ### Fixed
 
+- **Sign-up on Postgres.** The default organization is inserted as workspace 1, which Postgres does
+  not count against the id sequence, so the first workspace made after it (the first sign-up)
+  failed on the primary key with a 500. Migration 0009 moves every id sequence past its table's
+  highest id. SQLite never had the problem, which is why only running the deploy kit found it.
+- **The worker and beat with a fresh install.** kombu 5.7 moved `packaging`, which its Redis
+  transport imports, under its `redis` extra; a fresh `pip install` left it out and the worker and
+  beat crashed at start. `requirements.txt` pins `celery[redis]`.
 - **The workbench no longer keeps a server's cases in the browser.** On a server it kept the last
   25 case titles and verdicts, and every indicator it had triaged, in `localStorage`, where they
   outlived signing out and were shown to the next person on the same browser. The history now comes

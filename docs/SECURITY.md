@@ -154,7 +154,12 @@ Per-client sliding windows, sized by what an endpoint actually costs:
 Exceeding a bucket returns `429` with `Retry-After` and `X-RateLimit-*`.
 `X-Forwarded-For` is **ignored unless `TRUST_FORWARDED_FOR=true`**: trusting it
 without a proxy in front hands every attacker an unlimited supply of
-identities.
+identities. Behind Cloudflare, even trusting it is wrong: Cloudflare appends
+the client to whatever `X-Forwarded-For` the client sent, so the first entry
+is the client's to choose. `CLIENT_IP_HEADER=CF-Connecting-IP` reads the one
+header Cloudflare alone sets instead; the deploy kit sets it, and publishes
+the app on `127.0.0.1` only, so nothing but the tunnel can reach the app to
+forge that header either.
 
 Triage spends the server's provider quota, which every workspace shares, so
 the triage routes and `POST /api/alerts` also pass two budgets
@@ -261,6 +266,22 @@ The API image runs as an unprivileged user (uid 10001), with a healthcheck and
 no build toolchain in the final layer. Secrets come from `.env` at runtime,
 never from the image.
 
+
+The deploy kit (`deploy/compose.yml`) runs the app, the worker and beat with a
+read-only root filesystem (they write only to the data volume and `/tmp`),
+every Linux capability dropped and `no-new-privileges`. Postgres and Redis
+publish no port, the app only `127.0.0.1:8000`; the Cloudflare Tunnel is the
+way in from outside, so the machine needs no open inbound port.
+`deploy/.env` is written mode 600 and is kept out of git and of the image's
+build context. `tests/test_deploy_kit.py` holds the kit to all of this.
+
+### Writes from behind a tunnel
+
+The origin guard refuses a browser write whose `Origin` is not the server's
+own. Behind the tunnel the app sees `http://` while the browser is on
+`https://`, so the origin of `PUBLIC_URL` counts as the server's own as well,
+compared exactly (scheme, host and port): `http://` of the same host, or a
+lookalike host, is still refused (`tests/test_behind_a_proxy.py`).
 ---
 
 ## Frontend controls

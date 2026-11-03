@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     # Only enable behind a proxy you control: otherwise any client can forge
     # X-Forwarded-For and mint a fresh rate-limit identity per request.
     trust_forwarded_for: bool = False
+    # With TRUST_FORWARDED_FOR, read the client's address from this one header instead of
+    # X-Forwarded-For: behind Cloudflare, CF-Connecting-IP is set by Cloudflare alone, while the
+    # first X-Forwarded-For entry is whatever the client sent.
+    client_ip_header: str = ""
     json_logs: bool = True
 
     # --- offline datasets --------------------------------------------------
