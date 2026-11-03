@@ -55,6 +55,7 @@ class Actor:
     owner: bool = False
     csrf: str = ""       # the session's CSRF token, when via is "session"
     session_id: str = ""
+    token_id: int | None = None          # when via is "token"
     must_change_password: bool = False   # an admin set it: only the profile is open until it changes
 
     @property
@@ -200,7 +201,8 @@ async def find_token(db: AsyncSession, value: str) -> Actor | None:
     if row.expires_at is not None and utcnow() >= _aware(row.expires_at):
         return None
     row.last_used_at = utcnow()
-    return Actor(workspace_id=row.workspace_id, via="token", scope=row.scope, label=f"token:{row.name}")
+    return Actor(workspace_id=row.workspace_id, via="token", scope=row.scope, label=f"token:{row.name}",
+                 token_id=row.id)
 
 
 # -- login throttle ----------------------------------------------------------------

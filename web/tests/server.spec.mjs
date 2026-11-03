@@ -237,6 +237,11 @@ await page.check("#sv-srv-signup");
 await page.click("#sv-srv button[type=submit]");
 await page.waitForFunction(() => /Sign-up is open/.test(document.querySelector("#sv-srv-now")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
 check("the owner opens sign-up from the Server pane", (await api("/api/server")).body.signup === true);
+check("the Server pane shows each workspace's triage budget", await page.inputValue("#sv-srv-budget") === "500");
+await page.fill("#sv-srv-budget", "750");
+await page.click("#sv-srv button[type=submit]");
+await page.waitForFunction(() => /Saved/.test(document.querySelector("#sv-srv-status")?.textContent || ""), null, { timeout: 5000 }).catch(() => {});
+check("the owner sets the triage budget from the Server pane", (await api("/api/server")).body.triage_daily_budget === 750);
 
 await view("settings", "#st-providers [data-provider]");
 await page.uncheck('[data-provider="otx"]');

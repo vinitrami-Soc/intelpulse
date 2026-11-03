@@ -15,6 +15,9 @@ SIGNUP = "signup_enabled"
 SIGNUP_CAP = "signup_daily_cap"
 CAP_DEFAULT = 100
 CAP_RANGE = (0, 100_000)
+TRIAGE_BUDGET = "triage_daily_budget"
+BUDGET_DEFAULT = 500
+BUDGET_RANGE = (1, 1_000_000)
 
 
 async def signup_open(db: AsyncSession) -> bool:
@@ -26,6 +29,13 @@ async def signup_cap(db: AsyncSession) -> int:
     value = await store.get_value(db, SERVER, SIGNUP_CAP, CAP_DEFAULT)
     return value if isinstance(value, int) and not isinstance(value, bool) and CAP_RANGE[0] <= value <= CAP_RANGE[1] \
         else CAP_DEFAULT
+
+
+async def triage_budget(db: AsyncSession) -> int:
+    """Triages and pushed alerts each workspace may run in 24 hours."""
+    value = await store.get_value(db, SERVER, TRIAGE_BUDGET, BUDGET_DEFAULT)
+    ok = isinstance(value, int) and not isinstance(value, bool) and BUDGET_RANGE[0] <= value <= BUDGET_RANGE[1]
+    return value if ok else BUDGET_DEFAULT
 
 
 async def signups_today(db: AsyncSession) -> int:
@@ -41,6 +51,7 @@ async def describe(db: AsyncSession) -> dict[str, Any]:
         "signup": await signup_open(db),
         "signup_daily_cap": await signup_cap(db),
         "signups_today": await signups_today(db),
+        "triage_daily_budget": await triage_budget(db),
         "workspaces": (await db.execute(select(func.count(Workspace.id)))).scalar_one(),
         "users": (await db.execute(select(func.count(User.id)))).scalar_one(),
     }

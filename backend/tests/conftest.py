@@ -70,6 +70,7 @@ async def client(clean_db):
     """The API as a 1.x script calls it: with the API_TOKEN, in the default organization."""
     await init_db()
     login_throttle.clear()
+    limiter._hits.clear()
     transport = ASGITransport(app=app)
     headers = {"Authorization": f"Bearer {LEGACY_TOKEN}"}
     async with AsyncClient(transport=transport, base_url="http://test", headers=headers) as async_client:

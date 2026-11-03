@@ -27,6 +27,7 @@ from ..models import Case, PushedAlert
 from ..platform import audit
 from ..platform.auth import Actor
 from ..platform.box import server_box
+from ..platform.budget import spend_triage
 from ..platform.deps import require_actor
 from ..reporting import ticket_level
 from ..schemas import AlertIn, AlertOut
@@ -92,6 +93,7 @@ async def receive_alert(
     response: Response,
     actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
+    _budget: None = Depends(spend_triage),
 ) -> AlertOut:
     """Triage a pushed alert into a case (201), or return the case an earlier push made (200)."""
     earlier = (
