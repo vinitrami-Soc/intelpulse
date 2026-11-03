@@ -10,14 +10,14 @@ from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_session
-from ..models import SERVER, AuditLog, Case, IndicatorResult, PushedAlert, User
+from ..models import SERVER, AuditLog, Case, CaseInput, IndicatorResult, PushedAlert, User
 from ..platform import audit, scope
 from ..platform.auth import Actor
 from ..platform.box import server_box
 from ..platform.deps import require_actor, require_admin, require_member
 from ..platform.errors import ApiError
 from ..schemas import CaseSummary, CaseUpdate
-from ..services import views, workflow
+from ..services import case_inputs, views, workflow
 from ..services import workspace_settings as ws_settings
 from ..services.reports import alert_for, case_json, case_markdown
 from ..services.tickets import TicketError, create_ticket
@@ -121,7 +121,10 @@ async def get_case(
         "analyst": case.analyst,
         "duration_ms": case.duration_ms,
         "created_at": case.created_at.isoformat() if case.created_at else None,
-        "raw_input": case.raw_input,
+        # tier 1: the paste for its own analyst or an admin; null once deleted
+        "raw_input": ((await case_inputs.read(session, case.id)) or {}).get("raw_input")
+        if case_inputs.may_read_raw(actor, case) else None,
+        "input_deleted_at": workflow.iso(case.input_deleted_at),
         "indicator_count": case.indicator_count,
         "indicators": [row.payload for row in rows],
         # What a SIEM pushed, when the case came in through /api/alerts; otherwise null.
@@ -206,6 +209,7 @@ async def delete_case(
     # SQLite does not enforce the foreign keys here, so the pushed alert goes by hand: left
     # behind, it would make a re-push of the same alert point at a case that is gone.
     await session.execute(delete(PushedAlert).where(PushedAlert.case_id == case_id))
+    await session.execute(delete(CaseInput).where(CaseInput.case_id == case_id))
     await session.execute(delete(Case).where(Case.id == case_id))
     await audit.record(session, action="case.deleted", actor=actor.label,
                        workspace_id=actor.workspace_id, target=case_id)

@@ -272,6 +272,14 @@ curl -s -X POST localhost:8000/api/alerts -H 'Content-Type: application/json' -d
 | `assignee` | `me`, `none`, or a member's id |
 | `since`, `until` | Created at or after, and before (ISO 8601) |
 
+**What a case was made from** (tier 1, spec 6.3) is kept sealed apart from the case: the paste or the
+uploaded file's text, and a pushed alert's description and evidence text. `GET /api/cases/{id}`
+returns the paste as `raw_input` to the analyst who made the case and to an admin (and to API tokens
+and the 1.x `API_TOKEN`, which read what they could before); any other member gets `null` and the
+rest of the case. A pushed alert's description and evidence are shown to every member, since the
+team works the case from them. Once the input is deleted, `input_deleted_at` says when, and the
+report says it was deleted under the retention policy instead of quoting the evidence.
+
 Each row also carries `status`, `assignee` (`id`, `username`, `display_name` or `null`),
 `closed_reason`, `closed_at` and `ticket_count`; a 1.x client reads the fields it always did.
 

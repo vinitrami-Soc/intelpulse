@@ -29,7 +29,7 @@ from ..platform import audit
 from ..platform.box import server_box
 from ..reporting import containment_actions, executive_summary
 from ..scoring import IndicatorVerdict, case_verdict, score_indicator
-from . import workspace_settings
+from . import case_inputs, workspace_settings
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +206,7 @@ async def persist_case(
     workspace_id: int,
     created_by: int | None = None,
     raw_input: str | None = None,
+    alert_input: dict | None = None,
     source: str = "api",
     analyst: str | None = None,
     actor: str = "anonymous",
@@ -217,13 +218,14 @@ async def persist_case(
         title=outcome.title,
         source=source,
         analyst=analyst,
-        raw_input=(raw_input or "")[:20_000] or None,
         verdict=outcome.verdict,
         max_score=outcome.score,
         indicator_count=len(outcome.verdicts),
         duration_ms=outcome.duration_ms,
     )
     session.add(case)
+    # tier 1, sealed apart from the case (spec 6.3)
+    await case_inputs.store(session, case, raw_input=(raw_input or "")[:20_000] or None, alert=alert_input)
 
     payload = outcome.as_dict()
     payload_by_value = {item["value"]: item for item in payload["indicators"]}

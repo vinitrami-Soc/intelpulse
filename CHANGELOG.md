@@ -141,6 +141,13 @@ JSON report are the public interface.
   `email_tokens`. Delivery uses the standard library's SMTP client; a mail server that is down
   changes no answer.
 
+- **Tier 1 sealed.** What a case was made from (the paste or uploaded file's text, a pushed alert's
+  description and evidence text) is sealed with the server's key in a new `case_inputs` table,
+  bound to its case, with the SHA-256 of what was sealed. Migration 0007 moves every existing row
+  there and drops `cases.raw_input`. The paste is read by the analyst who made the case and by
+  admins; the alert's text by the whole team. `input_deleted_at` and the reports are ready for
+  the retention sweep: a report rendered after the input is gone says it was deleted, and when.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).

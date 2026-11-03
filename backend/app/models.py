@@ -127,7 +127,6 @@ class Case(Base):
     title: Mapped[str] = mapped_column(String(200), default="Untitled triage")
     source: Mapped[str] = mapped_column(String(40), default="manual")  # manual|paste|upload|api
     analyst: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    raw_input: Mapped[str | None] = mapped_column(Text, nullable=True)
     verdict: Mapped[str] = mapped_column(String(20), default="informational")
     max_score: Mapped[int] = mapped_column(Integer, default=0)
     indicator_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -140,6 +139,8 @@ class Case(Base):
     )
     closed_reason: Mapped[str | None] = mapped_column(String(20), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # tier 1 (spec 6.3) lives sealed in case_inputs; this says when it was deleted, if it was
+    input_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     indicators: Mapped[list[IndicatorResult]] = relationship(
         back_populates="case", cascade="all, delete-orphan", lazy="selectin"
@@ -337,3 +338,16 @@ class EmailToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class CaseInput(Base):
+    """A case's tier 1 (spec 6.3): the paste, or a pushed alert's description and evidence text,
+    sealed with the server's key and bound to its case. `sha256` names it once it is gone."""
+
+    __tablename__ = "case_inputs"
+
+    case_id: Mapped[str] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    sealed: Mapped[bytes] = mapped_column(LargeBinary)
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

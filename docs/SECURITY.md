@@ -326,3 +326,15 @@ node web/tests/security.spec.mjs        # hostile API, poisoned storage, CSP, ta
 
 Please report vulnerabilities privately, not as a public issue: the policy, the
 scope and the private reporting link are in [`SECURITY.md`](../SECURITY.md).
+
+## Tier 1: what a case was made from
+
+The paste or uploaded file's text, and a pushed alert's description and evidence text, are sealed
+with `ENCRYPTION_KEY` (AES-256-GCM, a fresh nonce each time) into `case_inputs`, bound to their case
+(`case_inputs:sealed:<case id>` is the associated data, so a value copied to another case's row does
+not open), with the SHA-256 of what was sealed beside them. A database backup without the key does
+not show them. Migration 0007 moved every 1.x paste and alert text there and dropped
+`cases.raw_input`; downgrading opens them and puts them back. Everything else about a case (the
+verdict, indicators, provider answers, the alert's source, severity, entities and techniques) is
+tier 2. `tests/test_case_inputs.py` covers the sealing, the binding, who reads the paste, the report
+after deletion, and the migration both ways.
