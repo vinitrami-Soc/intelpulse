@@ -1293,11 +1293,26 @@
   ];
   const cg = { year: 2024, layout: "radial", k: 1, tx: 0, ty: 0, sev: 0, focus: null };
 
-  function graphBody() {
+  /* What the graph draws. The demo's is the synthetic campaign above; on a server
+     console-server.js hands over one of the workspace's own campaigns in the same
+     shape, with `members` naming each cluster's real cases. Every text in it is
+     escaped or set as text where it is drawn; numbers are the caller's to make finite. */
+  const SAMPLE = {
+    hub: { label: "IR-2026-114", sub: "active campaign", seen: 2016, sev: "critical" },
+    title: "IR-2026-114 · what the campaign is built from",
+    aria: "Relationship graph of a synthetic threat campaign",
+    note: "Synthetic dataset: RFC 5737 addresses, RFC 2606 names and invented family names. No live vendor data.",
+    clusters: CLUSTERS, links: LINKS, years: YEARS, members: null
+  };
+  const dataOf = (data) => (data && Array.isArray(data.clusters) && Array.isArray(data.years) && data.years.length ? data : SAMPLE);
+
+  function graphBody(data) {
+    const D = dataOf(data);
+    if (!D.years.includes(cg.year)) cg.year = D.years[D.years.length - 1];
     return '<div class="cg" data-cg>' +
       '<div class="kpis cg-kpis" id="cg-kpis"></div>' +
       '<section class="card panel cg-panel">' +
-        '<div class="panel-head"><h4>IR-2026-114 · what the campaign is built from</h4>' +
+        '<div class="panel-head"><h4>' + esc(D.title) + "</h4>" +
           '<div class="cg-tools" role="toolbar" aria-label="Graph view">' +
             '<div class="seg" role="group" aria-label="Layout">' +
               '<button type="button" data-layout="radial" aria-pressed="' + (cg.layout === "radial") + '">Radial</button>' +
@@ -1313,26 +1328,30 @@
           "</div></div>" +
         '<div class="cg-stage" id="cg-stage" tabindex="0" aria-describedby="cg-hint" ' +
           'aria-label="Campaign graph. Arrow keys move it, plus and minus zoom, 0 fits it back.">' +
-          '<svg class="cg-svg" id="cg-svg" role="img" aria-label="Relationship graph of a synthetic threat campaign"></svg>' +
+          '<svg class="cg-svg" id="cg-svg" role="img" aria-label="' + esc(D.aria) + '"></svg>' +
           '<div class="cg-readout" id="cg-readout" role="status" aria-live="polite"></div>' +
           '<p class="cg-hint" id="cg-hint">Drag to move · Ctrl + scroll or pinch to zoom · hover any dot</p>' +
         "</div>" +
         '<div class="cg-foot">' +
           '<div class="cg-legend" id="cg-legend" aria-label="Legend"></div>' +
-          '<div class="cg-years"><span class="label-xs" id="cg-years-label">First seen up to</span>' +
+          /* one year has no timeline to step through */
+          '<div class="cg-years"' + (D.years.length < 2 ? " hidden" : "") + '><span class="label-xs" id="cg-years-label">First seen up to</span>' +
             '<div class="seg cg-year-seg" role="group" aria-labelledby="cg-years-label">' +
-              YEARS.map((y) => '<button type="button" data-year="' + y + '" aria-pressed="' + (y === cg.year) + '">' + y + "</button>").join("") +
+              D.years.map((y) => '<button type="button" data-year="' + y + '" aria-pressed="' + (y === cg.year) + '">' + y + "</button>").join("") +
             "</div>" +
             '<button type="button" class="btn btn-light btn-sm" data-play>Play the timeline</button></div>' +
         "</div>" +
-        '<p class="wb-hint">Synthetic dataset: RFC 5737 addresses, RFC 2606 names and invented family names. No live vendor data.</p>' +
+        '<p class="wb-hint">' + esc(D.note) + "</p>" +
       "</section>" +
       '<section class="card panel"><div class="panel-head"><h4>Every cluster in view</h4></div>' +
         '<div id="cg-table"></div></section>' +
     "</div>";
   }
 
-  function mountGraph(root, ctx) {
+  function mountGraph(root, ctx, data) {
+    const D = dataOf(data);
+    const LAST = D.years[D.years.length - 1];
+    if (!D.years.includes(cg.year)) cg.year = LAST;
     const go = (ctx && ctx.go) || ((h) => { location.hash = h; });
     const svgNS = "http://www.w3.org/2000/svg";
     const stage = $("#cg-stage", root), svg = $("#cg-svg", root), readout = $("#cg-readout", root);
@@ -1347,12 +1366,14 @@
     };
     const rnd = (seed) => { const x = Math.sin(seed * 9973) * 43758.5453; return x - Math.floor(x); };
     const hex = (seed, n) => Array.from({ length: n }, (_, i) => Math.floor(rnd(seed * 7 + i) * 16).toString(16)).join("");
-    const visible = () => CLUSTERS.filter((c) => c.seen <= cg.year && SEV_STEPS[cg.sev].keep(c));
+    const visible = () => D.clusters.filter((c) => c.seen <= cg.year && SEV_STEPS[cg.sev].keep(c));
 
     /* A member is a real-looking thing a cluster is made of, still synthetic:
        RFC 5737 addresses, RFC 2606 names, hashes made up from a seed. These
        used to be dots with nothing behind them, which is why they felt dead. */
     function member(cluster, n) {
+      const named = D.members && D.members[cluster.id];
+      if (named) return String(named[n] == null ? "" : named[n]);
       const s = cluster.id.length * 101 + n * 13;
       const byId = {
         ioc1: () => "203.0.113." + ((17 + n * 29) % 240 + 10),
@@ -1391,8 +1412,8 @@
       const base = Math.min(W, H) * 0.30;
       const nodes = [], edges = [];
       const live = visible();
-      nodes.push({ id: "hub", label: "IR-2026-114", sub: "active campaign", kind: "hub", x: cx, y: cy,
-        r: 16, pct: 100, seen: 2016, sev: "critical", nodes: live.length });
+      nodes.push({ id: "hub", label: D.hub.label, sub: D.hub.sub, kind: "hub", x: cx, y: cy,
+        r: 16, pct: 100, seen: D.hub.seen, sev: D.hub.sev, nodes: live.length });
       const ordered = cg.layout === "tree" ? live.slice().sort((a, b) => b.pct - a.pct) : live;
       ordered.forEach((cluster, index) => {
         const turn = (index / Math.max(1, ordered.length)) * Math.PI * 2 - Math.PI / 2;
@@ -1407,13 +1428,13 @@
           const ca = angle + (rnd(index * 17 + n) - 0.5) * 1.5;
           const cr = radius * (1.2 + rnd(index * 31 + n) * 0.34);
           nodes.push({ id: cluster.id + "-" + n, kind: cluster.kind, child: true, parent: cluster.id,
-            label: member(cluster, n), sev: cluster.sev, seen: Math.min(2024, cluster.seen + (n % 3)),
+            label: member(cluster, n), sev: cluster.sev, seen: D.members ? cluster.seen : Math.min(LAST, cluster.seen + (n % 3)),
             x: cx + Math.cos(ca) * cr * 1.32, y: cy + Math.sin(ca) * cr * 0.92, r: 2 + rnd(n + index) * 2.2 });
           edges.push({ a: cluster.id, b: cluster.id + "-" + n, kind: "child" });
         }
       });
       const present = new Set(nodes.map((n) => n.id));
-      LINKS.forEach(([a, b]) => { if (present.has(a) && present.has(b)) edges.push({ a, b, kind: "cross" }); });
+      D.links.forEach(([a, b]) => { if (present.has(a) && present.has(b)) edges.push({ a, b, kind: "cross" }); });
       return { nodes, edges, live, index: new Map(nodes.map((n) => [n.id, n])) };
     }
 
@@ -1546,7 +1567,7 @@
     function renderMeta(nodes, live) {
       const counts = { malware: 0, infra: 0, ioc: 0 };
       live.forEach((c) => { counts[c.kind]++; });
-      const links = LINKS.filter(([a, b]) => live.some((c) => c.id === a) && live.some((c) => c.id === b)).length;
+      const links = D.links.filter(([a, b]) => live.some((c) => c.id === a) && live.some((c) => c.id === b)).length;
       const critical = live.filter((c) => c.sev === "critical").length;
       /* Every figure here is counted from the data on screen. The standalone
          page showed "98% coverage", "57% actionable" and "32% unenriched" as
@@ -1555,7 +1576,7 @@
         '<svg><use href="#' + iconId + '"/></svg></span><b>' + label + '</b></div><div class="val num">' + value +
         '</div><div class="kpi-foot"><small>' + note + "</small></div></article>";
       $("#cg-kpis", root).innerHTML =
-        tile("Clusters in view", "i-layers", live.length, "of " + CLUSTERS.length + " up to " + cg.year) +
+        tile("Clusters in view", "i-layers", live.length, "of " + D.clusters.length + " up to " + cg.year) +
         tile("Nodes", "i-target", nodes.length - 1, "clusters and their members") +
         tile("Shared infrastructure", "i-globe", links, "cross-links between clusters") +
         tile("Critical clusters", "i-flag", critical, SEV_STEPS[cg.sev].label.toLowerCase());
@@ -1591,7 +1612,7 @@
       else {
         on.add("hub");
         model.nodes.forEach((n) => { if (n.parent === id) on.add(n.id); });
-        LINKS.forEach(([a, b]) => { if (a === id) on.add(b); if (b === id) on.add(a); });
+        D.links.forEach(([a, b]) => { if (a === id) on.add(b); if (b === id) on.add(a); });
       }
       svg.classList.add("lit");
       $$(".cg-node", svg).forEach((g) => g.classList.toggle("on", on.has(g.dataset.id)));
@@ -1792,12 +1813,12 @@
     }
 
     function play() {
-      if (reduce) { setYear(2024); return; }
+      if (reduce) { setYear(LAST); return; }
       stopPlay();
       let step = 0;
       timer = setInterval(() => {
-        setYear(YEARS[step]);
-        if (++step >= YEARS.length) stopPlay();
+        setYear(D.years[step]);
+        if (++step >= D.years.length) stopPlay();
       }, 320);
     }
     function stopPlay() { if (timer) { clearInterval(timer); timer = null; } }

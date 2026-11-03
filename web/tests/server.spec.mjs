@@ -126,6 +126,15 @@ const view = async (pane, ready) => {
   await page.evaluate((p) => { location.hash = "#/console/" + p; }, pane);
   await page.waitForSelector(ready, { timeout: 8000 }).catch(() => {});
 };
+// two cases that share a blocked address are one campaign, which the graph draws
+const blocked = await api("/api/lists", { method: "POST",
+  body: JSON.stringify({ value: "185.220.101.77", list_type: "block", reason: "server suite" }) });
+check("an admin blocks an address", blocked.status === 201, String(blocked.status));
+for (const title of ["Campaign suite: first", "Campaign suite: second"]) {
+  const run = await api("/api/triage", { method: "POST", body: JSON.stringify({ indicators: ["185.220.101.77"], title }) });
+  check("a case names the blocked address: " + title, run.status === 200 && run.body.verdict !== "informational",
+    run.status + " " + (run.body && run.body.verdict));
+}
 const stats = (await api("/api/stats")).body;
 
 await view("dashboard", "#sv-kpis .kpi");
@@ -188,8 +197,12 @@ check("a workspace with no ticket says how to raise one", /No tickets yet/.test(
 await view("sources", "#sv-sources table");
 const providers = (await api("/api/sources")).body.providers;
 check("the sources view lists every provider the workspace has", (await page.$$eval("#sv-sources tbody tr", (r) => r.length)) === providers.length);
-await view("campaigns", "#sv-campaigns .card");
-check("the campaigns view answers from the workspace", (await page.$$eval("#sv-campaigns .card", (c) => c.length)) >= 1);
+await view("campaigns", "#cg-svg .cg-node");
+check("the campaign graph draws the workspace's own campaign", /185\.220\.101\.77/.test(await text("#cg-table")) &&
+  (await page.$$eval("#cg-svg .cg-node", (nodes) => nodes.length)) >= 2, await text("#cg-table"));
+check("with its cases beneath it, and nothing of the sample",
+  /Campaign suite: first/.test(await text("#sv-campaign-cases")) && /Campaign suite: second/.test(await text("#sv-campaign-cases")) &&
+  !/IR-2026-114|Synthetic dataset/.test(await text("#sv-campaigns")));
 check("one h1 or none on every view: the console's titles are h3", await page.evaluate(() =>
   document.querySelectorAll("#page-console h1").length <= 1));
 
