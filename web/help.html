@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Help · IntelPulse</title>
+<meta name="description" content="How to use IntelPulse: signing in and joining a team, triaging an alert, reading the verdict, working a case, and what admins set up.">
+<meta name="theme-color" content="#f6f7f9">
+<!-- A plain document: no script but assets/pages.js (the visitor's theme), nothing fetched. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Help · IntelPulse">
+<meta property="og:description" content="How to use IntelPulse: signing in and joining a team, triaging an alert, reading the verdict, working a case, and what admins set up.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23fe5729'/><path d='M14 52h16l8-22 12 44 9-30 7 8h20' fill='none' stroke='white' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<link rel="preload" href="assets/fonts/outfit-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/fonts.css">
+<link rel="stylesheet" href="assets/suite.css">
+<script src="assets/pages.js"></script>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to the content</a>
+<header class="wrap doc-top">
+  <a class="brand" href="index.html">
+    <span class="mk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    <b translate="no">IntelPulse</b>
+  </a>
+  <nav class="doc-nav" aria-label="About IntelPulse">
+    <a href="product.html">Product</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="help.html" aria-current="page">Help</a>
+    <a href="index.html#/console">Open the console</a>
+  </nav>
+</header>
+<main id="doc" class="wrap doc" tabindex="-1">
+<article class="doc-body">
+<p class="eyebrow">Help</p>
+<h1>Using IntelPulse</h1>
+<p class="lede">How to get in, triage an alert, read the verdict and work a case. For anything about this server itself
+  (who may join, whether it sends email), ask its owner.</p>
+
+<h2>Getting in</h2>
+<ul>
+  <li><strong>Sign in</strong> with your username and password.</li>
+  <li><strong>Create an account</strong> when the server's owner allows it: choose <em>Just me</em> for a workspace of
+    your own, or <em>My organization</em> to start one your team can join.</li>
+  <li><strong>Join a team</strong> from the invitation link an admin sent you. It works once, within 7 days.</li>
+  <li><strong>Forgot your password?</strong> When the server sends email, <em>Forgot your password</em> mails a link
+    that works once, within an hour, and signs you out everywhere. Otherwise an admin sets a new password for you,
+    and you choose your own the next time you sign in.</li>
+</ul>
+
+<h2>Triage an alert</h2>
+<ol>
+  <li>Open the console and go to the <strong>Workbench</strong>.</li>
+  <li>Paste the alert, the log lines or a list of indicators, or upload a <code>.txt</code>, <code>.log</code>,
+    <code>.csv</code> or <code>.json</code> file of up to 5 MB.</li>
+  <li>Give it a title and press <strong>Run triage</strong>, or <kbd>Ctrl</kbd> + <kbd>Enter</kbd>
+    (<kbd>⌘</kbd> + <kbd>Enter</kbd> on a Mac).</li>
+</ol>
+<p>Private and reserved addresses are dropped on purpose. If nothing is left, the workbench says so.</p>
+
+<h2>Reading the verdict</h2>
+<div class="table-wrap">
+<table class="doc-table">
+  <thead><tr><th scope="col">Score</th><th scope="col">Verdict</th></tr></thead>
+  <tbody>
+    <tr><td data-label="Score">85 to 100</td><td data-label="Verdict">Critical</td></tr>
+    <tr><td data-label="Score">70 to 84</td><td data-label="Verdict">High</td></tr>
+    <tr><td data-label="Score">40 to 69</td><td data-label="Verdict">Medium</td></tr>
+    <tr><td data-label="Score">15 to 39</td><td data-label="Verdict">Low</td></tr>
+    <tr><td data-label="Score">0 to 14</td><td data-label="Verdict">Informational</td></tr>
+  </tbody>
+</table>
+</div>
+<ul>
+  <li>Each indicator's evidence lists every source with what it said. A source that had no key, or did not answer,
+    is shown as such, so a quiet indicator is never mistaken for an unchecked one.</li>
+  <li><strong>Why this score</strong> opens the arithmetic. Confidence is shown apart from the score: few sources
+    agreeing is not the same as many.</li>
+  <li>An indicator on your workspace's allow list scores 0; one on its block list scores at least 90.</li>
+  <li>When an indicator was seen before, the workbench says what changed since.</li>
+</ul>
+
+<h2>Working a case</h2>
+<ul>
+  <li>The <strong>Triage queue</strong> holds open cases by priority. Assign one, move it to <em>in progress</em>,
+    and close it with a reason.</li>
+  <li><strong>Triage history</strong> has every case, with search and filters by status, verdict, source, assignee
+    and date.</li>
+  <li>The ticket downloads as Markdown or JSON, or goes to Jira or ServiceNow once an admin has set them up.</li>
+  <li>An admin can <strong>hold</strong> a case to keep its input past the retention period, and delete a case
+    completely. The analyst who made a case can delete its input sooner.</li>
+</ul>
+
+<h2>For admins</h2>
+<ul>
+  <li><strong>Settings:</strong> which providers are on and their keys, Jira and ServiceNow, the retention period, and
+    the allow and block lists.</li>
+  <li><strong>Team:</strong> members and their roles, invitations, and setting a member's password.</li>
+  <li><strong>API tokens:</strong> a token can <em>read</em>, <em>triage</em>, or <em>ingest</em> (push alerts only).
+    It is shown once, when it is made.</li>
+  <li><strong>Audit:</strong> who did what. <em>Verify chain</em> proves no record was edited or removed.</li>
+</ul>
+
+<h2>Pushing alerts</h2>
+<p>A SIEM or an EDR can send its alerts with an <em>ingest</em> token: <code>POST /api/alerts</code> with the alert's
+  source, ID, title, severity and evidence. Each alert becomes a triaged case; sending the same one again returns the
+  first case. The fields are in the
+  <a href="https://github.com/vinitrami-Soc/intelpulse/blob/main/docs/API.md" target="_blank" rel="noopener noreferrer">API reference<span class="sr-only"> (opens GitHub in a new tab)</span></a>.</p>
+
+<h2>Limits</h2>
+<p>Each person and each token runs at most 30 triages a minute, and each workspace has a daily budget of triages and
+  pushed alerts that the server's owner sets. Past either, the console says when to try again.</p>
+
+<p class="doc-meta">What the server keeps, and for how long: <a href="privacy.html">privacy</a>.</p>
+</article>
+</main>
+<footer class="wrap doc-foot">
+  <span>MIT licence</span>
+  <a href="https://github.com/vinitrami-Soc/intelpulse" target="_blank" rel="noopener noreferrer">Source code<span class="sr-only"> (opens GitHub in a new tab)</span></a>
+  <a href="https://vinitrami-soc.github.io/" target="_blank" rel="noopener noreferrer">Built by Vinit Rami<span class="sr-only"> (opens in a new tab)</span></a>
+</footer>
+</body>
+</html>

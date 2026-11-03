@@ -740,7 +740,13 @@
     window.scrollTo({ top: 0 });
   }
 
+  /* #/product, #/privacy and #/help are documents of their own (product.html ...), so a search
+     engine and a reader without script both get them; the routes forward there. */
+  const DOC_PAGES = { product: "product.html", privacy: "privacy.html", help: "help.html" };
+
   function route() {
+    const parts = hashParts();
+    if (parts.length === 1 && Object.hasOwn(DOC_PAGES, parts[0])) { location.replace(DOC_PAGES[parts[0]]); return; }
     const account = accountFromHash();
     if (account) {
       const session = DATA_SOURCE.session || {};

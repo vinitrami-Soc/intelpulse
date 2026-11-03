@@ -1522,3 +1522,64 @@ button { font-family: inherit; cursor: pointer; }
 @media (pointer: coarse) { .account-choice { min-height: 44px; } }
 
 .sv-gap-sm { margin-top: 6px; }
+.account-links { margin-top: 16px; text-align: center; font-size: 12.5px; color: var(--ink-3); }
+.account-links a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+.account-links a:hover { color: var(--ink); }
+@media (pointer: coarse) { .account-links a { min-height: 44px; display: inline-flex; align-items: center; } }
+
+/* ───────────────────────── product, privacy and help: plain documents (product.html …) */
+.doc-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 20px 8px; }
+.doc-top .brand { padding-right: 0; }
+.doc-top .brand .mk { background: var(--ink); color: var(--paper); }
+.doc-top .brand b { color: var(--ink); }
+.doc-nav { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.doc-nav a {
+  display: inline-flex; align-items: center; padding: 8px 12px; border-radius: var(--r-full);
+  color: var(--ink-2); font-size: 13.5px; font-weight: 500; border: 1px solid transparent;
+  transition: color var(--t-fast), background-color var(--t-fast);
+}
+.doc-nav a:hover { color: var(--ink); background: var(--ground-2); }
+.doc-nav a[aria-current="page"] { color: var(--ink); background: var(--paper); border-color: var(--line); }
+.doc { padding-block: 16px 48px; }
+.doc-body {
+  max-width: 760px; margin-inline: auto; padding: 40px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--r-xl);
+}
+@media (max-width: 640px) { .doc-body { padding: 24px 20px; border-radius: var(--r-lg); } }
+.doc-body h1 { font-size: clamp(28px, 4.4vw, 40px); line-height: 1.1; }
+.doc-body .lede { margin-top: 14px; color: var(--ink-2); font-size: 16px; }
+.doc-body h2 { font-size: 20px; margin-top: 32px; }
+.doc-body h3 { font-size: 15px; margin-top: 20px; }
+.doc-body p { margin-top: 10px; color: var(--ink-2); }
+.doc-body :is(ul, ol) { margin: 10px 0 0; padding-left: 20px; color: var(--ink-2); }
+.doc-body li + li { margin-top: 6px; }
+.doc-body strong { color: var(--ink); font-weight: 600; }
+.doc-body a { color: var(--flame-ink); text-decoration: underline; text-underline-offset: 2px; }
+:root[data-theme="dark"] .doc-body a { color: var(--flame-ink-2); }
+.doc-body code { font-family: var(--mono); font-size: 13px; background: var(--ground-2); padding: 1px 5px; border-radius: 6px; overflow-wrap: anywhere; }
+.doc-body .table-wrap { margin-top: 12px; overflow-x: auto; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.doc-table th, .doc-table td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+.doc-table th { color: var(--ink); font-weight: 600; }
+.doc-table td { color: var(--ink-2); }
+.doc-meta { margin-top: 32px; font-size: 12.5px; color: var(--ink-3); }
+.doc-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.doc-body .doc-cta a { text-decoration: none; }
+.doc-body .doc-cta .btn-dark { color: var(--paper); }
+:root[data-theme="dark"] .doc-body .doc-cta .btn-dark { color: #111; }
+.doc-body .doc-cta .btn-light { color: var(--ink); }
+.doc-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; padding-block: 0 32px; font-size: 12.5px; color: var(--ink-3); }
+.doc-foot a { color: var(--ink-2); }
+.doc-foot a:hover { color: var(--flame-ink); }
+@media (pointer: coarse) { .doc-nav a, .doc-foot a { min-height: 44px; display: inline-flex; align-items: center; } }
+.doc-body kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 6px; background: var(--ground); color: var(--ink); }
+/* On a phone a three-column table is three slivers: each row becomes a card, each cell says what it is. */
+@media (max-width: 560px) {
+  .doc-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .doc-table tr { display: block; padding-block: 10px; border-bottom: 1px solid var(--line); }
+  .doc-table td { display: block; border: 0; padding: 2px 0; }
+  .doc-table td[data-label]::before {
+    content: attr(data-label); display: block; margin-top: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  }
+}

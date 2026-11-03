@@ -315,6 +315,14 @@ never from the image.
   use API tokens instead. The hostile-server test also plays the session
   (a person's and a workspace's names as markup) and checks that no credential
   reaches `localStorage` or `sessionStorage`.
+* **No case in the browser.** On a server the workbench keeps none of the
+  workspace's cases in `localStorage`: the case history comes from
+  `GET /api/cases` and the "what changed" comparison from the API. Until 2.0 it
+  kept the last 25 titles and verdicts and every indicator it had seen there,
+  where they outlived the session and were shown to whoever used the browser
+  next; opening the workbench on a server now deletes what an older version
+  left. The demo still keeps its own sample triages in the browser. The server
+  suite checks that nothing of a case reaches `localStorage`.
 * **Degradation.** A slow or dead backend produces a skeleton, then a message,
   never a frozen page. Tested by aborting every `/api/**` request after 2.5 s.
 

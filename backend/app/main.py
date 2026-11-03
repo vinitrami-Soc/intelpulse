@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from . import web
 from .cache import cache
 from .config import settings
 from .db import init_db, session_scope
@@ -177,6 +178,9 @@ def create_app() -> FastAPI:
             # web/assets/mode.json says "demo" wherever the folder is served as it is;
             # this server answers the same path, so the console knows to sign in (data.js).
             return JSONResponse({"mode": "server"}, headers={"Cache-Control": "no-store"})
+
+        app.add_api_route("/robots.txt", web.robots, methods=["GET"], include_in_schema=False)
+        app.add_api_route("/sitemap.xml", web.sitemap, methods=["GET"], include_in_schema=False)
 
         # Last, so every /api route and /docs are matched first.
         app.mount("/", ConsoleFiles(directory=settings.web_dir, html=True), name="console")
