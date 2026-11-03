@@ -167,7 +167,7 @@ async def sign_up(
         db, kind=body.kind, username=body.username.strip().lower(), password=body.password,
         display_name=body.display_name, organization=body.organization, email=body.email,
     )
-    limiter.record(key)
+    limiter.record(key, 86_400)
     await email_flows.send_confirmation(db, user)
     return await _open(db, response, user)
 
@@ -199,7 +199,7 @@ async def forgot_password(body: Forgot, request: Request, db: AsyncSession = Dep
     if wait:
         raise ApiError(429, "throttled", f"too many requests from this address: try again in {wait // 60 + 1} min",
                        {"Retry-After": str(wait)})
-    limiter.record(key)
+    limiter.record(key, 3600)
     await email_flows.forgot(db, body.login)
     return {"detail": FORGOT_ANSWER}
 

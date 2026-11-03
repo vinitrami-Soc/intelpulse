@@ -53,20 +53,23 @@ class SlidingWindowLimiter:
 
     def __init__(self) -> None:
         self._hits: dict[str, deque[float]] = {}
+        self._windows: dict[str, float] = {}   # each key's own window, so a daily key outlives a minute
         self._last_sweep = 0.0
 
     def _sweep(self, now: float, window: float) -> None:
         if now - self._last_sweep < 30:
             return
         self._last_sweep = now
-        for key in [k for k, v in self._hits.items() if not v or v[-1] < now - window]:
+        for key in [k for k, v in self._hits.items() if not v or v[-1] < now - self._windows.get(k, window)]:
             self._hits.pop(key, None)
+            self._windows.pop(key, None)
 
     def check(self, key: str, limit: int, window: float) -> tuple[bool, int, int]:
         """Returns (allowed, remaining, retry_after_seconds)."""
         now = time.monotonic()
         self._sweep(now, window)
         hits = self._hits.setdefault(key, deque())
+        self._windows[key] = window
         cutoff = now - window
         while hits and hits[0] < cutoff:
             hits.popleft()
@@ -87,7 +90,8 @@ class SlidingWindowLimiter:
             hits.popleft()
         return max(1, int(hits[0] + window - now) + 1) if len(hits) >= limit else 0
 
-    def record(self, key: str) -> None:
+    def record(self, key: str, window: float) -> None:
+        self._windows[key] = window
         self._hits.setdefault(key, deque()).append(time.monotonic())
 
 

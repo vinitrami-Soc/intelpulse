@@ -7,6 +7,7 @@
     python -m app.cli audit verify  # exit 1 if any audit record was changed
     python -m app.cli new-key       # a fresh ENCRYPTION_KEY
     python -m app.cli setup-code    # the one-time code that makes the first account (the owner)
+    python -m app.cli rotate-key    # re-seal everything under NEW_ENCRYPTION_KEY
 """
 from __future__ import annotations
 
@@ -147,6 +148,43 @@ async def _sweep(_args: argparse.Namespace) -> None:
     print(f"{sum(swept.values())} case input(s) past retention deleted, in {len(swept)} workspace(s)")
 
 
+async def _rotate_key(args: argparse.Namespace) -> None:
+    """Re-seal every sealed value under a new key, read from NEW_ENCRYPTION_KEY or a file: never
+    from the command line, where it would stay in the shell's history. Stop the API and the worker
+    first, so nothing is sealed with the old key while this runs."""
+    import os
+    from pathlib import Path
+
+    from .platform import rotation
+    from .platform.crypto import Box
+
+    value = os.environ.get("NEW_ENCRYPTION_KEY", "").strip()
+    if not value and args.new_key_file:
+        try:
+            value = Path(args.new_key_file).read_text(encoding="ascii").strip()
+        except OSError as exc:
+            print(f"--new-key-file could not be read: {exc.strerror}", file=sys.stderr)
+            raise SystemExit(2) from exc
+    if not value:
+        print("set NEW_ENCRYPTION_KEY or pass --new-key-file (new-key prints a fresh key)", file=sys.stderr)
+        raise SystemExit(2)
+    try:
+        new = Box.from_b64(value)
+    except ValueError as exc:
+        print(f"the new key is not usable: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+    old = server_box()
+    await init_db()
+    try:
+        async with session_scope() as session:
+            counts = await rotation.rotate(session, old, new)
+    except rotation.RotationError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+    print(f"{counts['settings']} setting(s) and {counts['case_inputs']} case input(s) are sealed with the new key.")
+    print("Set ENCRYPTION_KEY to the new key, then start the server and the worker again.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="intelpulse")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -189,6 +227,12 @@ def main() -> None:
         "setup-code", help="print the one-time code that creates the owner's account on a new server"
     )
     setup_parser.set_defaults(func=_setup_code)
+
+    rotate_parser = sub.add_parser(
+        "rotate-key", help="re-seal everything under a new key (from NEW_ENCRYPTION_KEY or --new-key-file)"
+    )
+    rotate_parser.add_argument("--new-key-file", default=None, help="a file holding the new key")
+    rotate_parser.set_defaults(func=_rotate_key)
 
     sweep_parser = sub.add_parser(
         "sweep", help="delete case inputs older than each workspace's retention days (held cases stay)"

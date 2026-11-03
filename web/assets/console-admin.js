@@ -690,27 +690,31 @@
   function server() {
     return {
       title: "Server",
-      sub: "Who may sign up, and how many a day.",
+      sub: "Who may sign up, how many a day, and how many triages each workspace runs.",
       body: () => !isOwner()
         ? '<section class="card panel">' + emptyState("Only the owner of this server can change it",
             "The owner set it up; ask them.") + "</section>"
-        : '<section class="card panel" aria-labelledby="sv-srv-h"><div class="panel-head"><h4 id="sv-srv-h">Sign-up</h4></div>' +
+        : '<section class="card panel" aria-labelledby="sv-srv-h"><div class="panel-head"><h4 id="sv-srv-h">Sign-up and budgets</h4></div>' +
             '<div class="wb-hint" id="sv-srv-now">' + loading + "</div>" +
             '<form id="sv-srv" class="sv-grid">' +
               '<label class="sv-check sv-wide-check"><input type="checkbox" name="signup" id="sv-srv-signup"> ' +
                 "Anyone who opens this server may create an account and a workspace</label>" +
               field("sv-srv-cap", "New workspaces a day, at most", 'type="number" name="signup_daily_cap" min="0" max="100000" inputmode="numeric" required',
                 "For the whole server. 0 stops sign-up for today without closing it.") +
+              field("sv-srv-budget", "Triages and pushed alerts a day, for each workspace", 'type="number" name="triage_daily_budget" min="1" max="1000000" inputmode="numeric" required',
+                "Counted over 24 hours, so one workspace cannot spend the providers' quota for all of them.") +
               '<div class="wb-row"><button type="submit" class="btn btn-dark btn-sm">Save</button></div></form>' +
             statusLine("sv-srv-status") +
             '<p class="wb-hint">Each address may sign up three times a day. A new workspace sees only its own cases, ' +
-              "and you do not see theirs.</p></section>",
+              "and you do not see theirs. Each person and each API token also runs a limited number of triages a minute " +
+              "(RATE_LIMIT_USER_TRIAGE, 30 unless the server sets another).</p></section>",
       mount(root) {
         if (!isOwner()) return null;
         const view = life();
         function show(s) {
           $("#sv-srv-signup", root).checked = Boolean(s.signup);
           $("#sv-srv-cap", root).value = whole(s.signup_daily_cap);
+          $("#sv-srv-budget", root).value = whole(s.triage_daily_budget);
           $("#sv-srv-now", root).textContent = (s.signup ? "Sign-up is open. " : "Sign-up is closed. ") +
             whole(s.signups_today) + " new workspace(s) in the last 24 hours; " + whole(s.workspaces) + " workspace(s) and " +
             whole(s.users) + " account(s) on this server.";
@@ -727,7 +731,8 @@
           event.preventDefault();
           const form = event.target;
           act(view, $("#sv-srv-status", root), $("button[type=submit]", form), () => send(view, "/api/server", "PATCH", {
-            signup: $("#sv-srv-signup", root).checked, signup_daily_cap: whole($("#sv-srv-cap", root).value)
+            signup: $("#sv-srv-signup", root).checked, signup_daily_cap: whole($("#sv-srv-cap", root).value),
+            triage_daily_budget: whole($("#sv-srv-budget", root).value)
           }), (answer) => { show(answer || {}); return answer && list(answer.changed).length ? "Saved." : "Nothing changed."; });
         });
         load();

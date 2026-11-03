@@ -120,7 +120,8 @@ async def test_only_the_owner_reads_and_changes_the_server(owner, people):
     reader = await people.token(owner, "read")
     assert (await reader.get("/api/server")).status_code == 403
     server = (await owner.get("/api/server")).json()
-    assert server == {"signup": False, "signup_daily_cap": 100, "signups_today": 0, "workspaces": 1, "users": 2}
+    assert server == {"signup": False, "signup_daily_cap": 100, "signups_today": 0, "triage_daily_budget": 500,
+                      "workspaces": 1, "users": 2}
     assert (await owner.patch("/api/server", json={})).status_code == 422
     assert (await owner.patch("/api/server", json={"signup_daily_cap": -1})).status_code == 422
     assert (await owner.patch("/api/server", json={"colour": "red"})).status_code == 422

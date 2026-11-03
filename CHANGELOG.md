@@ -156,6 +156,13 @@ JSON report are the public interface.
   (`POST/DELETE /api/cases/{id}/hold`) and deletes a case completely, the audit keeping its ID and
   the input's SHA-256. The triage history shows each case's state with Hold, Delete input and
   Delete case controls (the deletes take a second press). Migration 0008 adds `cases.held`.
+- **Triage budgets and key rotation** (milestone M3 ends). Each person and each API token runs at
+  most `RATE_LIMIT_USER_TRIAGE` (30) triages a minute, and each workspace at most the owner's daily
+  budget of triages and pushed alerts (500 until set in the Server pane or with
+  `PATCH /api/server {"triage_daily_budget": ...}`); past either, `429` with `user_rate` or
+  `workspace_budget` and `Retry-After`. `python -m app.cli rotate-key` re-seals every secret and
+  every case's input under the key in `NEW_ENCRYPTION_KEY`, all or nothing, and audits it as
+  `server.key_rotated` ([SECURITY.md](docs/SECURITY.md#rotating-encryption_key)).
 
 ### Changed
 

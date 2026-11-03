@@ -156,6 +156,16 @@ Exceeding a bucket returns `429` with `Retry-After` and `X-RateLimit-*`.
 without a proxy in front hands every attacker an unlimited supply of
 identities.
 
+Triage spends the server's provider quota, which every workspace shares, so
+the triage routes and `POST /api/alerts` also pass two budgets
+(`app/platform/budget.py`): `RATE_LIMIT_USER_TRIAGE` (30) a minute for each
+person and each API token (keyed by the token, not its name), and a daily
+budget for each workspace that the owner sets in the Server pane (500 triages
+and pushed alerts in 24 hours until then). The check runs after the caller is
+known and before anything is spent; a call refused for its session, scope or
+CSRF token costs nothing. Each bucket keeps its own window, so the minute
+sweep never drops a daily count. `tests/test_limits.py` covers both budgets.
+
 ### Payload bounds
 
 * `MAX_REQUEST_BYTES` (1 MiB) on JSON bodies and `MAX_UPLOAD_BYTES` (5 MiB) on
@@ -338,3 +348,23 @@ not show them. Migration 0007 moved every 1.x paste and alert text there and dro
 verdict, indicators, provider answers, the alert's source, severity, entities and techniques) is
 tier 2. `tests/test_case_inputs.py` covers the sealing, the binding, who reads the paste, the report
 after deletion, and the migration both ways.
+
+## Rotating `ENCRYPTION_KEY`
+
+`python -m app.cli rotate-key` opens every sealed value with the current key and seals it again
+with a new one: the settings' secrets (provider keys, tracker credentials, the setup code) and every
+case's tier 1. It runs in one transaction, so if any value does not open with the current key
+nothing is changed, and a half-rotated database (values neither key opens) cannot happen. The new
+key comes from `NEW_ENCRYPTION_KEY` or `--new-key-file`, never from the command line, where it
+would stay in the shell's history; the current key is refused as the new one. The rotation is
+audited as `server.key_rotated` with how many values of each kind it re-sealed.
+
+1. Stop the API and the worker, so nothing is sealed with the old key while the rotation runs.
+2. `python -m app.cli new-key` prints a fresh key.
+3. `NEW_ENCRYPTION_KEY=<the new key> python -m app.cli rotate-key` (with the current
+   `ENCRYPTION_KEY` still set).
+4. Put the new key in `ENCRYPTION_KEY` and start both again. Backups made before the rotation still
+   need the old key: keep it as long as you keep them.
+
+`tests/test_rotate_key.py` covers the re-sealing, the server reading everything on the new key,
+the audit record, the all-or-nothing abort and the command's refusals.

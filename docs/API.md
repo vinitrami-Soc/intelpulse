@@ -381,8 +381,8 @@ The server's own settings are the owner's alone (a signed-in owner; no API token
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/api/server` | `signup`, `signup_daily_cap` (100 until changed), `signups_today` (new workspaces in the last 24 hours), and how many `workspaces` and `users` the server holds |
-| `PATCH` | `/api/server` | `{"signup": true, "signup_daily_cap": 20}`; send only what changes. Audited as `server.updated` |
+| `GET` | `/api/server` | `signup`, `signup_daily_cap` (100 until changed), `signups_today` (new workspaces in the last 24 hours), `triage_daily_budget` (500 until changed, see [Rate limits](#rate-limits)), and how many `workspaces` and `users` the server holds |
+| `PATCH` | `/api/server` | `{"signup": true, "signup_daily_cap": 20, "triage_daily_budget": 1000}`; send only what changes. The budget is 1 to 1,000,000. Audited as `server.updated` |
 
 ## Workspace settings
 
@@ -458,6 +458,19 @@ address and sized by what the endpoint costs:
 Exceeding a bucket returns `429` with `Retry-After`. `X-Forwarded-For` is ignored unless
 `TRUST_FORWARDED_FOR=true` (see [SECURITY.md](SECURITY.md)).
 
+On top of the address buckets, `POST /api/triage`, `/api/triage/upload`, `/api/triage/report` and
+`/api/alerts` spend two budgets, so one person or one workspace cannot use the providers' quota for
+everyone:
+
+| Budget | Default | Refused with |
+| --- | --- | --- |
+| Each person, each API token, and the 1.x `API_TOKEN` | `RATE_LIMIT_USER_TRIAGE` (30) a minute | `429`, `"error": "user_rate"` |
+| Each workspace: triages and pushed alerts together | the owner's `triage_daily_budget` (500) in 24 hours | `429`, `"error": "workspace_budget"` |
+
+Both answer with `Retry-After`. A call refused before it is counted (no session or token, a scope
+that does not cover it, a missing CSRF token) spends nothing; a call that is counted and then
+refused for its body (no indicators, say) still spends one.
+
 ## Security headers
 
 Every response carries `Content-Security-Policy` (`default-src 'none'` on API routes), `X-Frame-Options:
@@ -476,7 +489,7 @@ Refusals from sign-in, roles and tokens carry a stable code beside the sentence:
 | `403` | Beyond the caller's role or token scope (`forbidden`), a missing CSRF token (`csrf`), a wrong setup code, or a browser write from an origin not in `CORS_ORIGINS` |
 | `422` | No usable indicators, neither `text` nor `indicators` supplied, or input over `MAX_INPUT_CHARS` |
 | `413` | Body over `MAX_REQUEST_BYTES` (1 MiB) or upload over `MAX_UPLOAD_BYTES` (5 MiB) |
-| `429` | Rate limit exceeded; honour `Retry-After` |
+| `429` | Rate limit exceeded (`throttled`), or a triage budget spent (`user_rate`, `workspace_budget`); honour `Retry-After` |
 | `404` | Unknown case, list entry, token, feed or CVE, or one that belongs to another workspace |
 | `409` | List entry already exists, the same alert is being pushed by another request at that moment, or the server is set up already |
 

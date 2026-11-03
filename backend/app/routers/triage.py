@@ -11,6 +11,7 @@ from ..config import settings
 from ..db import get_session
 from ..ioc import Indicator, classify, extract, summarise
 from ..platform.auth import Actor
+from ..platform.budget import spend_triage
 from ..platform.deps import require_actor
 from ..reporting import to_markdown, to_ticket_json
 from ..schemas import ExtractRequest, ExtractResponse, TriageRequest, TriageResponse
@@ -73,7 +74,10 @@ async def extract_endpoint(payload: ExtractRequest, _actor: Actor = Depends(requ
 
 @router.post("/triage", response_model=TriageResponse)
 async def triage_endpoint(
-    payload: TriageRequest, actor: Actor = Depends(require_actor), session: AsyncSession = Depends(get_session)
+    payload: TriageRequest,
+    actor: Actor = Depends(require_actor),
+    session: AsyncSession = Depends(get_session),
+    _budget: None = Depends(spend_triage),
 ) -> TriageResponse:
     indicators = _indicators_from_request(payload)
     if not indicators:
@@ -114,6 +118,7 @@ async def triage_upload(
     analyst: str | None = Form(None, max_length=120),
     actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
+    _budget: None = Depends(spend_triage),
 ) -> TriageResponse:
     """Accepts .txt/.log/.csv/.json (including evtx-converted JSON) up to 5 MB."""
     raw = await file.read(settings.max_upload_bytes + 1)
@@ -148,6 +153,7 @@ async def triage_report(
     fmt: str = Query("markdown", pattern="^(markdown|json)$"),
     actor: Actor = Depends(require_actor),
     session: AsyncSession = Depends(get_session),
+    _budget: None = Depends(spend_triage),
 ):
     """Triage and return a ready-to-paste SOC ticket in one call."""
     indicators = _indicators_from_request(payload)
