@@ -15,3 +15,5 @@ backend/data/*.mmdb
 web/tests/
 web/nginx.conf
 docker-compose.yml
+# deploy/: its .env holds the server's secrets, and the image needs none of it
+deploy/

@@ -14,3 +14,6 @@ __pycache__/
 .venv/
 .ruff_cache/
 dist/
+
+# The deploy kit: its secrets and its dumps never leave the machine
+deploy/backups/

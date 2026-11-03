@@ -98,6 +98,14 @@ sealed, and each workspace's lookups spend only its own keys and keep their own 
 No API keys? It still runs. Unconfigured providers report themselves as `skipped` in `/api/health`
 and in every result: the platform never presents a missing source as a clean verdict.
 
+### A server for a team
+
+`deploy/` is the kit for running it for real: Postgres, Redis, the worker and beat, and a Cloudflare
+Tunnel so the machine needs no open port. `./deploy/setup.sh` writes the secrets, starts everything
+and prints the owner's one-time setup code; `deploy/backup.sh`, `restore.sh` and `update.sh` do the
+rest, and `deploy/smoke.py` checks a server end to end. Step by step in [DEPLOY.md](docs/DEPLOY.md);
+running it afterwards in [SERVER.md](docs/SERVER.md).
+
 The API needs a caller. On a new server, `docker compose exec api python -m app.cli setup-code`
 prints a one-time code that creates the owner's account with `POST /api/setup`; the owner then
 makes API tokens for scripts (`read`, `triage` or `ingest`). The 1.x `API_TOKEN` still works for
@@ -108,7 +116,7 @@ the endpoints 1.x had, and is deprecated. Details: [docs/API.md](docs/API.md#sig
 ```bash
 make install                 # venv + dependencies
 make keys                    # once: ENCRYPTION_KEY in .env
-make test                    # 606 tests, no network required
+make test                    # 634 tests, no network required
 make dev                     # http://localhost:8000/docs
 
 make seed                    # optional: bundled sample feed rows for an offline demo
@@ -217,7 +225,7 @@ token is typed into the page: the session cookie and its CSRF token do the work.
 ## Testing
 
 ```bash
-make test        # 606 backend tests: extraction (incl. the 3,400-line corpus), scoring,
+make test        # 634 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
 make test-web    # 61 node tests: engine parity, console model, design and asset guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and

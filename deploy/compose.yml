@@ -1,0 +1,98 @@
+# IntelPulse in production (docs/DEPLOY.md): Postgres, Redis, the app, its Celery worker and
+# beat, and a Cloudflare Tunnel, so the machine needs no open inbound port.
+#
+#   deploy/setup.sh    the first time: writes deploy/.env, builds, starts, prints the setup code
+#   deploy/update.sh   later: backs up, pulls, rebuilds and restarts
+#   deploy/backup.sh   a Postgres dump into deploy/backups/ (put it in cron)
+#   deploy/restore.sh  a dump back into the database
+#   deploy/smoke.py    sign up, triage, get a verdict, against any address
+#
+# Run every docker compose command from the repository root with:
+#   docker compose -f deploy/compose.yml ...
+name: intelpulse
+
+x-app: &app
+  build:
+    context: ..
+  image: intelpulse:local
+  env_file: [.env]
+  environment:
+    DATABASE_URL: postgresql+asyncpg://intelpulse:${POSTGRES_PASSWORD:?run deploy/setup.sh first}@db:5432/intelpulse
+    REDIS_URL: redis://redis:6379/0
+    ENVIRONMENT: production
+  restart: unless-stopped
+  volumes:
+    - app-data:/srv/data
+  # The code is read-only and the process may gain nothing: it writes to /srv/data and /tmp alone.
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: intelpulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run deploy/setup.sh first}
+      POSTGRES_DB: intelpulse
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intelpulse -d intelpulse"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  app:
+    <<: *app
+    # On the machine itself only: the tunnel reaches the app over the compose network, and nothing
+    # else should, because CF-Connecting-IP is trusted as the client's address.
+    ports: ["127.0.0.1:${APP_PORT:-8000}:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    healthcheck: {disable: true}   # the image's healthcheck asks port 8000, which only the app opens
+    depends_on:
+      app: {condition: service_healthy}
+
+  beat:
+    <<: *app
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info",
+              "--schedule", "/tmp/celerybeat-schedule"]
+    healthcheck: {disable: true}
+    depends_on:
+      app: {condition: service_healthy}
+
+  tunnel:
+    image: cloudflare/cloudflared:2025.11.1
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      app: {condition: service_healthy}
+    restart: unless-stopped
+    # Started when deploy/.env says COMPOSE_PROFILES=tunnel (setup.sh writes it with the token).
+    profiles: [tunnel]
+
+volumes:
+  pg-data:
+  redis-data:
+  app-data:

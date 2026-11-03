@@ -13,6 +13,7 @@ import logging
 import time
 import uuid
 from collections import deque
+from urllib.parse import urlsplit
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -37,9 +38,14 @@ def client_ip(request: Request) -> str:
     hands every attacker an unlimited supply of identities. So it is opt-in.
     """
     if settings.trust_forwarded_for:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        if settings.client_ip_header:
+            named = request.headers.get(settings.client_ip_header, "").strip()
+            if named:
+                return named
+        else:
+            forwarded = request.headers.get("x-forwarded-for", "")
+            if forwarded:
+                return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
 
@@ -213,6 +219,12 @@ class BodySizeLimitMiddleware:
                 raise
 
 
+def public_origin() -> set[str]:
+    """The origin of PUBLIC_URL (https://intel.example.org), when it is set."""
+    parts = urlsplit(settings.public_url.strip())
+    return {f"{parts.scheme}://{parts.netloc}"} if parts.scheme in ("http", "https") and parts.netloc else set()
+
+
 class OriginGuardMiddleware(BaseHTTPMiddleware):
     """Refuses state-changing requests a browser sent from someone else's page.
 
@@ -229,9 +241,10 @@ class OriginGuardMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method in WRITE_METHODS and not settings.cors_allows_any:
             origin = request.headers.get("origin")
-            # the API's own pages (/docs) write from the API's own origin
+            # the API's own pages (/docs) write from the API's own origin; behind a tunnel or a
+            # proxy that ends TLS the app sees http://, so the address people use counts too
             own = f"{request.url.scheme}://{request.headers.get('host', '')}"
-            allowed = set(settings.cors_origin_list) | {own}
+            allowed = set(settings.cors_origin_list) | {own} | public_origin()
             if origin is not None:
                 refused = origin == "null" or origin not in allowed   # "null": sandboxed frames, file://
             else:

@@ -24,7 +24,7 @@ asyncpg==0.32.0
 redis==8.1.0
 
 # --- background work ---
-celery==5.6.3
+celery[redis]==5.6.3   # [redis]: kombu 5.7 needs `packaging` for the Redis broker only under this extra
 
 # --- offline datasets ---
 geoip2==5.3.0
