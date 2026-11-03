@@ -1482,3 +1482,26 @@ button { font-family: inherit; cursor: pointer; }
 @media (pointer: coarse) {
   .wb-field.sv-select { min-height: 44px; }
 }
+
+/* the workspace's panes (console-admin.js): forms in a grid, a switch, the token shown once */
+.sv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px 14px; align-items: start; }
+.sv-grid > .wb-row { grid-column: 1 / -1; margin-top: 0; }
+.sv-field { display: grid; gap: 6px; min-width: 0; flex: 1 1 220px; }
+.sv-field .wb-field { width: 100%; flex: none; }
+.sv-field .wb-hint { margin-top: 0; }
+.sv-key { align-items: end; }
+.sv-tracker { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px 14px; }
+.sv-tracker h5 { grid-column: 1 / -1; margin: 0; font-size: 13px; }
+.sv-tracker .wb-row { grid-column: 1 / -1; margin-top: 0; }
+.sv-switch input, .sv-check input { width: 18px; height: 18px; accent-color: var(--flame); }
+.sv-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+.sv-status:empty { display: none; }
+.sv-status { margin-top: 10px; }
+.sv-bad { color: var(--sev-critical); }
+.sv-once { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--ground-2); }
+.sv-once .wb-field { flex: 1 1 280px; }
+.nav-workspace { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.nav-workspace-label { padding: 0 12px 6px; }
+@media (pointer: coarse) {
+  .sv-switch, .sv-check { min-height: 44px; display: inline-flex; align-items: center; }
+}

@@ -732,6 +732,13 @@ check("the theme button works without the wipe",
 check("reduced motion raises no errors", stillErrors.length === 0, stillErrors[0]);
 await still.close();
 
+/* ─────────────────────────────── the demo has no workspace panes */
+await page.evaluate(() => { location.hash = "#/console/settings"; });
+await page.waitForTimeout(500);
+check("the demo opens the overview for a server-only pane's address",
+  await page.evaluate(() => !document.querySelector("#nav-workspace") && !document.querySelector("#st-providers") &&
+    /Welcome back/.test(document.querySelector("#console-body h3")?.textContent || "")));
+
 /* ───────────────────────────────────────────────────────────── errors */
 check("the page raises no script errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 

@@ -36,7 +36,7 @@ const read = (name) => readFileSync(join(assets, name), "utf8");
    it copies to the reference, so a recolour happens in one place. */
 const SUITE_CSS = read("suite.css");
 const TOKENS_CSS = read("tokens.css");
-const SOURCES = ["charts.js", "console-panes.js", "console-server.js", "account.js", "data.js"].map((name) => [name, read(name)]);
+const SOURCES = ["charts.js", "console-panes.js", "console-server.js", "console-admin.js", "account.js", "data.js"].map((name) => [name, read(name)]);
 
 /** Strip comments so a hex quoted in prose does not fail the build. */
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, "");

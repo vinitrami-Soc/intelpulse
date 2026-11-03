@@ -103,6 +103,14 @@ JSON report are the public interface.
   fills them. The header reads Live and the workspace's name on every view, and the assistant
   points to the views instead of quoting the sample. The demo is unchanged.
 
+- **The workspace's panes.** In server mode a Workspace group in the sidebar opens Settings (each
+  source on or off and tested, provider keys set, replaced or removed and shown only as their last
+  four characters, Jira and ServiceNow, retention, allow and block lists), Team (add members with a
+  first password, change roles, disable, reset a password, remove), API tokens (create with a scope
+  and an expiry, shown once to copy, revoke), the Audit log (filters, and Verify the chain for an
+  admin) and Profile (name, email, password). An analyst sees Audit and Profile only. Removing a
+  member or revoking a token takes a second press instead of a dialog. The demo has none of them.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
