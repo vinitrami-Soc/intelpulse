@@ -107,6 +107,9 @@ class Settings(BaseSettings):
     rate_limit_triage: int = 30      # enrichment spends third-party quota
     rate_limit_user_triage: int = 30  # triages a minute for each person or token, on top of the address
     signup_per_address_daily: int = 3  # new accounts one address may make in 24 hours
+    # GET /healthz: the worker's heartbeat may be this old, and this much of the disk must be free
+    healthz_beat_max_age_seconds: int = 300
+    healthz_min_free_percent: float = 5.0
     public_url: str = ""  # where people reach this server, for the links it hands out
     # Email (optional): with SMTP_HOST, SMTP_FROM and PUBLIC_URL set, addresses are confirmed and
     # forgotten passwords reset by email. Without them an admin sets a member's password.
