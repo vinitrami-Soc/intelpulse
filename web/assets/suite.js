@@ -455,19 +455,32 @@
     return { title: pane.title, sub: pane.sub, body: pane.body(), mount: pane.mount };
   }
 
+  /* Signed in to a server, a view reads the workspace's own data
+     (console-server.js). The demo, and a server whose views did not load, keep
+     the sample. Its body() is a function: it is painted once the frame exists. */
+  function serverView(name, sample) {
+    return () => {
+      const views = window.IntelPulseServerViews;
+      const make = signedIn() && views && Object.prototype.hasOwnProperty.call(views, name) ? views[name] : null;
+      if (!make) return sample();
+      const view = make(DATA_SOURCE.session, { sourcesGuide: sourcesMarkup });
+      return { title: view.title, sub: view.sub, body: view.body(), mount: view.mount };
+    };
+  }
+
   /* A Map, not an object literal: the key comes from the URL, and a Map has no
      prototype for "#/console/constructor" or "__proto__" to reach. */
   const PANES = new Map(Object.entries({
-    dashboard: () => ({ title: "Welcome back, analyst", sub: "Remediation efficacy and the attack surface, as of this morning.", body: kpiCards() + panelsMarkup(false) }),
-    surface:   () => ({ title: "Attack surface", sub: "What is reachable, and how much of it is scored.", body: panelsMarkup(false) }),
-    activity:  () => ({ title: "Triage history", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) }),
-    triage:    () => ({ title: "Triage queue", sub: "What needs an analyst next, sorted by composite score.", body: kpiCards() + panelsMarkup(true) }),
-    "all-findings": () => ({ title: "All indicators", sub: "Every indicator across every open case.", body: panelsMarkup(false) }),
-    campaigns: () => interactivePane("graph"),
+    dashboard: serverView("dashboard", () => ({ title: "Welcome back, analyst", sub: "Remediation efficacy and the attack surface, as of this morning.", body: kpiCards() + panelsMarkup(false) })),
+    surface:   serverView("surface", () => ({ title: "Attack surface", sub: "What is reachable, and how much of it is scored.", body: panelsMarkup(false) })),
+    activity:  serverView("activity", () => ({ title: "Triage history", sub: "Every triage this workspace has run, newest first.", body: panelsMarkup(true) })),
+    triage:    serverView("triage", () => ({ title: "Triage queue", sub: "What needs an analyst next, sorted by composite score.", body: kpiCards() + panelsMarkup(true) })),
+    "all-findings": serverView("all-findings", () => ({ title: "All indicators", sub: "Every indicator across every open case.", body: panelsMarkup(false) })),
+    campaigns: serverView("campaigns", () => interactivePane("graph")),
     workbench: () => interactivePane("workbench"),
-    narratives:() => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() }),
-    sources:   () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() }),
-    tickets:   () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() })
+    narratives:serverView("narratives", () => ({ title: "Attack narratives", sub: "The story each campaign tells, in order.", body: kpiCards() })),
+    sources:   serverView("sources", () => ({ title: "Intelligence sources", sub: "The weight and the authority behind every verdict.", body: sourcesMarkup() })),
+    tickets:   serverView("tickets", () => ({ title: "SOC tickets", sub: "Generated tickets and the evidence exported with them.", body: kpiCards() }))
   }));
 
   /* Grey bars standing in for the panels that are about to land. The console
@@ -508,7 +521,7 @@
           '<button class="round-btn" id="c-search" aria-label="Ask the assistant">' + icon("i-search") + "</button>" +
           (pane === "workbench" ? "" :
             '<a class="btn btn-dark btn-sm" href="#/console/workbench">Live triage' + icon("i-arrow") + "</a>") +
-          (signedIn() && pane === "workbench"
+          (signedIn()
             ? '<span class="status-pill">Live <span class="on" id="c-workspace"></span></span>'
             : '<span class="status-pill">Sample data <span class="on">synthetic</span></span>') +
           (signedIn()
@@ -1564,6 +1577,14 @@
             "loaded on this page.</p>" +
             "<p>Ask me &ldquo;what can you do&rdquo; for the full list, or take one of these.</p>",
             ["scoring", "sources", "workbench", "home"]);
+          return;
+        }
+        /* These answers count the sample on this page. Signed in to a server, the
+           console is on the workspace's own cases, which the views say better. */
+        if (hit.live && signedIn()) {
+          bubble("bot", "<p>This console shows your workspace's own cases, and I only know the sample " +
+            "dataset. The Overview counts them by verdict and status, with the 90-day trend and the time " +
+            "to close; All indicators lists every indicator once.</p>", ["console"]);
           return;
         }
         bubble("bot", hit.live ? hit.live() : hit.html, hit.acts, hit.src);

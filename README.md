@@ -202,8 +202,12 @@ generated report. Nothing in demo mode describes a real host, and no vendor API 
 Run IntelPulse yourself and open it in a browser, and the same pages become **server mode**
 (`web/assets/data.js` asks the server whether it is one). A new server asks for its one-time setup
 code at `#/setup`; after that the console needs a sign-in, and the workbench triages on the server
-with real AbuseIPDB / OTX / GreyNoise / abuse.ch responses, storing each case in your workspace. No
-API address or token is typed into the page: the session cookie and its CSRF token do the work.
+with real AbuseIPDB / OTX / GreyNoise / abuse.ch responses, storing each case in your workspace. Every
+other view then reads that workspace's own cases instead of the sample: the overview's bands, trend
+and time to close, the attack surface your pushed alerts name, the triage history (searchable) and
+the queue (assign and close from it), every indicator, the campaigns, the attack narratives, the
+sources and the tickets. No API address or token is typed into the page: the session cookie and its
+CSRF token do the work.
 
 ---
 
@@ -212,10 +216,10 @@ API address or token is typed into the page: the session cookie and its CSRF tok
 ```bash
 make test        # 489 backend tests: extraction (incl. the 3,400-line corpus), scoring,
                  # API contract, reports, security controls, the 2026 audit's regressions
-make test-web    # 59 node tests: engine parity, console model, design and asset guards
+make test-web    # 61 node tests: engine parity, console model, design and asset guards
 make test-ui     # Chromium: the workbench and graph, the site and console, phones and
                  # tablets, and a hostile-input security suite
-make test-server # Chromium against a new server: setup, sign-in, triage, sign-out
+make test-server # Chromium against a new server: setup, sign-in, triage, every view, sign-out
 make lint        # ruff
 make audit       # pip-audit against the pinned requirements
 ```

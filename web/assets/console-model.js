@@ -57,38 +57,61 @@
     return included;
   }
 
-  function countIn(band, filter) {
-    return statesOf(filter).reduce((n, id) => n + band[id], 0);
+  /* The views over one table of bands. The demo's table is BANDS above; a server
+     hands over its workspace's own (from()), and the arithmetic is the same. */
+  function build(bands) {
+    function countIn(band, filter) {
+      return statesOf(filter).reduce((n, id) => n + band[id], 0);
+    }
+
+    /* [{ k, label, n, text }] — one entry per band, in scoring order. `text` is
+       what the bar prints, derived from the count so the two cannot disagree. */
+    function severity(filter) {
+      return bands.map((band) => {
+        const n = countIn(band, filter);
+        return { k: band.k, label: band.label, n: n, text: n + " " + band.label };
+      });
+    }
+
+    /* [{ id, label, n, text }] — always all three states, because a filter that
+       hides a state reads as missing rather than empty. Excluded ones are 0. */
+    function states(filter) {
+      const included = statesOf(filter);
+      return STATES.map((state) => {
+        const n = included.indexOf(state.id) === -1
+          ? 0
+          : bands.reduce((sum, band) => sum + band[state.id], 0);
+        return { id: state.id, label: state.label, n: n, text: n + " " + state.label };
+      });
+    }
+
+    const sum = (rows) => rows.reduce((n, row) => n + row.n, 0);
+
+    return {
+      BANDS: bands, STATES: STATES, FILTERS: Object.keys(FILTERS),
+      severity: severity, states: states,
+      total: (filter) => sum(severity(filter)),
+      stateTotal: (filter) => sum(states(filter))
+    };
   }
 
-  /* [{ k, label, n, text }] — one entry per band, in scoring order. `text` is
-     what the bar prints, derived from the count so the two cannot disagree. */
-  function severity(filter) {
-    return BANDS.map((band) => {
-      const n = countIn(band, filter);
-      return { k: band.k, label: band.label, n: n, text: n + " " + band.label };
-    });
-  }
-
-  /* [{ id, label, n, text }] — always all three states, because a filter that
-     hides a state reads as missing rather than empty. Excluded ones are 0. */
-  function states(filter) {
-    const included = statesOf(filter);
-    return STATES.map((state) => {
-      const n = included.indexOf(state.id) === -1
-        ? 0
-        : BANDS.reduce((sum, band) => sum + band[state.id], 0);
-      return { id: state.id, label: state.label, n: n, text: n + " " + state.label };
-    });
-  }
-
-  const sum = (rows) => rows.reduce((n, row) => n + row.n, 0);
-
-  function total(filter) { return sum(severity(filter)); }
-  function stateTotal(filter) { return sum(states(filter)); }
-
-  return {
-    BANDS: BANDS, STATES: STATES, FILTERS: Object.keys(FILTERS),
-    severity: severity, states: states, total: total, stateTotal: stateTotal
+  /* A server's numbers, in the bands above: GET /api/stats sends each verdict
+     with its new, in_progress and closed counts. Whatever it sends, a band is
+     one of the five and a count is a whole number of at least 0, so a bad
+     answer draws an empty bar rather than NaN or a sixth band. */
+  const count = (value) => {
+    const n = Math.floor(Number(value));
+    return Number.isFinite(n) && n > 0 ? n : 0;
   };
+  const VERDICT_BAND = { critical: "critical", high: "high", medium: "medium", low: "low", informational: "info" };
+  function from(rows) {
+    const given = Array.isArray(rows) ? rows : [];
+    return build(BANDS.map((band) => {
+      const row = given.find((r) => r && VERDICT_BAND[r.verdict] === band.k) || {};
+      return { k: band.k, label: band.label,
+        awaiting: count(row.new), progress: count(row.in_progress), closed: count(row.closed) };
+    }));
+  }
+
+  return Object.assign(build(BANDS), { from: from });
 });

@@ -1850,6 +1850,9 @@
       sub: "What one campaign is built from, and which parts of it share infrastructure.",
       body: graphBody,
       mount: mountGraph
-    }
+    },
+    /* The few pieces the server's views (console-server.js) draw with too, so a
+       verdict, a date and a link look and behave the same in every view. */
+    util: { esc, safeUrl, badge, formatWhen }
   };
 })();

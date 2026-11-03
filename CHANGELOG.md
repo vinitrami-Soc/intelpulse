@@ -94,6 +94,15 @@ JSON report are the public interface.
   the mean and median time to close. A feed's status counts its rows in the database instead of
   loading them.
 
+- **The console on a server's own data.** Signed in, every view reads the workspace's cases instead
+  of the sample (`web/assets/console-server.js`): the overview (open, awaiting, closed in 90 days,
+  time to close; each band by status through the same console model; cases opened per week), the
+  attack surface named by pushed alerts, a searchable triage history, a triage queue with assign
+  and status controls, every indicator once, the campaigns, the attack narratives, each source's
+  week and the shared feeds, and the tickets with their evidence. A new workspace's views say what
+  fills them. The header reads Live and the workspace's name on every view, and the assistant
+  points to the views instead of quoting the sample. The demo is unchanged.
+
 ### Changed
 
 - **The server needs `ENCRYPTION_KEY` to start** (32 random bytes, base64; or `ENCRYPTION_KEY_FILE`).
