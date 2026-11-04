@@ -217,6 +217,78 @@ check("every evidence card fills its grid column",
   layout.widths.join(", ") + " in " + layout.column + "px columns");
 check("the open indicator's facts are tiles", layout.tiles >= 3, layout.tiles + " tiles");
 
+// ——————————————————————————————— 4b. the report: a page, the Markdown, and Download PDF
+const report = await page.evaluate(() => {
+  const paper = document.querySelector("#wb-paper .rp");
+  return {
+    page: Boolean(paper) && !document.querySelector("#wb-paper").hidden,
+    markdownHidden: document.querySelector("#wb-report").hidden,
+    title: paper?.querySelector("h1")?.textContent || "",
+    bottom: paper?.querySelector(".rp-bottom")?.textContent || "",
+    steps: paper ? paper.querySelectorAll(".rp-steps li").length : 0,
+    rows: paper ? paper.querySelectorAll(".rp-table tbody tr").length : 0,
+    cards: paper ? paper.querySelectorAll(".rp-card").length : 0,
+    boxes: paper ? paper.querySelectorAll(".rp-check li").length : 0,
+    markdownBottom: (document.querySelector("#wb-report").dataset.markdown.match(/\*\*Bottom line:\*\* (.+)/) || [])[1] || ""
+  };
+});
+check("the report shows as a page by default, the Markdown a click away", report.page && report.markdownHidden);
+check("the page and the Markdown ticket give the same bottom line",
+  report.bottom === "Bottom line. " + report.markdownBottom && /^Contain now/.test(report.markdownBottom), report.bottom);
+check("the page briefs first steps, a row per indicator, the evidence and a checklist",
+  report.steps >= 1 && report.steps <= 3 && report.rows >= 3 && report.cards >= 1 && report.boxes >= 3,
+  JSON.stringify({ steps: report.steps, rows: report.rows, cards: report.cards, boxes: report.boxes }));
+await page.click('[data-rview="markdown"]');
+check("Markdown shows the ticket instead of the page", await page.evaluate(() =>
+  !document.querySelector("#wb-report").hidden && document.querySelector("#wb-paper").hidden &&
+  document.querySelector('[data-rview="markdown"]').getAttribute("aria-pressed") === "true"));
+await page.click('[data-rview="page"]');
+
+/* Download PDF prints the report alone: the console is hidden while it prints, the title names
+   the case (the browser offers it as the file name), and all of it is undone afterwards. */
+await page.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed += 1; }; });
+const pageTitle = await page.title();
+await page.click('[data-act="pdf"]');
+const printing = await page.evaluate(() => ({
+  printed: window.__printed,
+  body: document.body.classList.contains("printing"),
+  report: Boolean(document.querySelector("#print-root .rp")),
+  title: document.title
+}));
+await page.emulateMedia({ media: "print" });
+const printLayout = await page.evaluate(() => ({
+  console: getComputedStyle(document.querySelector("#page-console")).display,
+  root: getComputedStyle(document.querySelector("#print-root")).display
+}));
+const pdf = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+await page.emulateMedia({ media: "screen" });
+await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+const after = await page.evaluate(() => ({ body: document.body.classList.contains("printing"),
+  report: Boolean(document.querySelector("#print-root .rp")), title: document.title }));
+check("Download PDF prints once, with the report in the print root", printing.printed === 1 && printing.report && printing.body);
+check("while it prints, only the report goes to the page", printLayout.console === "none" && printLayout.root === "block",
+  JSON.stringify(printLayout));
+check("the print names the case", /^IntelPulse report, Firewall syslog burst/.test(printing.title), printing.title);
+check("the printed report is a real document of more than one page",
+  pdf.length > 50000 && (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) || []).length >= 2, pdf.length + " bytes");
+check("afterwards the page, its title and the print root are back as they were",
+  !after.body && !after.report && after.title === pageTitle, JSON.stringify(after));
+
+/* Every value on the page is data: a hostile title and indicator stay text. */
+const hostile = await page.evaluate(() => {
+  const host = document.createElement("div");
+  host.innerHTML = window.IntelPulseReport.html({
+    case_id: "c<1>", title: '<img src=x onerror="window.__owned=1">', verdict: "critical", score: 90, duration_ms: 1,
+    indicators: [{ value: "<svg onload=alert(1)>", type: "ip", score: 90, verdict: "critical", confidence: 1,
+      providers_queried: 1, providers_answered: 1, evidence: [{ provider: "<b>x</b>", signal: 1, weight: 1, weighted: 1,
+        rationale: "<script>alert(1)</script>" }], containment: ["<i>step</i>"], tags: ["<u>t</u>"] }]
+  }, { demo: true });
+  return { elements: host.querySelectorAll("img, script, [onload], [onerror], u").length,
+    title: host.querySelector("h1").textContent };
+});
+check("a hostile title, indicator or rationale is text on the report, never markup",
+  hostile.elements === 0 && hostile.title.startsWith("<img"), JSON.stringify(hostile));
+
 // ——————————————————————————————— 5. the chart has a table equivalent
 await page.click("#wb-iocs [data-table-toggle]");
 await page.waitForTimeout(200);

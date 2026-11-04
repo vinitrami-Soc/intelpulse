@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from .config import settings
 from .ioc import defang
 from .scoring import IndicatorVerdict
 from .text import clean_label, md_text
@@ -172,6 +173,10 @@ def _score_bar(score: int) -> str:
     return "█" * filled + "░" * (10 - filled)
 
 
+def _count(n: int, word: str) -> str:
+    return f"{n} {word}" + ("" if n == 1 else "s")
+
+
 def executive_summary(
     case_title: str,
     verdicts: list[IndicatorVerdict],
@@ -197,14 +202,15 @@ def executive_summary(
             return (f"The alert carried no indicator threat intelligence could look up; its {severity} "
                     f"severity from {source} sets the priority.")
         return "No indicators were extracted from the supplied input."
+    count = len(verdicts)
     lead = (
-        f"{len(verdicts)} indicator(s) were triaged across the configured intelligence sources. "
-        f"The highest composite score is {score}/100 ({verdict.upper()})."
+        f"{_count(count, 'indicator')} {'was' if count == 1 else 'were'} checked against the configured "
+        f"intelligence sources, and the worst scored {score}/100 ({verdict.upper()})."
     )
     if actionable:
         worst = max(actionable, key=lambda v: v.score)
         lead += (
-            f" {len(actionable)} indicator(s) are actionable, led by "
+            f" {_count(len(actionable), 'indicator')} {'is' if len(actionable) == 1 else 'are'} actionable, led by "
             f"{_code(worst.indicator.value)} ({worst.verdict.upper()}, {worst.score}/100, "
             f"confidence {worst.confidence:.0%})."
         )
@@ -214,8 +220,84 @@ def executive_summary(
     else:
         lead += " No indicator reached the actionable threshold; treat this as informational."
     if families:
-        lead += f" Associated malware/activity: {', '.join(label(f, 80) for f in families[:4])}."
+        lead += f" Linked malware and activity: {', '.join(label(f, 80) for f in families[:4])}."
     return lead
+
+
+# The first line of the briefing, by the level the ticket is filed at.
+BOTTOM_LINE = {
+    "critical": "Contain now. This is a P1: contain within 1 hour.",
+    "high": "Contain today. This is a P2: contain within 4 hours.",
+    "medium": "Investigate before acting. This is a P3: investigate within 1 business day.",
+    "low": "Monitor. This is a P4: nothing needs containing yet.",
+    "informational": "No action. This is a P5: record the result and close.",
+    "allowlisted": "Closed. The SOC has allowlisted what this case found.",
+}
+_FIRST_STEPS = 3
+
+
+def bottom_line(case_level: str, alert: dict[str, Any] | None = None) -> str:
+    return BOTTOM_LINE.get(ticket_level(case_level, alert), BOTTOM_LINE["low"])
+
+
+def _per_indicator(verdict: IndicatorVerdict, action: str) -> bool:
+    """A step about this one indicator ("block the address") rather than about the case."""
+    return action in _CONTAINMENT.get(verdict.indicator.type, ())
+
+
+def _on(action: str, verdict: IndicatorVerdict) -> str:
+    return action.rstrip(".") + ": " + _code(verdict.indicator.value) + "."
+
+
+def first_steps(verdicts: list[IndicatorVerdict], alert: dict[str, Any] | None = None) -> list[str]:
+    """What to do in the next few minutes: what the alert itself asks for, then the first
+    step for each actionable indicator, worst first, each naming the indicator it is about."""
+    steps = list(alert_actions(alert)[:2])
+    acting = [v for v in sorted(verdicts, key=lambda x: x.score, reverse=True)
+              if v.verdict not in ("informational", "allowlisted", "low")]
+    queues = [[a for a in containment_actions(v) if _per_indicator(v, a)] for v in acting]
+    while len(steps) < _FIRST_STEPS and any(queues):
+        for verdict, queue in zip(acting, queues, strict=True):
+            if queue and len(steps) < _FIRST_STEPS:
+                steps.append(_on(queue.pop(0), verdict))
+    return steps or [_NO_ACTION[0]]
+
+
+def how_sure(verdicts: list[IndicatorVerdict]) -> str:
+    """How much of the picture answered, and how many sources stand behind the worst finding."""
+    if not verdicts:
+        return "There was nothing to look up."
+    queried = sum(v.providers_queried for v in verdicts)
+    answered = sum(v.providers_answered for v in verdicts)
+    if not queried:
+        return "No source was asked about these indicators."
+    coverage = f"{answered} of {queried} source lookups answered"
+    if answered / queried < 0.5:
+        return f"Provisional. Only {coverage}, so run the case again when the missing sources are back."
+    actionable = [v for v in verdicts if v.is_actionable]
+    if not actionable:
+        level = "High" if answered / queried >= 0.8 else "Moderate"
+        return f"{level}. {coverage}, and none flagged an indicator at the actionable level."
+    lead = max(actionable, key=lambda v: v.score)
+    flagged = sum(1 for c in lead.contributions if c.signal >= 0.5)
+    if not flagged:
+        return f"Moderate. {coverage}, and no single source flagged the lead indicator strongly: its score comes from several weaker signals."
+    level = "High" if answered / queried >= 0.8 and flagged >= 2 else "Moderate"
+    sources = "1 source" if flagged == 1 else f"{flagged} independent sources"
+    return f"{level}. {coverage}, and {sources} flagged the lead indicator."
+
+
+def _banner(verdicts: list[IndicatorVerdict], case_level: str, case_score: int, alert: dict[str, Any] | None) -> str:
+    actionable = sum(1 for v in verdicts if v.is_actionable)
+    found = f"{actionable} of {len(verdicts)} indicators actionable" if verdicts else "no indicators found"
+    return (f"> **{SEVERITY_SLA.get(ticket_level(case_level, alert), 'P4')}** · case {case_level.upper()}, "
+            f"{case_score}/100 · {found}")
+
+
+def _levels() -> str:
+    high, medium, low = settings.score_high_threshold, settings.score_medium_threshold, settings.score_low_threshold
+    return (f"critical {high + 15} and up, high {high} to {high + 14}, medium {medium} to {high - 1}, "
+            f"low {low} to {medium - 1}, informational below {low}")
 
 
 def to_markdown(
@@ -236,6 +318,8 @@ def to_markdown(
     lines: list[str] = [
         f"# SOC Triage Report: {md_text(case_title, 200)}",
         "",
+        _banner(verdicts, case_level, case_score, alert),
+        "",
         "| Field | Value |",
         "| --- | --- |",
         f"| Case ID | `{case_id}` |",
@@ -254,7 +338,15 @@ def to_markdown(
     lines += [
         "## 1. Executive summary",
         "",
-        executive_summary(case_title, verdicts, case_level, case_score, markdown=True, alert=alert),
+        f"**Bottom line:** {bottom_line(case_level, alert)}",
+        "",
+        "**What we found:** " + executive_summary(case_title, verdicts, case_level, case_score, markdown=True, alert=alert),
+        "",
+        "**What to do now:**",
+        "",
+        *[f"{n}. {step}" for n, step in enumerate(first_steps(verdicts, alert), start=1)],
+        "",
+        f"**How sure:** {how_sure(verdicts)}",
         "",
         "## 2. Indicators observed",
         "",
@@ -266,13 +358,14 @@ def to_markdown(
         lines.append(
             f"| {_code(v.indicator.value)} | {v.indicator.type} | {v.score}/100 "
             f"`{_score_bar(v.score)}` | **{v.verdict.upper()}** | {v.confidence:.0%} | "
-            f"{agreeing}/{v.providers_answered} |"
+            f"{f'{agreeing}/{v.providers_answered}' if v.providers_answered else 'none answered'} |"
         )
 
     lines += ["", "## 3. Evidence and attribution", ""]
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
         lines.append(f"### {_code(v.indicator.value)}: {v.verdict.upper()} ({v.score}/100)")
         lines.append("")
+        before = len(lines)
         if v.malware_families:
             lines.append(f"- **Malware / campaign:** {', '.join(md_text(f, 80) for f in v.malware_families)}")
         if v.attack_techniques:
@@ -291,14 +384,18 @@ def to_markdown(
             )
         for modifier in v.modifiers:
             lines.append(f"- **Modifier:** {md_text(modifier, 300)}")
+        if len(lines) == before:
+            lines.append("- No source reported anything about this indicator.")
         lines.append("")
 
     lines += ["## 4. Recommended containment actions", ""]
     seen: set[str] = set()
+    listed = False
     if alert_actions(alert):
         lines.append(f"**The alert ({md_text(alert.get('severity'), 20).upper()})**")
         for action in alert_actions(alert):
             seen.add(action)
+            listed = True
             lines.append(f"- [ ] {action}")
         lines.append("")
     for v in sorted(verdicts, key=lambda x: x.score, reverse=True):
@@ -309,10 +406,12 @@ def to_markdown(
         for action in containment_actions(v):
             if action in seen:
                 continue
-            seen.add(action)
+            if not _per_indicator(v, action):
+                seen.add(action)
+            listed = True
             lines.append(f"- [ ] {action}")
         lines.append("")
-    if not seen:
+    if not listed:
         lines += [f"- [x] {action}" for action in _NO_ACTION] + [""]
 
     queried = sum(v.providers_queried for v in verdicts)
@@ -326,6 +425,7 @@ def to_markdown(
         "- Indicators are defanged in this report; refang before use in tooling.",
         "- Scores are a weighted composite of the sources listed above, not a single vendor verdict.",
         "- Confidence reflects source coverage and agreement, not certainty of maliciousness.",
+        f"- **Levels:** {_levels()}.",
         "",
         f"_Generated by IntelPulse · case `{case_id}`_",
     ]
@@ -353,6 +453,11 @@ def to_ticket_json(
         "priority": SEVERITY_SLA.get(ticket_level(case_level, alert), "P4"),
         "score": case_score,
         "summary": executive_summary(case_title, verdicts, case_level, case_score, alert=alert),
+        "briefing": {
+            "bottom_line": bottom_line(case_level, alert),
+            "first_steps": [step.replace("`", "") for step in first_steps(verdicts, alert)],
+            "how_sure": how_sure(verdicts),
+        },
         "indicators": [
             {
                 "value": v.indicator.value,

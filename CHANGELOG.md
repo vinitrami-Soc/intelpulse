@@ -16,9 +16,18 @@ JSON report are the public interface.
   the site's footer and the sign-in page link them; `#/about` and `#/terms` forward to them; a
   server offers them to search engines with the other public pages when its owner allows it.
 
-### Fixed
+- **Sign in in the demo.** The site's nav, the phone menu and the console's header offer Sign in on
+  GitHub Pages too. The demo has no server to hold an account, so `#/signin` there shows the sign-in
+  page with its form switched off, says that accounts live on your own server, and leads back into
+  the demo or to the deploy guide.
 
-- `SECURITY.md` listed 1.0.x as the supported version after 2.0 was released.
+- **Download PDF.** The workbench's report panel shows the case as a page: a dark cover with the
+  score as a ring, the verdict and the priority, the executive summary, the indicators with their
+  score bars, the evidence behind each actionable one, and the containment checklist with boxes to
+  tick. Download PDF prints that page alone on A4 (the rest of the console is hidden only while it
+  prints, and the file is named after the case), and the browser's Save as PDF makes the file. It
+  works in the demo and on a server, with no library and nothing sent anywhere. The Markdown ticket
+  is one click away.
 
 ### Changed
 
@@ -27,18 +36,28 @@ JSON report are the public interface.
   open indicator's confidence, sources and change since the last triage are the overview's tiles;
   tags, techniques and malware are pills of the same family; and the containment steps are numbered.
 
+- **The report says what to do before it says why.** Under its title, a line gives the priority,
+  the score and how many indicators are actionable. The executive summary has four parts: the
+  bottom line by the ticket's level, what was found (in plainer words: "6 indicators were checked
+  ... and the worst scored 90/100"), up to three first steps that each name their indicator, and
+  how sure the case is (how many lookups answered, how many sources flagged the worst finding, and
+  "Provisional" when fewer than half answered). An indicator no source reported on says so instead
+  of leaving an empty section, the indicator table says "none answered" instead of "0/0", and the
+  notes give the score bands. The server and the demo write it word for word, pinned by
+  `backend/tests/fixtures/briefing.json`; the JSON ticket carries it as `briefing`.
+
 ### Fixed
+
+- `SECURITY.md` listed 1.0.x as the supported version after 2.0 was released.
 
 - The evidence cards under an indicator sat at the right of their columns with gaps beside them:
   they shared the class `.wb-source` with the pane header's mode label, whose `margin-left: auto`
   moved every card. They are `.wb-src` now, and a check pins that each card fills its column.
 
-### Added
-
-- **Sign in in the demo.** The site's nav, the phone menu and the console's header offer Sign in on
-  GitHub Pages too. The demo has no server to hold an account, so `#/signin` there shows the sign-in
-  page with its form switched off, says that accounts live on your own server, and leads back into
-  the demo or to the deploy guide.
+- The containment checklist said a step once for the whole case even when it was about one
+  indicator: with two addresses, "Block the address at the perimeter firewall" was listed under
+  the first and missing under the second, so nothing said to block it. Each indicator keeps its own
+  steps now; a hunt or the incident bridge is still said once.
 
 ## [2.0.0] - 2026-11-03
 

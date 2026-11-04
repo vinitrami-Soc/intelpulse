@@ -234,3 +234,41 @@ test("a score move with no band change still reads as a delta", () => {
   assert.equal(d.verdict_changed, false);
   assert.ok(d.summary.startsWith("Score up 12 to 62"), d.summary);
 });
+
+/* ─────────────────────────── the report's briefing, word for word with the server
+ * backend/tests/fixtures/briefing.json pins the cases and the words; the server's
+ * test_report_briefing.py reads the same file. */
+const BRIEFING = JSON.parse(require("node:fs").readFileSync(
+  require("node:path").join(import.meta.dirname, "..", "..", "backend", "tests", "fixtures", "briefing.json"), "utf8")).cases;
+const indicatorsOf = (c) => c.indicators.map((i) => {
+  const indicator = Object.assign({}, i, { evidence: i.evidence.map((e) => Object.assign({ weighted: e.signal * e.weight }, e)) });
+  indicator.containment = E.containmentActions(indicator);
+  return indicator;
+});
+
+for (const c of BRIEFING) {
+  test("the briefing matches the server: " + c.name, () => {
+    const indicators = indicatorsOf(c);
+    assert.equal(E.bottomLine(c.verdict), c.expected.bottom_line);
+    assert.deepEqual(E.firstSteps(indicators, true), c.expected.first_steps);
+    assert.equal(E.howSure(indicators), c.expected.how_sure);
+  });
+}
+
+test("the report briefs first, and each address keeps its own block step", () => {
+  const c = BRIEFING[0];
+  const markdown = E.toMarkdown({ case_id: "c1", title: "IR-2026-120", verdict: "critical", score: 90,
+    duration_ms: 3, indicators: indicatorsOf(c) });
+  const lines = markdown.split("\n");
+  assert.equal(lines[2], "> **P1: contain within 1 hour** · case CRITICAL, 90/100 · 3 of 4 indicators actionable");
+  const summary = markdown.split("## 1. Executive summary")[1].split("## 2.")[0];
+  const order = ["**Bottom line:**", "**What we found:**", "**What to do now:**", "**How sure:**"].map((p) => summary.indexOf(p));
+  assert.ok(order.every((at, n) => at >= 0 && (n === 0 || at > order[n - 1])), String(order));
+  const checklist = markdown.split("## 4. Recommended containment actions")[1].split("## 5.")[0];
+  assert.equal(checklist.split("- [ ] Block the address at the perimeter firewall").length - 1, 2);
+  assert.equal(checklist.split("Raise a major-incident bridge").length - 1, 1);
+  assert.ok(markdown.includes("- No source reported anything about this indicator."));
+  assert.ok(markdown.includes("| INFORMATIONAL** | 20% | none answered |") || markdown.includes("**INFORMATIONAL** | 20% | none answered |"));
+  const brief = E.briefing({ verdict: "critical", score: 90, indicators: indicatorsOf(c) });
+  assert.equal(brief.steps[1], "Block the address at the perimeter firewall and on egress proxies: 198[.]51[.]100[.]7.");
+});

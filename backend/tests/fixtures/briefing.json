@@ -1,0 +1,216 @@
+{
+  "_comment": "The report's executive briefing, pinned for the server (test_report_briefing.py) and the browser engine (web/tests/engine.test.mjs) alike: the same cases, the same words. Every address is RFC 5737, every domain RFC 2606.",
+  "cases": [
+    {
+      "name": "a critical URL and two high addresses: each address gets its own first step",
+      "verdict": "critical",
+      "indicators": [
+        {
+          "value": "https://login.example.com/owa",
+          "type": "url",
+          "score": 90,
+          "verdict": "critical",
+          "confidence": 1.0,
+          "providers_queried": 4,
+          "providers_answered": 4,
+          "malware_families": [
+            "SamplePhishKit"
+          ],
+          "evidence": [
+            {
+              "provider": "urlhaus",
+              "signal": 0.95,
+              "weight": 1.1
+            },
+            {
+              "provider": "otx",
+              "signal": 0.75,
+              "weight": 0.9
+            }
+          ]
+        },
+        {
+          "value": "198.51.100.7",
+          "type": "ip",
+          "score": 72,
+          "verdict": "high",
+          "confidence": 1.0,
+          "providers_queried": 7,
+          "providers_answered": 7,
+          "malware_families": [],
+          "evidence": [
+            {
+              "provider": "local_blocklist",
+              "signal": 0.8,
+              "weight": 1.0
+            },
+            {
+              "provider": "abuseipdb",
+              "signal": 0.48,
+              "weight": 1.0
+            }
+          ]
+        },
+        {
+          "value": "198.51.100.8",
+          "type": "ip",
+          "score": 71,
+          "verdict": "high",
+          "confidence": 0.86,
+          "providers_queried": 7,
+          "providers_answered": 6,
+          "malware_families": [],
+          "evidence": [
+            {
+              "provider": "abuseipdb",
+              "signal": 0.9,
+              "weight": 1.0
+            }
+          ]
+        },
+        {
+          "value": "mail.example.net",
+          "type": "domain",
+          "score": 0,
+          "verdict": "informational",
+          "confidence": 0.2,
+          "providers_queried": 0,
+          "providers_answered": 0,
+          "malware_families": [],
+          "evidence": []
+        }
+      ],
+      "expected": {
+        "bottom_line": "Contain now. This is a P1: contain within 1 hour.",
+        "first_steps": [
+          "Block the full URL and its parent domain on the web proxy: `hxxps://login[.]example[.]com/owa`.",
+          "Block the address at the perimeter firewall and on egress proxies: `198[.]51[.]100[.]7`.",
+          "Block the address at the perimeter firewall and on egress proxies: `198[.]51[.]100[.]8`."
+        ],
+        "how_sure": "High. 17 of 18 source lookups answered, and 2 independent sources flagged the lead indicator."
+      }
+    },
+    {
+      "name": "one medium domain on thin coverage",
+      "verdict": "medium",
+      "indicators": [
+        {
+          "value": "cdn.example.org",
+          "type": "domain",
+          "score": 45,
+          "verdict": "medium",
+          "confidence": 0.4,
+          "providers_queried": 7,
+          "providers_answered": 2,
+          "malware_families": [],
+          "evidence": [
+            {
+              "provider": "otx",
+              "signal": 0.6,
+              "weight": 0.9
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "bottom_line": "Investigate before acting. This is a P3: investigate within 1 business day.",
+        "first_steps": [
+          "Sinkhole or block the domain on the DNS resolver and secure web gateway: `cdn[.]example[.]org`.",
+          "Query DNS logs for the last 30 days for resolution attempts and identify the requesting hosts: `cdn[.]example[.]org`.",
+          "Add the domain and its known subdomains to the email gateway blocklist: `cdn[.]example[.]org`."
+        ],
+        "how_sure": "Provisional. Only 2 of 7 source lookups answered, so run the case again when the missing sources are back."
+      }
+    },
+    {
+      "name": "nothing anyone knows to be bad",
+      "verdict": "informational",
+      "indicators": [
+        {
+          "value": "192.0.2.10",
+          "type": "ip",
+          "score": 5,
+          "verdict": "informational",
+          "confidence": 0.9,
+          "providers_queried": 7,
+          "providers_answered": 6,
+          "malware_families": [],
+          "evidence": [
+            {
+              "provider": "greynoise",
+              "signal": 0.1,
+              "weight": 0.6
+            }
+          ]
+        },
+        {
+          "value": "www.example.com",
+          "type": "domain",
+          "score": 0,
+          "verdict": "informational",
+          "confidence": 0.5,
+          "providers_queried": 1,
+          "providers_answered": 1,
+          "malware_families": [],
+          "evidence": []
+        }
+      ],
+      "expected": {
+        "bottom_line": "No action. This is a P5: record the result and close.",
+        "first_steps": [
+          "No containment action required. Record the triage result against the ticket and close."
+        ],
+        "how_sure": "High. 7 of 8 source lookups answered, and none flagged an indicator at the actionable level."
+      }
+    },
+    {
+      "name": "a medium score from several weak signals",
+      "verdict": "medium",
+      "indicators": [
+        {
+          "value": "203.0.113.50",
+          "type": "ip",
+          "score": 42,
+          "verdict": "medium",
+          "confidence": 0.9,
+          "providers_queried": 5,
+          "providers_answered": 5,
+          "malware_families": [],
+          "evidence": [
+            {
+              "provider": "abuseipdb",
+              "signal": 0.45,
+              "weight": 1.0
+            },
+            {
+              "provider": "otx",
+              "signal": 0.4,
+              "weight": 0.9
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "bottom_line": "Investigate before acting. This is a P3: investigate within 1 business day.",
+        "first_steps": [
+          "Block the address at the perimeter firewall and on egress proxies: `203[.]0[.]113[.]50`.",
+          "Search SIEM/NetFlow for the last 30 days of traffic to this address and list every internal host that talked to it: `203[.]0[.]113[.]50`.",
+          "If any internal host communicated with it, isolate the host and capture volatile memory before reimaging: `203[.]0[.]113[.]50`."
+        ],
+        "how_sure": "Moderate. 5 of 5 source lookups answered, and no single source flagged the lead indicator strongly: its score comes from several weaker signals."
+      }
+    },
+    {
+      "name": "nothing to look up",
+      "verdict": "informational",
+      "indicators": [],
+      "expected": {
+        "bottom_line": "No action. This is a P5: record the result and close.",
+        "first_steps": [
+          "No containment action required. Record the triage result against the ticket and close."
+        ],
+        "how_sure": "There was nothing to look up."
+      }
+    }
+  ]
+}
