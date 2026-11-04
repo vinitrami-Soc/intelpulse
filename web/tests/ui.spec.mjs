@@ -217,6 +217,30 @@ check("every evidence card fills its grid column",
   layout.widths.join(", ") + " in " + layout.column + "px columns");
 check("the open indicator's facts are tiles", layout.tiles >= 3, layout.tiles + " tiles");
 
+// ——————————————————————————————— 4a. depth: lit materials that keep their meaning
+const depth = await page.evaluate(() => {
+  const nodes = [...document.querySelectorAll("#wb-graph .wb-node")];
+  return {
+    nodes: nodes.length,
+    grounded: nodes.filter((n) => n.querySelector(":scope > .wb-shadow") && !n.querySelector(".wb-node-body .wb-shadow")).length,
+    lit: [...document.querySelectorAll("#wb-graph .wb-node.root")].every((n) => n.querySelector(".wb-spec") && n.querySelector(".wb-core")),
+    tiles: getComputedStyle(document.querySelector("#wb-iocs .wb-tiles > .wb-tile")).backgroundImage.includes("gradient")
+  };
+});
+check("every graph node casts a shadow that stays on the stage when it lifts",
+  depth.nodes > 0 && depth.grounded === depth.nodes, depth.grounded + " of " + depth.nodes);
+check("an indicator's core is lit, with a glint", depth.lit);
+check("the open indicator's tiles are a lit material", depth.tiles);
+await page.hover("#wb-iocs .wb-tiles > .wb-tile");
+await page.mouse.move(...await page.evaluate(() => {
+  const r = document.querySelector("#wb-iocs .wb-tiles > .wb-tile").getBoundingClientRect();
+  return [r.left + r.width * 0.9, r.top + r.height * 0.2];
+}));
+await page.waitForTimeout(250);
+check("a tile leans toward a fine pointer", await page.evaluate(() =>
+  /deg/.test(document.querySelector("#wb-iocs .wb-tiles > .wb-tile").style.getPropertyValue("--ry"))));
+await page.mouse.move(5, 5);
+
 // ——————————————————————————————— 4b. the report: a page, the Markdown, and Download PDF
 const report = await page.evaluate(() => {
   const paper = document.querySelector("#wb-paper .rp");
@@ -641,6 +665,27 @@ check("on a phone every year is on screen, the selected one included",
   years.length === 9 && years.every((y) => y.on), years.filter((y) => !y.on).map((y) => y.year).join(", ") || "all 9");
 await touch.close();
 
+// ———————————————————————— reduced motion: depth without movement
+const calm = await browser.newPage({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" });
+await openWorkbench(calm);
+await starter(calm, "firewall");
+const tileBox = await calm.evaluate(() => {
+  const r = document.querySelector("#wb-iocs .wb-tiles > .wb-tile").getBoundingClientRect();
+  return [r.left + r.width * 0.9, r.top + r.height * 0.2];
+});
+await calm.mouse.move(tileBox[0], tileBox[1]);
+await calm.waitForTimeout(250);
+const unmoved = await calm.evaluate(() => ({
+  lean: document.querySelector("#wb-iocs .wb-tiles > .wb-tile").style.getPropertyValue("--ry"),
+  transform: getComputedStyle(document.querySelector("#wb-iocs .wb-tiles > .wb-tile")).transform
+}));
+check("under reduced motion a tile neither leans nor lifts", !unmoved.lean && unmoved.transform === "none", JSON.stringify(unmoved));
+await calm.goto(CG, { waitUntil: "load" });
+await calm.waitForSelector("#cg-svg .cg-orbit", { timeout: 8000 }).catch(() => {});
+check("under reduced motion the campaign's orbit stands still", await calm.evaluate(() =>
+  getComputedStyle(document.querySelector("#cg-svg .cg-orbit")).animationName === "none"));
+await calm.close();
+
 // ———————————————————————— forced colours (Windows High Contrast)
 const hc = await browser.newPage({ viewport: { width: 1280, height: 900 }, forcedColors: "active" });
 await openWorkbench(hc);
@@ -659,6 +704,9 @@ const contrast = await hc.evaluate(() => {
 });
 check("meaning survives forced-colors mode (fills keep an outline)",
   contrast.bars && contrast.badges && contrast.cards, JSON.stringify(contrast));
+check("forced-colors mode drops the lighting, which carries no meaning", await hc.evaluate(() =>
+  [...document.querySelectorAll("#wb-graph .wb-spec, #wb-graph .wb-shadow, #wb-graph .wb-ring-sheen")]
+    .every((el) => getComputedStyle(el).display === "none")));
 await hc.close();
 
 check("no uncaught page errors in the workbench", errors.length === 0, errors.slice(0, 2).join(" | "));
@@ -694,6 +742,19 @@ check("no uncaught page errors in the workbench", errors.length === 0, errors.sl
     start.nodes + " nodes, " + start.rows + " clusters in the table");
   check("its headline figure is counted from the data on screen", String(start.rows) === start.kpi,
     start.kpi + " vs " + start.rows + " rows");
+  const spheres = await cg.evaluate(() => {
+    const clusters = [...document.querySelectorAll("#cg-svg .cg-node:not(.child)")];
+    return {
+      clusters: clusters.length,
+      lit: clusters.filter((c) => c.querySelector(".cg-ball .cg-dot") && c.querySelector(".cg-ball .cg-spec") &&
+        c.querySelector(".cg-ball .cg-terminator") && c.querySelector(":scope > .cg-shadow")).length,
+      orbit: Boolean(document.querySelector('#cg-svg .cg-node[data-id="hub"] .cg-orbit')),
+      members: [...document.querySelectorAll("#cg-svg .cg-node.child")].every((m) => !m.querySelector(".cg-ball, .cg-shadow"))
+    };
+  });
+  check("every cluster is a lit sphere with a shadow on the stage, and members stay plain dots",
+    spheres.clusters > 5 && spheres.lit === spheres.clusters && spheres.members, JSON.stringify(spheres));
+  check("the campaign at the centre is orbited", spheres.orbit);
 
   const layer = await cg.evaluate(() => {
     const labels = document.querySelector("#cg-svg .cg-labels");

@@ -63,11 +63,19 @@
      set for both themes: they are fills under a white glint, never text. */
   --cg-hub: #d93d15; --cg-malware: #b3124f; --cg-infra: #5a44c4; --cg-ioc: #0b6ea8;
   --cg-glint: #ffffff;
+  /* Depth: one light, from the top left. A raised edge catches --depth-hi and its underside
+     --depth-lo; a floating thing casts --depth-contact on the stage below it. */
+  --depth-top: rgba(255, 255, 255, .72); --depth-hi: rgba(255, 255, 255, .92); --depth-lo: rgba(16, 24, 40, .07);
+  --depth-shadow: rgba(16, 24, 40, .26); --depth-contact: rgba(16, 24, 40, .30); --depth-glare: rgba(255, 255, 255, .6);
+  --depth-spec: rgba(255, 255, 255, .95); --depth-sheen: rgba(255, 255, 255, .48);
 
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
+  --depth-top: rgba(255, 255, 255, .035); --depth-hi: rgba(255, 255, 255, .065); --depth-lo: rgba(0, 0, 0, .42);
+  --depth-shadow: rgba(0, 0, 0, .72); --depth-contact: rgba(0, 0, 0, .7); --depth-glare: rgba(255, 255, 255, .075);
+  --depth-spec: rgba(255, 255, 255, .62); --depth-sheen: rgba(255, 255, 255, .3);
   --ink:        #f3f5f8;
   --ink-2:      #b3bcc9;
   --ink-3:      #7d8796;
@@ -1038,8 +1046,10 @@ button { font-family: inherit; cursor: pointer; }
   display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
   font: 600 11px var(--sans); color: var(--ink-2); background: var(--ground-2);
   border: 0; border-radius: var(--r-full); padding: 4px 10px;
-  overflow-wrap: anywhere;
+  overflow-wrap: anywhere; box-shadow: inset 0 1px 0 var(--depth-hi), inset 0 -1px 0 var(--depth-lo);
 }
+a.wb-chip { transition: transform var(--t-fast) var(--ease); }
+a.wb-chip:hover { transform: translateY(-1px); }
 .wb-chip b { font: 600 9.5px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
 .wb-chip.on { color: var(--sev-ok); background: var(--sev-ok-bg); }
 .wb-chip.malware { color: var(--flame-ink-2); background: var(--flame-wash); }
@@ -1109,10 +1119,22 @@ button { font-family: inherit; cursor: pointer; }
 .wb-ioc-detail[hidden] { display: none; }
 .wb-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-2); display: grid; gap: 3px; }
 
-/* The overview's state tiles: a filled block, a label, a figure. */
-.wb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-.wb-tile { display: grid; gap: 8px; align-content: start; min-width: 0; padding: 12px 14px;
-  border-radius: var(--r-sm); background: var(--ground-2); }
+/* The overview's state tiles: a filled block, a label, a figure. Lit from the top, they lean
+   a few degrees toward a fine pointer and lift off the panel while it rests on them. */
+.wb-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; perspective: 900px; }
+.wb-tile { position: relative; isolation: isolate; display: grid; gap: 8px; align-content: start; min-width: 0; padding: 12px 14px;
+  border-radius: var(--r-sm); background: linear-gradient(180deg, var(--depth-top), transparent 70%), var(--ground-2);
+  box-shadow: inset 0 1px 0 var(--depth-hi), inset 0 -1px 0 var(--depth-lo); }
+.wb-tiles > .wb-tile {
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px));
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.wb-tiles > .wb-tile::after { content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; opacity: 0;
+  background: radial-gradient(240px circle at var(--gx, 50%) var(--gy, 0%), var(--depth-glare), transparent 70%);
+  transition: opacity var(--t) var(--ease); }
+.wb-tiles > .wb-tile:hover { --lift: -3px;
+  box-shadow: inset 0 1px 0 var(--depth-hi), inset 0 -1px 0 var(--depth-lo), 0 20px 30px -22px var(--depth-shadow); }
+.wb-tiles > .wb-tile:hover::after { opacity: 1; }
 .wb-tile-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .wb-tile-val { font: 600 22px var(--mono); letter-spacing: -.03em; line-height: 1; }
 .wb-tile-val small { font-size: 13px; font-weight: 500; color: var(--ink-3); letter-spacing: 0; }
@@ -1132,7 +1154,12 @@ button { font-family: inherit; cursor: pointer; }
 /* auto-fit, not auto-fill: one source gets the whole row instead of a
    200px column with a sentence wrapped a word a line beside empty space. */
 .wb-src-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
-.wb-src { border-radius: var(--r-sm); padding: 12px 14px; background: var(--ground-2); min-width: 0; display: grid; gap: 8px; align-content: start; }
+.wb-src { border-radius: var(--r-sm); padding: 12px 14px; min-width: 0; display: grid; gap: 8px; align-content: start;
+  background: linear-gradient(180deg, var(--depth-top), transparent 55%), var(--ground-2);
+  box-shadow: inset 0 1px 0 var(--depth-hi), inset 0 -1px 0 var(--depth-lo);
+  transition: transform var(--t) var(--ease), box-shadow var(--t) var(--ease); }
+.wb-src:hover { transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 var(--depth-hi), inset 0 -1px 0 var(--depth-lo), 0 18px 28px -22px var(--depth-shadow); }
 .wb-src-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .wb-src-name { font-size: 13px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .wb-state { font: 600 10.5px var(--sans); color: var(--ink-3); background: var(--paper); border-radius: var(--r-full); padding: 3px 9px; white-space: nowrap; flex: 0 0 auto; }
@@ -1162,7 +1189,12 @@ button { font-family: inherit; cursor: pointer; }
   position: relative; overflow: hidden; border-radius: var(--r); border: 1px solid var(--line);
   background: radial-gradient(120% 100% at 50% 0%, var(--paper) 0%, var(--ground) 72%);
 }
-.wb-svg { display: block; width: 100%; height: auto; }
+.wb-svg { position: relative; display: block; width: 100%; height: auto; }
+/* A soft light follows the pointer across the stage, under the graph. */
+.wb-gspot { position: absolute; left: 0; top: 0; width: 360px; height: 360px; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--flame) 10%, transparent), transparent);
+  transform: translate3d(-999px, -999px, 0); transition: opacity var(--t-slow) var(--ease); }
+.wb-gstage.spot .wb-gspot { opacity: 1; }
 .wb-dot { fill: var(--line-2); }
 
 .wb-edge {
@@ -1176,7 +1208,19 @@ button { font-family: inherit; cursor: pointer; }
 .wb-node { transition: opacity var(--t-fast) var(--ease); }
 .wb-svg.has-focus .wb-node:not(.is-lit) { opacity: .2; }
 .wb-node-body { transition: transform var(--t-fast) var(--ease); }
-.wb-node:hover .wb-node-body, .wb-node:focus-within .wb-node-body { transform: scale(1.06); }
+.wb-node:hover .wb-node-body, .wb-node:focus-within .wb-node-body { transform: translateY(-3px) scale(1.06); }
+.wb-svg.has-focus .wb-node.is-lit:not(:hover) .wb-node-body { transform: translateY(-1px) scale(1.02); }
+/* A node floats: its shadow stays on the stage and tightens as it lifts. */
+.wb-shadow { fill: url(#wb-shade-g); pointer-events: none; transform-box: fill-box; transform-origin: center;
+  transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease); }
+.wb-node:hover .wb-shadow, .wb-node:focus-within .wb-shadow { transform: scale(.78); opacity: .55; }
+.wb-g0 { stop-color: var(--depth-contact); } .wb-g1 { stop-color: var(--depth-contact); stop-opacity: 0; }
+.wb-c0 { stop-color: var(--depth-spec); } .wb-c1 { stop-color: var(--paper); } .wb-c2 { stop-color: var(--ground-2); }
+.wb-h0 { stop-color: var(--depth-sheen); } .wb-h1 { stop-color: var(--depth-sheen); stop-opacity: 0; }
+.wb-p0 { stop-color: var(--paper); } .wb-p1 { stop-color: var(--ground-2); }
+.wb-spec { fill: var(--depth-spec); opacity: .75; pointer-events: none; }
+.wb-ring-sheen { fill: none; stroke: url(#wb-sheen-g); stroke-width: 4; stroke-linecap: round; pointer-events: none; }
+.wb-pill-hi { fill: var(--depth-hi); pointer-events: none; }
 
 .wb-node.root { --c: var(--sev-info); }
 .wb-node.sev-critical { --c: var(--sev-critical); }
@@ -1191,7 +1235,7 @@ button { font-family: inherit; cursor: pointer; }
 .wb-ring-track { fill: none; stroke: var(--line); stroke-width: 4; }
 .wb-ring { fill: none; stroke: var(--c); stroke-width: 4; stroke-linecap: round; }
 .wb-ring.key { stroke: var(--ink-2); stroke-width: 3; }
-.wb-core { fill: var(--paper); stroke: var(--line); stroke-width: 1; }
+.wb-core { fill: url(#wb-core-g); stroke: var(--line); stroke-width: 1; }
 .wb-score { font: 700 12.5px var(--sans); fill: var(--ink); }
 .wb-label { font: 500 11px var(--mono); fill: var(--ink); }
 /* --sev-* is validated at 4.5:1 on the paper, so the verdict word may wear it. */
@@ -1202,7 +1246,7 @@ button { font-family: inherit; cursor: pointer; }
 .wb-graph .k-infra { --k: var(--cg-infra); }
 .wb-graph .k-ioc { --k: var(--cg-ioc); }
 .wb-graph .k-ref { --k: var(--ink-3); }
-.wb-pill { fill: var(--paper); stroke: var(--line-2); stroke-width: 1; }
+.wb-pill { fill: url(#wb-pill-g); stroke: var(--line-2); stroke-width: 1; }
 .wb-node.ent:hover .wb-pill, .wb-svg.has-focus .wb-node.ent.is-lit .wb-pill { stroke: var(--k); stroke-width: 1.5; }
 .wb-kdot { fill: var(--k); opacity: .15; }
 .wb-gicon { width: 11px; height: 11px; fill: none; stroke: var(--k); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -1279,8 +1323,11 @@ button { font-family: inherit; cursor: pointer; }
 .wb .bar-row { display: grid; grid-template-columns: var(--wb-label) minmax(0, 1fr) 44px; align-items: center; gap: 12px; padding: 3px 0; border-radius: 6px; }
 .wb .bar-row:hover { background: var(--ground-2); }
 .wb .bar-label { font: 500 11.5px var(--sans); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb .bar-track { height: 10px; border-radius: 3px; background: var(--ramp-track); overflow: hidden; min-width: 0; }
-.wb .bar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; transform-origin: left center; animation: wb-grow var(--t) var(--ease) both; }
+.wb .bar-track { height: 10px; border-radius: 3px; background: var(--ramp-track); overflow: hidden; min-width: 0;
+  box-shadow: inset 0 1px 2px var(--depth-lo), inset 0 0 0 1px var(--depth-lo); }
+.wb .bar-fill { position: relative; display: block; height: 100%; border-radius: 0 4px 4px 0; transform-origin: left center; animation: wb-grow var(--t) var(--ease) both; }
+.wb .bar-fill::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, var(--depth-sheen), transparent 62%); }
 .wb .bar-value { font: 600 11.5px var(--mono); color: var(--ink-2); text-align: right; }
 .wb .bar-row.muted .bar-label, .wb .bar-row.muted .bar-value { color: var(--ink-3); }
 @keyframes wb-grow { from { transform: scaleX(0); } }
@@ -1322,8 +1369,20 @@ button { font-family: inherit; cursor: pointer; }
 .cg-node { cursor: pointer; }
 .cg-stage.panning .cg-node { cursor: grabbing; }
 .cg-node .cg-dot { transition: transform var(--t) var(--ease); transform-box: fill-box; transform-origin: center; }
-.cg-node:hover .cg-dot, .cg-node:focus-visible .cg-dot { transform: scale(1.3); }
 .cg-node.child:hover .cg-dot { transform: scale(2); }
+/* A cluster is a sphere: lit from the top left, darker on its far side, a glint near the light,
+   a shadow on the stage. Lifting it tightens the shadow. */
+.cg-ball { transition: transform var(--t) var(--ease); transform-box: fill-box; transform-origin: center; }
+.cg-node:hover .cg-ball, .cg-node:focus-visible .cg-ball { transform: translateY(-6%) scale(1.22); }
+.cg-terminator { fill: url(#cg-dark); pointer-events: none; }
+.cg-spec { fill: var(--cg-glint); opacity: .6; pointer-events: none; }
+.cg-shadow { fill: url(#cg-shade); pointer-events: none; transform-box: fill-box; transform-origin: center;
+  transition: transform var(--t) var(--ease), opacity var(--t) var(--ease); }
+.cg-node:hover .cg-shadow, .cg-node:focus-visible .cg-shadow { transform: scale(.74); opacity: .5; }
+.cg-s0 { stop-color: var(--depth-contact); } .cg-s1 { stop-color: var(--depth-contact); stop-opacity: 0; }
+.cg-d0 { stop-color: var(--depth-lo); stop-opacity: 0; } .cg-d1 { stop-color: var(--depth-shadow); stop-opacity: .55; }
+.cg-orbit { pointer-events: none; animation: cg-orbit 40s linear infinite; }
+@keyframes cg-orbit { to { transform: rotate(360deg); } }
 .cg-svg .cg-node, .cg-svg .cg-edge, .cg-svg .cg-labels text { transition: opacity var(--t) var(--ease); }
 .cg-svg.lit .cg-node:not(.on), .cg-svg.lit .cg-labels text:not(.on) { opacity: .18; }
 .cg-svg.lit .cg-edge:not(.on) { opacity: .1; }
@@ -1348,7 +1407,7 @@ button { font-family: inherit; cursor: pointer; }
 .cg-share-bar { width: 88px; height: 6px; border-radius: 3px; background: var(--ground-2); overflow: hidden; }
 .cg-share-bar i { display: block; height: 100%; border-radius: 3px; }
 .cg-node:focus-visible { outline: 2px solid var(--flame); outline-offset: 2px; border-radius: 50%; }
-.cg-node:focus-visible > circle:first-child { stroke: var(--flame); stroke-width: 2.5; stroke-opacity: 1; }
+.cg-node:focus-visible > .cg-ring { stroke: var(--flame); stroke-width: 2.5; stroke-opacity: 1; }
 .cg-mono { font-family: var(--mono); }
 .cg-svg text { font-family: var(--sans); }
 .cg-readout {
@@ -1405,12 +1464,16 @@ button { font-family: inherit; cursor: pointer; }
   .wb-field { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wb .bar-fill, .wb-spinner { animation: none; }
+  .wb .bar-fill, .wb-spinner, .cg-orbit { animation: none; }
+  .wb-tiles > .wb-tile, .wb-tiles > .wb-tile::after, .wb-src, a.wb-chip, .wb-shadow, .wb-gspot, .cg-ball, .cg-shadow { transition: none; }
+  .wb-tiles > .wb-tile, .wb-src:hover, a.wb-chip:hover { transform: none; }
   .wb-starter, .cg-readout, .wb-chev { transition: none; }
   .cg-node .cg-dot, .cg-svg .cg-node, .cg-svg .cg-edge, .cg-svg .cg-labels text, .page-console #console-side { transition: none; }
 }
 @media (forced-colors: active) {
   .wb-badge, .wb-chip, .wb-diff-tag, .wb-state { border: 1px solid CanvasText; }
+  .wb-shadow, .wb-spec, .wb-ring-sheen, .wb-pill-hi, .wb-gspot, .wb .bar-fill::after, .wb-tiles > .wb-tile::after,
+  .cg-shadow, .cg-spec, .cg-terminator, .cg-orbit { display: none; }
   .wb-ioc, .wb-tile, .wb-src, .wb-steps li, .wb-starter { border: 1px solid CanvasText; }
   .wb .bar-fill, .wb .meter i, .wb .coverage i, .cg-key i, .cg-dot-key, .cg-share-bar i { forced-color-adjust: none; }
   .cg-share-bar { border: 1px solid CanvasText; }
