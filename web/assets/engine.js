@@ -408,26 +408,118 @@
     if (!indicators.length) return "No indicators were extracted from the supplied input.";
     const actionable = indicators.filter((i) => i.score >= THRESHOLDS.medium);
     const families = Array.from(new Set([].concat.apply([], indicators.map((i) => i.malware_families || []))));
-    let lead = indicators.length + " indicator(s) were triaged across the configured intelligence sources. " +
-      "The highest composite score is " + score + "/100 (" + verdict.toUpperCase() + ").";
+    const count = (n, word) => n + " " + word + (n === 1 ? "" : "s");
+    let lead = count(indicators.length, "indicator") + (indicators.length === 1 ? " was" : " were") +
+      " checked against the configured intelligence sources, and the worst scored " + score + "/100 (" +
+      verdict.toUpperCase() + ").";
     if (actionable.length) {
       const worst = actionable.reduce((a, b) => (a.score >= b.score ? a : b));
-      lead += " " + actionable.length + " indicator(s) are actionable, led by " + code(worst.value) +
+      lead += " " + count(actionable.length, "indicator") + (actionable.length === 1 ? " is" : " are") +
+        " actionable, led by " + code(worst.value) +
         " (" + worst.verdict.toUpperCase() + ", " + worst.score + "/100, confidence " +
         Math.round(worst.confidence * 100) + "%).";
     } else {
       lead += " No indicator reached the actionable threshold; treat this as informational.";
     }
-    if (families.length) lead += " Associated malware/activity: " + families.slice(0, 4).map((f) => label(f, 80)).join(", ") + ".";
+    if (families.length) lead += " Linked malware and activity: " + families.slice(0, 4).map((f) => label(f, 80)).join(", ") + ".";
     return lead;
+  }
+
+  /* The executive briefing, word for word with backend/app/reporting.py: the
+     bottom line by level, the first steps (each naming its indicator), and how
+     sure the case is (coverage, and the sources behind the worst finding). */
+  const BOTTOM_LINE = {
+    critical: "Contain now. This is a P1: contain within 1 hour.",
+    high: "Contain today. This is a P2: contain within 4 hours.",
+    medium: "Investigate before acting. This is a P3: investigate within 1 business day.",
+    low: "Monitor. This is a P4: nothing needs containing yet.",
+    informational: "No action. This is a P5: record the result and close.",
+    allowlisted: "Closed. The SOC has allowlisted what this case found."
+  };
+  const FIRST_STEPS = 3;
+  const perIndicator = (indicator, action) => (CONTAINMENT[indicator.type] || []).includes(action);
+  const byScore = (indicators) => indicators.slice().sort((a, b) => b.score - a.score);
+
+  function bottomLine(verdict) { return BOTTOM_LINE[verdict] || BOTTOM_LINE.low; }
+
+  /* markdown: the indicator as a code span (the ticket); otherwise as plain defanged text. */
+  function firstSteps(indicators, markdown) {
+    const steps = [];
+    const acting = byScore(indicators).filter((i) => !["informational", "allowlisted", "low"].includes(i.verdict));
+    const queues = acting.map((i) => (i.containment || []).filter((a) => perIndicator(i, a)));
+    while (steps.length < FIRST_STEPS && queues.some((q) => q.length)) {
+      acting.forEach((indicator, n) => {
+        if (queues[n].length && steps.length < FIRST_STEPS) {
+          steps.push(queues[n].shift().replace(/\.+$/, "") + ": " +
+            (markdown ? code(indicator.value) : defang(String(indicator.value))) + ".");
+        }
+      });
+    }
+    return steps.length ? steps : [NO_ACTION[0]];
+  }
+
+  function howSure(indicators) {
+    if (!indicators.length) return "There was nothing to look up.";
+    const queried = indicators.reduce((sum, i) => sum + (i.providers_queried || 0), 0);
+    const answered = indicators.reduce((sum, i) => sum + (i.providers_answered || 0), 0);
+    if (!queried) return "No source was asked about these indicators.";
+    const coverage = answered + " of " + queried + " source lookups answered";
+    if (answered / queried < 0.5) return "Provisional. Only " + coverage + ", so run the case again when the missing sources are back.";
+    const actionable = indicators.filter((i) => i.score >= THRESHOLDS.medium);
+    if (!actionable.length) {
+      return (answered / queried >= 0.8 ? "High" : "Moderate") + ". " + coverage + ", and none flagged an indicator at the actionable level.";
+    }
+    const lead = actionable.reduce((a, b) => (a.score >= b.score ? a : b));
+    const flagged = (lead.evidence || []).filter((e) => e.signal >= 0.5).length;
+    if (!flagged) {
+      return "Moderate. " + coverage + ", and no single source flagged the lead indicator strongly: its score comes from several weaker signals.";
+    }
+    const level = answered / queried >= 0.8 && flagged >= 2 ? "High" : "Moderate";
+    return level + ". " + coverage + ", and " + (flagged === 1 ? "1 source" : flagged + " independent sources") + " flagged the lead indicator.";
+  }
+
+  /* The containment checklist, by indicator, worst first: what is done to each indicator
+     (block this address, then that one) repeats under it; a case-wide step (the bridge, a
+     hunt for one family) is said once. The Markdown ticket and the printed report share it. */
+  function checklist(indicators) {
+    const seen = new Set();
+    return byScore(indicators || []).filter((i) => !["informational", "allowlisted"].includes(i.verdict)).map((i) => ({
+      indicator: i,
+      actions: (i.containment || []).filter((action) => {
+        if (seen.has(action)) return false;
+        if (!perIndicator(i, action)) seen.add(action);
+        return true;
+      })
+    }));
+  }
+
+  /* Everything the report's first page says, for the Markdown ticket and the printed report alike. */
+  function briefing(result) {
+    const indicators = result.indicators || [];
+    const actionable = indicators.filter((i) => i.score >= THRESHOLDS.medium).length;
+    return {
+      priority: SEVERITY_SLA[result.verdict] || "P4",
+      bottomLine: bottomLine(result.verdict),
+      found: executiveSummary(indicators, result.verdict, result.score, false),
+      steps: firstSteps(indicators, false),
+      sure: howSure(indicators),
+      actionable: actionable,
+      levels: "critical " + THRESHOLDS.critical + " and up, high " + THRESHOLDS.high + " to " + (THRESHOLDS.critical - 1) +
+        ", medium " + THRESHOLDS.medium + " to " + (THRESHOLDS.high - 1) + ", low " + THRESHOLDS.low + " to " +
+        (THRESHOLDS.medium - 1) + ", informational below " + THRESHOLDS.low
+    };
   }
 
   function toMarkdown(result, options) {
     options = options || {};
+    const brief = briefing(result);
     const now = new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC";
     const sorted = result.indicators.slice().sort((a, b) => b.score - a.score);
     const lines = [
       "# SOC Triage Report: " + mdText(result.title, 200), "",
+      "> **" + brief.priority + "** · case " + result.verdict.toUpperCase() + ", " + result.score + "/100 · " +
+        (result.indicators.length ? brief.actionable + " of " + result.indicators.length + " indicators actionable" : "no indicators found"),
+      "",
       "| Field | Value |", "| --- | --- |",
       "| Case ID | " + code(result.case_id) + " |",
       "| Generated | " + now + " |",
@@ -437,22 +529,27 @@
       "| Indicators | " + result.indicators.length + " |",
       "| Enrichment time | " + result.duration_ms + " ms |",
       "", "## 1. Executive summary", "",
+      "**Bottom line:** " + brief.bottomLine, "",
       /* recomputed, escaped: a live result's summary is plain text from the API */
-      executiveSummary(result.indicators, result.verdict, result.score, true),
+      "**What we found:** " + executiveSummary(result.indicators, result.verdict, result.score, true), "",
+      "**What to do now:**", ""
+    ].concat(firstSteps(result.indicators, true).map((step, n) => (n + 1) + ". " + step), [
+      "", "**How sure:** " + brief.sure,
       "", "## 2. Indicators observed", "",
       "| Indicator | Type | Score | Verdict | Confidence | Sources agreeing |",
       "| --- | --- | --- | --- | --- | --- |"
-    ];
+    ]);
     sorted.forEach((i) => {
       const agreeing = (i.evidence || []).filter((e) => e.signal >= 0.5).length;
       lines.push("| " + code(i.value) + " | " + mdText(i.type, 10) + " | " + i.score + "/100 `" +
         scoreBar(i.score) + "` | **" + i.verdict.toUpperCase() + "** | " +
-        Math.round(i.confidence * 100) + "% | " + agreeing + "/" + i.providers_answered + " |");
+        Math.round(i.confidence * 100) + "% | " + (i.providers_answered ? agreeing + "/" + i.providers_answered : "none answered") + " |");
     });
 
     lines.push("", "## 3. Evidence and attribution", "");
     sorted.forEach((i) => {
       lines.push("### " + code(i.value) + ": " + i.verdict.toUpperCase() + " (" + i.score + "/100)", "");
+      const before = lines.length;
       if ((i.malware_families || []).length) lines.push("- **Malware / campaign:** " + i.malware_families.map((f) => mdText(f, 80)).join(", "));
       if ((i.attack_techniques || []).length) {
         lines.push("- **MITRE ATT&CK:** " + i.attack_techniques.slice(0, 6)
@@ -463,22 +560,19 @@
         lines.push("- **" + mdText(e.provider, 40) + "** (signal " + Number(e.signal).toFixed(2) + ", weight " + Number(e.weight) + "): " + mdText(e.rationale, 400));
       });
       (i.modifiers || []).forEach((m) => lines.push("- **Modifier:** " + mdText(m, 300)));
+      if (lines.length === before) lines.push("- No source reported anything about this indicator.");
       lines.push("");
     });
 
     lines.push("## 4. Recommended containment actions", "");
-    const seen = new Set();
-    sorted.forEach((i) => {
-      if (["informational", "allowlisted"].includes(i.verdict)) return;
+    let listed = false;
+    checklist(result.indicators).forEach((group) => {
+      const i = group.indicator;
       lines.push("**" + code(i.value) + " (" + i.verdict.toUpperCase() + ")**");
-      (i.containment || []).forEach((action) => {
-        if (seen.has(action)) return;
-        seen.add(action);
-        lines.push("- [ ] " + action);
-      });
+      group.actions.forEach((action) => { listed = true; lines.push("- [ ] " + action); });
       lines.push("");
     });
-    if (!seen.size) { NO_ACTION.forEach((a) => lines.push("- [x] " + a)); lines.push(""); }
+    if (!listed) { NO_ACTION.forEach((a) => lines.push("- [x] " + a)); lines.push(""); }
 
     const queried = result.indicators.reduce((sum, i) => sum + (i.providers_queried || 0), 0);
     const answered = result.indicators.reduce((sum, i) => sum + (i.providers_answered || 0), 0);
@@ -488,7 +582,8 @@
       "a low-coverage verdict should be treated as provisional.",
       "- Indicators are defanged in this report; refang before use in tooling.",
       "- Scores are a weighted composite of the sources listed above, not a single vendor verdict.",
-      "- Confidence reflects source coverage and agreement, not certainty of maliciousness.", "");
+      "- Confidence reflects source coverage and agreement, not certainty of maliciousness.",
+      "- **Levels:** " + brief.levels + ".", "");
     if (options.demo) {
       lines.push("> ⚠️ **Demo mode:** this report was produced from IntelPulse's bundled synthetic " +
         "dataset in the browser. No live vendor API was queried.", "");
@@ -714,7 +809,8 @@
     isPublicIp: isPublicIp, isPlausibleDomain: isPlausibleDomain,
     scoreIndicator: scoreIndicator, verdictFor: verdictFor, deriveAttackIds: deriveAttackIds,
     containmentActions: containmentActions, executiveSummary: executiveSummary,
-    toMarkdown: toMarkdown, toTicketJson: toTicketJson, buildGraph: buildGraph,
+    toMarkdown: toMarkdown, toTicketJson: toTicketJson, buildGraph: buildGraph, briefing: briefing,
+    bottomLine: bottomLine, firstSteps: firstSteps, howSure: howSure, checklist: checklist,
     demoTriage: demoTriage, scoreBar: scoreBar, SEVERITY_SLA: SEVERITY_SLA, uuid: uuid,
     BANDS: BANDS, snapshotOf: snapshotOf, diffSnapshots: diffSnapshots,
     cleanLabel: cleanLabel, mdText: mdText

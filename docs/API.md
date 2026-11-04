@@ -185,7 +185,7 @@ The core endpoint. Accepts either a raw blob or an explicit indicator list.
   "score": 95,
   "duration_ms": 612,
   "cache_hits": 3,
-  "summary": "3 indicator(s) were triaged across the configured intelligence sources…",
+  "summary": "3 indicators were checked against the configured intelligence sources, and the worst scored 95/100 (CRITICAL)…",
   "indicators": [
     {
       "value": "185.220.101.34", "type": "ip", "score": 95, "verdict": "critical", "confidence": 1.0,
@@ -217,6 +217,22 @@ curl -s -X POST localhost:8000/api/triage/upload -F 'file=@firewall.log' -F 'tit
 ## `POST /api/triage/report?fmt=markdown|json`
 
 Same body as `/api/triage`; returns the finished SOC ticket instead of the raw result.
+
+The ticket opens with its priority (`> **P1: contain within 1 hour** · case CRITICAL, 90/100 · 4 of
+6 indicators actionable`), then the case's fields, then an executive summary in four parts:
+
+- **Bottom line:** what to do, by the level the ticket is filed at (`Contain now. This is a P1:
+  contain within 1 hour.`);
+- **What we found:** the case summary;
+- **What to do now:** up to three first steps, what a pushed alert asks for first, then the first
+  step for each actionable indicator, worst first, each naming its indicator;
+- **How sure:** how many source lookups answered, and how many sources flagged the worst finding
+  (`Provisional` when fewer than half answered).
+
+The containment checklist repeats a step that is done to each indicator (block this address, then
+that one) and says a case-wide step (a hunt, the incident bridge) once. With `fmt=json` the same
+briefing is in `briefing`: `bottom_line`, `first_steps` and `how_sure`. The browser engine writes
+the demo's ticket in the same words; `backend/tests/fixtures/briefing.json` pins both.
 
 ```bash
 curl -s -X POST 'localhost:8000/api/triage/report?fmt=markdown' \

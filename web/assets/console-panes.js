@@ -237,15 +237,21 @@
         '<section class="card panel wb-graph-card"><div class="panel-head"><h4>How they relate</h4>' +
             '<span class="label-xs">hover or tab to a node · select an indicator to open its evidence</span></div>' +
             '<div id="wb-graph" class="wb-graph"></div></section>' +
-          '<section class="card panel"><div class="panel-head"><h4>SOC ticket</h4></div>' +
+          '<section class="card panel wb-report-card"><div class="panel-head"><h4>Report</h4>' +
+              '<div class="seg" role="group" aria-label="Show the report as">' +
+                '<button type="button" data-rview="page" aria-pressed="true">Page</button>' +
+                '<button type="button" data-rview="markdown" aria-pressed="false">Markdown</button></div></div>' +
             '<div class="wb-row wb-actions">' +
-              '<button type="button" class="btn btn-dark btn-sm" data-act="copy-report">Copy Markdown</button>' +
+              '<button type="button" class="btn btn-dark btn-sm" data-act="pdf">Download PDF</button>' +
+              '<button type="button" class="btn btn-light btn-sm" data-act="copy-report">Copy Markdown</button>' +
               '<button type="button" class="btn btn-light btn-sm" data-act="download-md">Download .md</button>' +
               '<button type="button" class="btn btn-light btn-sm" data-act="download-json">Download .json</button>' +
               '<button type="button" class="btn btn-flame btn-sm" id="wb-raise" data-act="raise" hidden></button>' +
             "</div>" +
             '<p class="wb-hint" id="wb-ticket-note" role="status" aria-live="polite"></p>' +
-            '<pre class="wb-report" id="wb-report" tabindex="0" aria-label="Ticket preview"></pre></section>' +
+            /* The page is the report a reader gets, and what Download PDF prints. */
+            '<div class="wb-paper" id="wb-paper"></div>' +
+            '<pre class="wb-report" id="wb-report" tabindex="0" aria-label="Ticket preview" hidden></pre></section>' +
       "</div>" +
 
       '<section class="card panel"><div class="panel-head"><h4>Case history</h4>' +
@@ -694,6 +700,21 @@
       const report = q("#wb-report");
       report.textContent = markdown;       /* textContent: the ticket is data, never markup */
       report.dataset.markdown = markdown;
+      if (window.IntelPulseReport) {
+        q("#wb-paper").innerHTML = window.IntelPulseReport.html(result, { demo: (result.mode || wb.mode) === "demo" });
+      }
+    }
+
+    function showReportAs(view) {
+      q("#wb-paper").hidden = view !== "page";
+      q("#wb-report").hidden = view !== "markdown";
+      root.querySelectorAll("[data-rview]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.rview === view)));
+    }
+
+    function downloadPdf() {
+      if (!wb.result || !window.IntelPulseReport) return;
+      window.IntelPulseReport.print(wb.result, { demo: (wb.result.mode || wb.mode) === "demo" });
+      toast("Choose Save as PDF in the print dialog");
     }
 
     /* ─── the result's own graph ─── */
@@ -1219,9 +1240,12 @@
         showScoringMath(wb.result.indicators.find((i) => i.value === math.dataset.math), math);
         return;
       }
+      const rview = t.closest("[data-rview]");
+      if (rview) { showReportAs(rview.dataset.rview); return; }
       const act = t.closest("[data-act]");
       if (!act) return;
       switch (act.dataset.act) {
+        case "pdf": downloadPdf(); break;
         case "run": runTriage(); break;
         case "preview": preview(); break;
         case "clear": clearWorkspace(); break;
