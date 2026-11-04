@@ -282,6 +282,43 @@
       } finally { inflight.delete(controller); }
     }
 
+    /* Depth that answers the pointer: the fact tiles lean a few degrees toward it and the graph's
+       stage is lit where it rests. A fine pointer only, and never under reduced motion. */
+    if (matchMedia("(hover: hover) and (pointer: fine)").matches && !C.reduceMotion()) {
+      let frame = 0, pending = null;
+      root.addEventListener("pointermove", (event) => {
+        pending = event;
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          const e = pending, t = e.target;
+          const tile = t.closest && t.closest(".wb-tiles > .wb-tile");
+          if (tile) {
+            const r = tile.getBoundingClientRect();
+            const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+            tile.style.setProperty("--ry", (x * 7).toFixed(2) + "deg");
+            tile.style.setProperty("--rx", (-y * 7).toFixed(2) + "deg");
+            tile.style.setProperty("--gx", ((x + 0.5) * 100).toFixed(1) + "%");
+            tile.style.setProperty("--gy", ((y + 0.5) * 100).toFixed(1) + "%");
+          }
+          const stage = t.closest && t.closest("#wb-graph .wb-gstage");
+          if (stage) {
+            const r = stage.getBoundingClientRect(), spot = stage.querySelector(".wb-gspot");
+            if (spot) spot.style.transform = "translate3d(" + (e.clientX - r.left - 180).toFixed(0) + "px," +
+              (e.clientY - r.top - 180).toFixed(0) + "px,0)";
+            stage.classList.add("spot");
+          }
+        });
+      });
+      root.addEventListener("pointerout", (event) => {
+        const t = event.target, to = event.relatedTarget;
+        const tile = t.closest && t.closest(".wb-tiles > .wb-tile");
+        if (tile && !(to && tile.contains(to))) { tile.style.removeProperty("--rx"); tile.style.removeProperty("--ry"); }
+        const stage = t.closest && t.closest("#wb-graph .wb-gstage");
+        if (stage && !(to && stage.contains(to))) stage.classList.remove("spot");
+      });
+    }
+
     function setError(message) {
       const box = q("#wb-error"), input = q("#wb-input");
       if (message) {
@@ -897,9 +934,12 @@
     function nodeMarkup(n, delay) {
       const rel = n.links.map((e) => e.label + " " + (e.source === n ? e.target : e.source).data.label);
       const title = "<title>" + esc(n.data.label + (rel.length ? ": " + rel.join("; ") : "")) + "</title>";
+      /* The shadow stays on the stage, outside the body that lifts. */
+      const shadow = n.root ? '<ellipse class="wb-shadow" cy="' + (RING + 6) + '" rx="17" ry="4.5"/>'
+        : '<ellipse class="wb-shadow" cy="15" rx="' + (n.w * 0.42).toFixed(1) + '" ry="3.2"/>';
       const open = '<g class="wb-node ' + (n.root ? "root ioc sev-" + n.verdict : "ent k-" + n.kind) +
         '" data-node="' + esc(n.id) + '" transform="translate(' + n.x.toFixed(1) + "," + n.y.toFixed(1) + ')">' + title +
-        '<g class="wb-node-body" style="--d:' + delay + 'ms">';
+        shadow + '<g class="wb-node-body" style="--d:' + delay + 'ms">';
       if (n.root) {
         const score = Math.max(0, Math.min(100, Number(n.data.score) || 0));
         return open +
@@ -911,8 +951,12 @@
             '<circle class="wb-ring-track" r="' + RING + '"/>' +
             /* a zero-length arc with a round cap still paints a dot, so a 0 draws no arc */
             (score > 0 ? '<circle class="wb-ring" r="' + RING + '" transform="rotate(-90)" stroke-dasharray="' +
+              (RING_C * score / 100).toFixed(1) + " " + RING_C.toFixed(1) + '"/>' +
+              /* the ring as a tube: a sheen along its lit half */
+              '<circle class="wb-ring-sheen" r="' + RING + '" transform="rotate(-90)" stroke-dasharray="' +
               (RING_C * score / 100).toFixed(1) + " " + RING_C.toFixed(1) + '"/>' : "") +
             '<circle class="wb-core" r="15.5"/>' +
+            '<ellipse class="wb-spec" cx="-4.5" cy="-8" rx="6.5" ry="3.2"/>' +
             '<text class="wb-score" y="4.5" text-anchor="middle">' + esc(score) + "</text>" +
           "</g>" +
           '<text class="wb-label mono" y="' + (RING + 17) + '" text-anchor="middle">' + esc(n.label) + "</text>" +
@@ -922,6 +966,7 @@
       const left = -n.w / 2;
       return open +
         '<rect class="wb-pill" x="' + left.toFixed(1) + '" y="-13" width="' + n.w.toFixed(1) + '" height="26" rx="13"/>' +
+        '<rect class="wb-pill-hi" x="' + (left + 6).toFixed(1) + '" y="-12" width="' + Math.max(0, n.w - 12).toFixed(1) + '" height="1"/>' +
         '<circle class="wb-kdot" cx="' + (left + 14).toFixed(1) + '" r="9"/>' +
         '<use class="wb-gicon" href="#' + (own(KIND_ICON, n.data.kind) || "i-dots") + '" x="' + (left + 8.5).toFixed(1) +
           '" y="-5.5" width="11" height="11"/>' +
@@ -958,11 +1003,20 @@
             edges.filter((e) => !e.weak).length + " of them confident") +
         "</div>" +
         '<div class="wb-gstage' + (animate ? " enter" : "") + '">' +
+          '<div class="wb-gspot" aria-hidden="true"></div>' +
           '<svg class="wb-svg" viewBox="0 0 ' + width + " " + height + '" width="' + width + '" height="' + height +
             '" role="group" aria-label="How the indicators in this case relate to each other">' +
             '<defs><pattern id="wb-dots" width="18" height="18" patternUnits="userSpaceOnUse">' +
               '<circle class="wb-dot" cx="1.5" cy="1.5" r="1"/></pattern>' +
-              '<filter id="wb-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter></defs>' +
+              '<filter id="wb-blur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>' +
+              /* the materials: a lit core, a sheen for the rings, a pill's face, a contact shadow */
+              '<radialGradient id="wb-core-g" cx="36%" cy="30%" r="78%"><stop class="wb-c0" offset="0"/>' +
+                '<stop class="wb-c1" offset=".42"/><stop class="wb-c2" offset="1"/></radialGradient>' +
+              '<linearGradient id="wb-sheen-g" x1="1" y1="0" x2="0" y2="0"><stop class="wb-h0" offset="0"/>' +
+                '<stop class="wb-h1" offset=".55"/></linearGradient>' +
+              '<linearGradient id="wb-pill-g" x1="0" y1="0" x2="0" y2="1"><stop class="wb-p0" offset="0"/>' +
+                '<stop class="wb-p1" offset="1"/></linearGradient>' +
+              '<radialGradient id="wb-shade-g"><stop class="wb-g0" offset="0"/><stop class="wb-g1" offset="1"/></radialGradient></defs>' +
             '<rect class="wb-field" width="' + width + '" height="' + height + '" fill="url(#wb-dots)"/>' +
             '<g class="wb-edges">' + edges.map((e) =>
               '<path class="wb-edge' + (e.weak ? " weak" : "") + '" data-edge="' + e.i + '" d="' + edgePath(e) +
@@ -1470,6 +1524,15 @@
         g.appendChild(el("stop", { offset: "100%", "stop-color": kindColor(kind), "stop-opacity": ".55" }));
         d.appendChild(g);
       }
+      /* a sphere's far side, and the shadow it casts on the stage */
+      const dark = el("radialGradient", { id: "cg-dark", cx: "34%", cy: "28%", r: "82%" });
+      dark.appendChild(el("stop", { offset: ".55", class: "cg-d0" }));
+      dark.appendChild(el("stop", { offset: "1", class: "cg-d1" }));
+      d.appendChild(dark);
+      const shade = el("radialGradient", { id: "cg-shade" });
+      shade.appendChild(el("stop", { offset: "0", class: "cg-s0" }));
+      shade.appendChild(el("stop", { offset: "1", class: "cg-s1" }));
+      d.appendChild(shade);
       const soft = el("filter", { id: "cg-soft", x: "-60%", y: "-60%", width: "220%", height: "220%" });
       soft.appendChild(el("feGaussianBlur", { stdDeviation: "12" }));
       d.appendChild(soft);
@@ -1599,6 +1662,10 @@
         const group = el("g", { class: "cg-node" + (node.child ? " child" : "") });
         group.dataset.id = node.id;
         if (!node.child) {
+          group.appendChild(el("ellipse", { cx: node.x, cy: node.y + node.r * 0.95, rx: node.r * 0.92,
+            ry: Math.max(2.5, node.r * 0.26), class: "cg-shadow" }));
+        }
+        if (!node.child) {
           group.setAttribute("tabindex", "0");
           group.setAttribute("role", "button");
           group.setAttribute("aria-label", node.label + ", " + KIND_LABEL[node.kind].toLowerCase() +
@@ -1609,9 +1676,28 @@
         /* A member is 2 to 4px across: an invisible disc around it is what the
            pointer actually has to find. */
         group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r + (node.child ? 7 : 6), class: "cg-hit", fill: "transparent" }));
-        group.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r, class: "cg-dot", fill: "url(#cg-g-" + node.kind + ")",
+        const dot = el("circle", { cx: node.x, cy: node.y, r: node.r, class: "cg-dot", fill: "url(#cg-g-" + node.kind + ")",
           stroke: kindColor(node.kind), "stroke-opacity": node.child ? ".4" : ".7", "stroke-width": node.child ? ".4" : ".8",
-          "vector-effect": "non-scaling-stroke" }));
+          "vector-effect": "non-scaling-stroke" });
+        if (node.child) group.appendChild(dot);
+        else {
+          /* the sphere and its light move as one when it lifts */
+          const ball = el("g", { class: "cg-ball" });
+          ball.appendChild(dot);
+          ball.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r, class: "cg-terminator" }));
+          ball.appendChild(el("ellipse", { cx: node.x - node.r * 0.32, cy: node.y - node.r * 0.4, rx: node.r * 0.34,
+            ry: node.r * 0.19, class: "cg-spec", transform: "rotate(-28 " + (node.x - node.r * 0.32).toFixed(1) + " " +
+              (node.y - node.r * 0.4).toFixed(1) + ")" }));
+          group.appendChild(ball);
+        }
+        if (node.id === "hub") {
+          /* the campaign, orbited: a slow turn that says this is the centre of the picture */
+          const orbit = el("g", { class: "cg-orbit", style: "transform-origin:" + node.x + "px " + node.y + "px" });
+          orbit.appendChild(el("circle", { cx: node.x, cy: node.y, r: node.r + 14, fill: "none", stroke: kindColor("hub"),
+            "stroke-opacity": ".45", "stroke-width": "1", "stroke-dasharray": "2 7", "vector-effect": "non-scaling-stroke" }));
+          orbit.appendChild(el("circle", { cx: node.x + node.r + 14, cy: node.y, r: 2.6, fill: kindColor("hub") }));
+          group.appendChild(orbit);
+        }
         if (!node.child) {
           /* Labels radiate outward on the side the node sits on, like spokes. */
           const out = node.id === "hub" ? 1 : (node.x >= W / 2 ? 1 : -1);

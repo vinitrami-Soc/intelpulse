@@ -46,6 +46,16 @@ JSON report are the public interface.
   notes give the score bands. The server and the demo write it word for word, pinned by
   `backend/tests/fixtures/briefing.json`; the JSON ticket carries it as `briefing`.
 
+- **Depth in the console's three busiest views**, from one light at the top left. The open
+  indicator's fact tiles are a lit material that leans a few degrees toward a fine pointer and lifts
+  off the panel; the evidence bars sit in a groove with a sheen on their fill; pills and evidence
+  cards carry a bevel. In "How they relate" each indicator's core is a lit sphere with a glint, its
+  ring a tube with a sheen, each node casts a shadow on the stage that tightens as the node lifts,
+  and a soft light follows the pointer. In the campaign graph every cluster is a sphere with a glint
+  and a far side, casting its own shadow, and the campaign at the centre is slowly orbited. No
+  library; only transform and opacity move; reduced motion stills all of it, forced colours drop
+  the lighting, which carries no meaning.
+
 ### Fixed
 
 - `SECURITY.md` listed 1.0.x as the supported version after 2.0 was released.
