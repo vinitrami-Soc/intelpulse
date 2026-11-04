@@ -741,9 +741,10 @@
     window.scrollTo({ top: 0 });
   }
 
-  /* #/product, #/privacy and #/help are documents of their own (product.html ...), so a search
-     engine and a reader without script both get them; the routes forward there. */
-  const DOC_PAGES = { product: "product.html", privacy: "privacy.html", help: "help.html" };
+  /* #/product, #/privacy, #/help, #/about and #/terms are documents of their own (product.html ...),
+     so a search engine and a reader without script both get them; the routes forward there. */
+  const DOC_PAGES = { product: "product.html", privacy: "privacy.html", help: "help.html", about: "about.html",
+    terms: "terms.html" };
 
   function route() {
     const parts = hashParts();

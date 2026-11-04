@@ -171,7 +171,8 @@ test("suite.css carries the severity and ramp values exactly as validated", () =
 /* workbench.html and explorer.html are redirects into the console now. They
    stay in the list: a page is still a page, and the stubs are held to the same
    rules as the one they point at. */
-const PAGES = ["index.html", "workbench.html", "explorer.html", "product.html", "privacy.html", "help.html"]
+const PAGES = ["index.html", "workbench.html", "explorer.html", "product.html", "privacy.html", "help.html",
+  "about.html", "terms.html"]
   .map((name) => [name, readFileSync(join(here, "..", name), "utf8")]);
 const SHEETS = [["suite.css", SUITE_CSS]];
 

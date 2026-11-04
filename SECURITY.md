@@ -8,7 +8,8 @@ input matter. Thank you for reporting them responsibly.
 
 | Version | Supported |
 |---|---|
-| 1.0.x | Yes |
+| 2.0.x | Yes |
+| 1.0.x | No: upgrade to 2.0 (the migrations keep every row) |
 
 ## Reporting a vulnerability
 
