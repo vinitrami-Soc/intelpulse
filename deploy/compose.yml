@@ -82,7 +82,7 @@ services:
       app: {condition: service_healthy}
 
   tunnel:
-    image: cloudflare/cloudflared:2025.11.1
+    image: cloudflare/cloudflared:2026.10.6   # Dependabot moves it: Cloudflare supports a year of releases
     command: ["tunnel", "--no-autoupdate", "run"]
     # TUNNEL_TOKEN, in its own file: the app, worker and beat read .env, and have no use for it
     env_file:

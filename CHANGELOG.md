@@ -29,6 +29,18 @@ JSON report are the public interface.
   works in the demo and on a server, with no library and nothing sent anywhere. The Markdown ticket
   is one click away.
 
+- **Deploys from GitHub.** The Deploy workflow runs `deploy/update.sh` on the server over SSH:
+  every published release deploys its tag, and Run workflow deploys any branch, tag or commit (an
+  older tag rolls back). The server's `authorized_keys` line lets its key run `update.sh` and
+  nothing else, and the workflow then asks `/healthz` through Cloudflare. Until `DEPLOY_HOST` is
+  set, it does nothing.
+
+- **Oracle Cloud in the deploy guide.** `docs/DEPLOY.md` is a runbook from a new Oracle Cloud Always
+  Free Ampere machine (the shape, the image, the security list, its own firewall, idle reclamation)
+  through the tunnel, mail, the first start, deploys from GitHub and backups, and it gathers the
+  Cloudflare settings that change pages (Rocket Loader, Email Address Obfuscation, Web Analytics,
+  Bot Fight Mode) and the ones for search engines and AI crawlers.
+
 ### Changed
 
 - **The workbench matches the rest of the console.** Its indicator list reads as the overview's
@@ -55,6 +67,20 @@ JSON report are the public interface.
   and a far side, casting its own shadow, and the campaign at the centre is slowly orbited. No
   library; only transform and opacity move; reduced motion stills all of it, forced colours drop
   the lighting, which carries no meaning.
+
+- **`deploy/update.sh` takes a version and checks its work.** A branch moves to its newest commit
+  on GitHub, a tag or a commit is taken as it is, and anything that is not a ref name is refused
+  before git sees it. It pulls the database's, Redis's and the tunnel's images and rebuilds on a
+  fresh base image, so their security fixes arrive with each update, and it ends by verifying the
+  audit log. On a checkout that sits on a release it asks for the next version instead of failing
+  in git.
+
+- `cloudflared` is 2026.10.6 (from 2025.11.1, near the end of the year Cloudflare supports), and
+  Dependabot now watches the kit's images (the tunnel, and Postgres and Redis within their major
+  versions).
+
+- CI runs the deploy kit on ARM64 as well as x86, as on Oracle Cloud's Ampere machines, and runs
+  `update.sh` in place after the backup and restore.
 
 ### Fixed
 

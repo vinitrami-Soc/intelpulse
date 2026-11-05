@@ -8,3 +8,14 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # deploy/compose.yml: the tunnel's image above all, since Cloudflare supports a year of cloudflared
+  # releases. Postgres stays on 16 and Redis on 7: a new major is a dump and restore, not a bump.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: redis
+        update-types: ["version-update:semver-major"]

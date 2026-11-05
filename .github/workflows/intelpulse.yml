@@ -171,14 +171,24 @@ jobs:
 
 
   deploy:
-    name: deploy kit · Docker, Postgres, smoke test, backup and restore
+    name: ${{ matrix.name }}
     # deploy/ as an operator runs it on a clean machine: setup.sh builds the image and starts
     # Postgres, Redis, the app, the worker and beat; smoke.py waits for the worker's heartbeat,
     # makes the owner, signs a new account up, triages a sample and checks the verdict; then a
-    # dump goes out with backup.sh and back with restore.sh. The tunnel stays off: it needs a
-    # Cloudflare account, and the smoke test runs the same against its address.
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # dump goes out with backup.sh and back with restore.sh, and update.sh moves the server to
+    # this commit in place, as the Deploy workflow does. The tunnel stays off: it needs a
+    # Cloudflare account, and the smoke test runs the same against its address. Twice: on x86,
+    # and on ARM64, which is what Oracle Cloud's Always Free Ampere machines are.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            name: deploy kit · Docker, Postgres, smoke test, backup and restore
+          - runner: ubuntu-24.04-arm
+            name: deploy kit · ARM64, as on Oracle Cloud's Ampere machines
     steps:
       - uses: actions/checkout@v7
       - name: Set up and start the server
@@ -203,6 +213,14 @@ jobs:
           users="$(docker compose -f deploy/compose.yml exec -T db psql -U intelpulse -tAc 'select count(*) from users')"
           echo "accounts after the restore: $users"
           test "$users" = "2"
+          curl -fsS http://127.0.0.1:8000/healthz
+      - name: Update in place
+        run: |
+          # what the Deploy workflow sends over SSH: a ref, here this run's own commit
+          ./deploy/update.sh "$(git rev-parse HEAD)"
+          # and what it refuses: anything that is not a branch, tag or commit
+          if ./deploy/update.sh "--upload-pack=touch /tmp/owned"; then exit 1; fi
+          test ! -e /tmp/owned
           curl -fsS http://127.0.0.1:8000/healthz
       - name: The containers' logs
         if: failure()
