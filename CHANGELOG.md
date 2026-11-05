@@ -7,6 +7,15 @@ JSON report are the public interface.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-05
+
+The release to launch a server with. The report briefs first and prints as a designed PDF, the
+workbench reads like the rest of the console with depth in its busiest views, the site gains About
+and Terms, and the deploy kit runs on an Oracle Cloud Always Free Ampere machine behind a Cloudflare
+Tunnel, deployed from GitHub on every release. Updating from 2.0: `deploy/update.sh v2.1.0` (no
+migration, nothing to set); to deploy from GitHub after this, see
+[step 6 of DEPLOY.md](docs/DEPLOY.md#6-deploys-from-github).
+
 ### Added
 
 - **About and Terms pages**, beside Product, Privacy and Help: `about.html` (why IntelPulse exists,
@@ -407,7 +416,8 @@ author's portfolio repository, and its full history moved here with it.
   workbench, the site and console, phones and tablets, and hostile input.
   `pip-audit` runs weekly.
 
-[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/vinitrami-Soc/intelpulse/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v2.1.0
 [2.0.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v2.0.0
 [1.0.1]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.1
 [1.0.0]: https://github.com/vinitrami-Soc/intelpulse/releases/tag/v1.0.0

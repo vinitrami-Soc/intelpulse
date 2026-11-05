@@ -8,8 +8,9 @@ input matter. Thank you for reporting them responsibly.
 
 | Version | Supported |
 |---|---|
-| 2.0.x | Yes |
-| 1.0.x | No: upgrade to 2.0 (the migrations keep every row) |
+| 2.1.x | Yes |
+| 2.0.x | No: update to 2.1 (`deploy/update.sh v2.1.0`; nothing to migrate) |
+| 1.0.x | No: upgrade to 2.1 (the migrations keep every row) |
 
 ## Reporting a vulnerability
 
