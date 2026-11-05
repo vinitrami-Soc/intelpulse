@@ -1,0 +1,63 @@
+name: Deploy
+
+# Brings the production server to a version of IntelPulse over SSH (docs/DEPLOY.md, step 6): every
+# published release deploys its tag, and "Run workflow" deploys any branch, tag or commit. The server
+# runs deploy/update.sh, which backs up first. Until the repository variable DEPLOY_HOST is set,
+# nothing runs.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to deploy
+        default: main
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+    steps:
+      - name: Deploy over SSH
+        env:
+          REF: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.ref }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          case "$REF" in
+            "" | -* | *[!A-Za-z0-9._/-]*) echo "not a branch, tag or commit: $REF"; exit 2 ;;
+          esac
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # the server's authorized_keys line runs deploy/update.sh with what is sent here, and nothing else
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" "$REF"
+      - name: Check the public address
+        if: vars.DEPLOY_URL != ''
+        env:
+          DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+        run: |
+          # the server said it is up; this asks the same through Cloudflare, as a visitor would
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null "$DEPLOY_URL/healthz"; then curl -sS "$DEPLOY_URL/healthz"; echo; exit 0; fi
+            sleep 5
+          done
+          echo "$DEPLOY_URL/healthz did not answer 200"
+          curl -sS "$DEPLOY_URL/healthz" || true
+          exit 1

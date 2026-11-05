@@ -111,7 +111,7 @@
 | --- | --- | --- | --- |
 | **What** | The demo, in your browser, on synthetic data | Everything, with Docker | Postgres, Redis and a Cloudflare Tunnel, no open port |
 | **How** | [Open the workbench](https://vinitrami-soc.github.io/intelpulse/web/#/console/workbench) and pick a sample alert | `make keys && docker compose up --build` | `./deploy/setup.sh` ([DEPLOY.md](docs/DEPLOY.md)) |
-| **Needs** | Nothing | Docker | A Linux machine with Docker, and a domain on Cloudflare |
+| **Needs** | Nothing | Docker | A Linux machine with Docker (Oracle Cloud's Always Free Ampere machine is enough), and a domain on Cloudflare |
 
 ### On your machine
 
@@ -137,7 +137,8 @@ git clone https://github.com/vinitrami-Soc/intelpulse && cd intelpulse
 `setup.sh` writes the secrets, builds, starts Postgres, Redis, the app, its worker and beat, and the
 tunnel, and prints the owner's setup code. `backup.sh`, `restore.sh` and `update.sh` do the rest, and
 `deploy/smoke.py` signs an account up, triages a sample and checks the verdict against any address.
-Step by step in [DEPLOY.md](docs/DEPLOY.md); running it afterwards in [SERVER.md](docs/SERVER.md).
+Step by step in [DEPLOY.md](docs/DEPLOY.md), from an Oracle Cloud machine and a Cloudflare Tunnel to
+deploys from GitHub on every release; running it afterwards in [SERVER.md](docs/SERVER.md).
 
 ### Without Docker
 
